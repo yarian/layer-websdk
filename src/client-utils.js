@@ -293,3 +293,14 @@ exports.doesObjectMatch = (requestedData, actualData) => {
   }
   return true;
 };
+
+/**
+ * Simple array inclusion test
+ * @method includes
+ * @param {Mixed[]} items
+ * @param {Mixed} value
+ * @returns {boolean}
+ */
+exports.includes = (items, value) => {
+  return items.indexOf(value) !== -1;
+};

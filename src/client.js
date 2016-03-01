@@ -1027,6 +1027,11 @@ Client.prototype._queriesHash = null;
  */
 Client.prototype.users = null;
 
+Client._ignoredEvents = [
+  'conversations:loaded',
+  'conversations:loaded-error',
+];
+
 Client._supportedEvents = [
 
   /**
@@ -1236,6 +1241,15 @@ Client._supportedEvents = [
    * @param {layer.Message} evt.target
    */
   'messages:sending',
+
+  /**
+   * Server failed to receive a Message.
+   *
+   * @event
+   * @param {layer.LayerEvent} evt
+   * @param {layer.LayerError} evt.error    4
+   */
+  'messages:sent-error',
 
   /**
    * A message has had a change in its properties.

@@ -183,6 +183,16 @@ describe("The Root Class", function() {
       expect(A._supportedEvents).toEqual(layer.Root._supportedEvents);
     })
 
+    it("Should get default _ignoredEvents", function() {
+      function A(){ layer.Root.call(this, arguments[0]); };
+      A.prototype = Object.create(layer.Root.prototype);
+      A.prototype.constructor = A;
+
+      layer.Root.initClass(A, "A");
+
+      expect(A._ignoredEvents).toEqual(layer.Root._ignoredEvents);
+    })
+
     it("Should get default _inObjectIgnore", function() {
       function A(){ layer.Root.call(this, arguments[0]); };
       A.prototype = Object.create(layer.Root.prototype);
@@ -204,6 +214,7 @@ describe("The Root Class", function() {
       A.prototype.id = "";
       A.prototype.x = 5;
       A._supportedEvents = ["doh", "ray", "me", "fah"].concat(layer.Root._supportedEvents);
+      A._ignoredEvents = ["lah"].concat(layer.Root._supportedEvents);
     });
     describe("The constructor() method", function() {
       beforeEach(function() {

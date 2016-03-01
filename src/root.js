@@ -286,6 +286,12 @@ class Root extends EventClass {
     return obj;
   }
 
+  _warnForEvent(eventName) {
+    if (!Utils.includes(this.constructor._supportedEvents, eventName)) {
+      throw new Error('Event ' + eventName + ' not defined for ' + this.toString());
+    }
+  }
+
   _prepareOn(name, handler, context) {
     if (context instanceof Root) {
       if (context.isDestroyed) {
@@ -296,17 +302,15 @@ class Root extends EventClass {
     if (typeof name === 'string' && name !== 'all') {
       if (eventSplitter.test(name)) {
         const names = name.split(eventSplitter);
-        names.forEach(n => {
-          if (this.constructor._supportedEvents.indexOf(n) === -1) throw new Error('Event ' + n + ' not defined for ' + this.toString());
-        });
+        names.forEach(n => this._warnForEvent(n));
       } else {
-        if (this.constructor._supportedEvents.indexOf(name) === -1) throw new Error('Event ' + name + ' not defined for ' + this.toString());
+        this._warnForEvent(name);
       }
     } else if (name && typeof name === 'object') {
       let keyName;
       for (keyName in name) {
         if (name.hasOwnProperty(keyName)) {
-          if (this.constructor._supportedEvents.indexOf(keyName) === -1) throw new Error('Event ' + keyName + ' not defined for ' + this.toString());
+          this._warnForEvent(keyName);
         }
       }
     }
@@ -389,8 +393,10 @@ class Root extends EventClass {
    * @return {Object} Return *this* for chaining
    */
   _trigger() {
-    if (this.constructor._supportedEvents.indexOf(arguments[0]) === -1) {
-      Logger.error(this.toString() + ' ignored ' + arguments[0]);
+    if (!Utils.includes(this.constructor._supportedEvents, arguments[0])) {
+      if (!Utils.includes(this.constructor._ignoredEvents, arguments[0])) {
+        Logger.error(this.toString() + ' ignored ' + arguments[0]);
+      }
       return;
     }
 
@@ -614,8 +620,9 @@ function initClass(newClass, className) {
   // Make sure our new class has a name property
   if (!newClass.name) newClass.name = className;
 
-  // Make sure our new class has a _supportedEvents _inObjectIgnore and EVENTS properties
+  // Make sure our new class has a _supportedEvents, _ignoredEvents, _inObjectIgnore and EVENTS properties
   if (!newClass._supportedEvents) newClass._supportedEvents = Root._supportedEvents;
+  if (!newClass._ignoredEvents) newClass._ignoredEvents = Root._ignoredEvents;
   if (!newClass._inObjectIgnore) newClass._inObjectIgnore = Root._inObjectIgnore;
 
   // Generate a list of properties for this class; we don't include any
@@ -634,5 +641,6 @@ Root.prototype._subscriptions = null;
 Root.prototype._disableEvents = false;
 Root._inObjectIgnore = ['BackboneEvents', 'events', 'isInitializing'];
 Root._supportedEvents = ['destroy', 'all'];
+Root._ignoredEvents = [];
 module.exports = Root;
 module.exports.initClass = initClass;
