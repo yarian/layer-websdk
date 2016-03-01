@@ -54,8 +54,8 @@ class TypingIndicatorListener extends Root {
   _clientReady() {
     const client = this._getClient();
     this.userId = client.userId;
-    this._websocket = client.socketManager;
-    this._websocket.on('message', this._handleSocketEvent, this);
+    const ws = client.socketManager;
+    ws.on('message', this._handleSocketEvent, this);
     this._startPolling();
   }
 
@@ -91,7 +91,7 @@ class TypingIndicatorListener extends Root {
       const state = evt.body.data.action;
       const conversationId = evt.body.object.id;
       let stateEntry = this.state[conversationId];
-      if (!stateEntry ) {
+      if (!stateEntry) {
         stateEntry = this.state[conversationId] = {
           users: {},
           typing: [],
@@ -211,13 +211,6 @@ class TypingIndicatorListener extends Root {
  * @private
  */
 TypingIndicatorListener.prototype._pollId = 0;
-
-/**
- * A websocket connection that will receive remote user typing indicators
- * @property {layer.Websockets.SocketManager}
- * @private
- */
-TypingIndicatorListener.prototype._websocket = null;
 
 /**
  * ID of the client this instance is associated with

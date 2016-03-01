@@ -5,6 +5,10 @@
  *  2. Insure that the server is not flooded with repeated state changes of the same value
  *  3. Automatically transition states when no new states or old states are requested.
  *
+ * Who is the Typing Publisher for?  Its used by the layer.TypingIndicators.TypingListener; if your using
+ * the TypingListener, you don't need this.  If you want to provide your own logic for when to send typing
+ * states, then you need the Typing Publisher.
+ *
  * Create an instance using:
  *
  *        var publisher = client.createTypingPublisher();
@@ -43,22 +47,23 @@
 
 const INTERVAL = 2500;
 const { STARTED, PAUSED, FINISHED } = require('./typing-indicators');
+const ClientRegistry = require('../client-registry');
 
 class TypingPublisher {
 
 
   /**
-   * Note that this class accepts both WebSocket and WebsocketManager.
-   * The manager however is better as every time the websocket connection is lost,
-   * it creates a new one without requiring you to update the TypingPublisher.
+   * The TypingPublisher needs
+   * to know what Conversation its publishing changes for...
+   * but it does not require that parameter during initialization.
    *
    * @method constructor
    * @param {Object} args
-   * @param {layer.Websockets.SocketManager} websocket - The Websocket your app is using to listen/send messages
+   * @param {string} clientId - The ID for the client from which we will get access to the websocket
    * @param {Object} [conversation=null] - The Conversation Object or Instance that messages are being typed to.
    */
   constructor(args) {
-    this.websocket = args.websocket;
+    this.clientId = args.clientId;
     this.conversation = args.conversation;
     this.state = FINISHED;
     this._lastMessageTime = 0;
@@ -170,8 +175,6 @@ class TypingPublisher {
   /**
    * Send a state change to the server.
    *
-   * TODO: Should directly use the WebsocketManager's send.  Current implementation supports standalone/non-websdk usage
-   *
    * @method send
    * @private
    * @param  {string} state - One of
@@ -182,26 +185,32 @@ class TypingPublisher {
   _send(state) {
     if (this.conversation.id.match(/temp_/)) return;
     this._lastMessageTime = Date.now();
-    const ws = this.websocket instanceof WebSocket ? this.websocket : this.websocket._socket;
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
-        'type': 'signal',
-        'body': {
-          'type': 'typing_indicator',
-          'object': {
-            'id': this.conversation.id,
-          },
-          'data': {
-            'action': state,
-          },
-        },
-      }));
-    }
+    const ws = this._getClient().socketManager;
+    ws.sendSignal({
+      'type': 'typing_indicator',
+      'object': {
+        'id': this.conversation.id,
+      },
+      'data': {
+        'action': state,
+      },
+    });
+  }
+
+  /**
+   * Get the Client associated with this layer.Message.
+   *
+   * Uses the clientId property.
+   *
+   * @method getClient
+   * @return {layer.Client}
+   */
+  _getClient() {
+    return ClientRegistry.get(this.clientId);
   }
 
   destroy() {
     delete this.conversation;
-    delete this.websocket;
     clearTimeout(this._scheduleId);
     clearInterval(this._pauseLoopId);
   }

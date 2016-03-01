@@ -1295,9 +1295,9 @@ describe("The Client class", function() {
             expect(client.createTypingListener(input)).toEqual(jasmine.any(layer.TypingIndicators.TypingListener));
         });
 
-        it("Should get a proper websocket property", function() {
+        it("Should get a proper client ID property", function() {
             var input = document.createElement("input");
-            expect(client.createTypingListener(input).websocket).toBe(client.socketManager);
+            expect(client.createTypingListener(input).clientId).toBe(client.appId);
         });
 
         it("Should get a proper input property", function() {
@@ -1311,8 +1311,8 @@ describe("The Client class", function() {
             expect(client.createTypingPublisher()).toEqual(jasmine.any(layer.TypingIndicators.TypingPublisher));
         });
 
-        it("Should get a proper socket", function() {
-            expect(client.createTypingPublisher().websocket).toBe(client.socketManager);
+        it("Should get a proper client ID", function() {
+            expect(client.createTypingPublisher().clientId).toBe(client.appId);
         });
     });
 

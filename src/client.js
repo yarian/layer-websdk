@@ -895,7 +895,7 @@ class Client extends ClientAuth {
   createTypingListener(inputNode) {
     const TypingListener = require('./typing-indicators/typing-listener');
     return new TypingListener({
-      websocket: this.socketManager,
+      clientId: this.appId,
       input: inputNode,
     });
   }
@@ -923,7 +923,7 @@ class Client extends ClientAuth {
   createTypingPublisher() {
     const TypingPublisher = require('./typing-indicators/typing-publisher');
     return new TypingPublisher({
-      websocket: this.socketManager,
+      clientId: this.appId,
     });
   }
 
