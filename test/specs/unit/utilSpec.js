@@ -340,4 +340,14 @@ describe("The Util Library", function() {
             });
         });
     });
+
+    describe("The includes() method", function() {
+      it("Should detect inclusion", function() {
+        expect(layer.Util.includes([1,3,5], 3)).toBe(true);
+      });
+
+      it("Should detect absence", function() {
+        expect(layer.Util.includes([1,3,5], 4)).toBe(false);
+      });
+    });
 });

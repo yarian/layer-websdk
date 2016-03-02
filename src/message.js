@@ -1155,6 +1155,7 @@ Message._supportedEvents = [
    *
    * Note that this is only used in response to the load() method.
    * @event
+   * @param {layer.LayerEvent} evt
    */
   'messages:loaded',
 
@@ -1162,6 +1163,7 @@ Message._supportedEvents = [
    * The load method failed to load the message from the server.
    *
    * @event
+   * @param {layer.LayerEvent} evt
    */
   'messages:loaded-error',
 
@@ -1169,6 +1171,7 @@ Message._supportedEvents = [
    * Message deleted from the server.
    *
    * Caused by a call to delete() or a websocket event.
+   * @param {layer.LayerEvent} evt
    * @event
    */
   'messages:delete',
@@ -1178,6 +1181,7 @@ Message._supportedEvents = [
    *
    * Last chance to modify the message prior to sending.
    * @event
+   * @param {layer.LayerEvent} evt
    */
   'messages:sending',
 
@@ -1189,7 +1193,7 @@ Message._supportedEvents = [
    * It does NOT indicate messages sent by other users.
    *
    * @event
-   * @param {layer.Message} message
+   * @param {layer.LayerEvent} evt
    */
   'messages:sent',
 
@@ -1197,7 +1201,8 @@ Message._supportedEvents = [
    * Server failed to receive the Message.
    *
    * @event
-   * @param {layer.LayerError} error
+   * @param {layer.LayerEvent} evt
+   * @param {layer.LayerError} evt.error
    */
   'messages:sent-error',
 
@@ -1209,7 +1214,8 @@ Message._supportedEvents = [
    * Useful if you style unread messages in bold, and need an event to tell you when
    * to unbold the message.
    * @event
-   * @param {layer.Message[]} messages - Array of messages that have just been marked as read
+   * @param {layer.LayerEvent} evt
+   * @param {layer.Message[]} evt.messages - Array of messages that have just been marked as read
    */
   'messages:read',
 
@@ -1220,6 +1226,7 @@ Message._supportedEvents = [
    * from the server... but may be caused marking the current user has having read
    * or received the message.
    * @event
+   * @param {layer.LayerEvent} evt
    */
   'messages:change',
 
