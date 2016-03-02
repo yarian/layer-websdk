@@ -6,14 +6,7 @@ const {STARTED, PAUSED, FINISHED} = require('./typing-indicators');
  * your text field, and uses the layer.TypingPublisher to
  * send state based on keyboard behavior.
  *
- *      // Shorthand:
  *      var typingListener = client.createTypingListener(document.getElementById('mytextarea'));
- *
- *      // Full form
- *      var typingListener = new layer.TypingIndicators.TypingListener({
- *          websocket: client.socketManager,
- *          input: document.getElementById('mytextarea')
- *      });
  *
  *  In Either form, you change what Conversation
  *  the typing indicator reports your user to be typing
@@ -30,22 +23,21 @@ const {STARTED, PAUSED, FINISHED} = require('./typing-indicators');
 class TypingListener {
 
   /**
-   * Note that this class accepts both WebSocket and layer.Websockets.SocketManager.
-   * The manager however is better as every time the websocket connection is lost,
-   * it creates a new one without requiring you to update the TypingListener and TypingPublisher.
+   * Create a TypingListener that listens for the user's typing.  The TypingListener needs
+   * to know what Conversation the user is typing into... but it does not require that parameter during initialization.
    *
    * @method constructor
    * @param  {Object} args
    * @param {HTMLElement} input - A Text editor dom node that will have typing indicators
-   * @param {Object} conversation - The Conversation Object or Instance that the input will send messages to
-   * @param {layer.Websockets.SocketManager} websocket - The connection to use for sending typing indicators
+   * @param {Object} [conversation=null] - The Conversation Object or Instance that the input will send messages to
+   * @param {string} clientId - The ID of the client; used so that the TypingPublisher can access its websocket manager
    */
   constructor(args) {
     this.input = args.input;
-    this.websocket = args.websocket;
+    this.clientId = args.clientId;
     this.conversation = args.conversation;
     this.publisher = new TypingPublisher({
-      websocket: this.websocket,
+      clientId: this.clientId,
       conversation: this.conversation,
     });
 

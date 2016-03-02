@@ -79,16 +79,10 @@ describe("The Typing Indicator Classes", function() {
                 expect(listener.userId).toEqual("Frodo");
             });
 
-            it("Should set the websocket", function() {
-                expect(listener._websocket).toBe(null);
-                listener._clientReady(client);
-                expect(listener._websocket).toBe(client.socketManager);
-            });
-
             it("Should subscribe to the websocket", function() {
                 spyOn(listener, "_handleSocketEvent");
                 listener._clientReady(client);
-                listener._websocket.trigger("message", {data: {"hey": "ho"}});
+                client.socketManager.trigger("message", {data: {"hey": "ho"}});
                 expect(listener._handleSocketEvent).toHaveBeenCalledWith(jasmine.any(layer.LayerEvent));
                 expect(listener._handleSocketEvent).toHaveBeenCalledWith(jasmine.objectContaining({
                   data: {
@@ -356,8 +350,8 @@ describe("The Typing Indicator Classes", function() {
                 expect(listener.input).toBe(input);
             });
 
-            it("Should have an websocketManager", function() {
-                expect(listener.websocket).toBe(client.socketManager);
+            it("Should have a clientId", function() {
+                expect(listener.clientId).toBe(client.appId);
             });
 
             it("Should have a TypingPublisher", function() {
@@ -505,8 +499,8 @@ describe("The Typing Indicator Classes", function() {
         });
 
         describe("The constructor() method", function() {
-            it("Should have a websocket", function() {
-                expect(publisher.websocket).toBe(client.socketManager);
+            it("Should have a clientId", function() {
+                expect(publisher.clientId).toBe(client.appId);
             });
 
             it("Should start as FINISHED", function() {
@@ -739,7 +733,7 @@ describe("The Typing Indicator Classes", function() {
 
         describe("The _send() method", function() {
             beforeEach(function() {
-                publisher.websocket._socket = {
+                client.socketManager._socket = {
                     send: jasmine.createSpy('send'),
                     removeEventListener: function() {},
                     close: function() {},
@@ -749,7 +743,7 @@ describe("The Typing Indicator Classes", function() {
 
             it("Should send a message if there is a valid conversation, and open websocket", function() {
                 publisher._send(layer.TypingIndicators.STARTED);
-                expect(publisher.websocket._socket.send).toHaveBeenCalledWith(JSON.stringify({
+                expect(client.socketManager._socket.send).toHaveBeenCalledWith(JSON.stringify({
                     'type': 'signal',
                     'body': {
                       'type': 'typing_indicator',
@@ -766,13 +760,7 @@ describe("The Typing Indicator Classes", function() {
             it("Should do nothing for a temp id", function() {
                 publisher.conversation = client.createConversation(["abc"]);
                 publisher._send(layer.TypingIndicators.STARTED);
-                expect(publisher.websocket._socket.send).not.toHaveBeenCalled();
-            });
-
-            it("Should do nothing if websocket is not ready", function() {
-                publisher.websocket._socket.readyState = typeof WebSocket != "undefined" ? WebSocket.CONNECTING : 0;
-                publisher._send(layer.TypingIndicators.STARTED);
-                expect(publisher.websocket._socket.send).not.toHaveBeenCalled();
+                expect(client.socketManager._socket.send).not.toHaveBeenCalled();
             });
         });
 

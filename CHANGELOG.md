@@ -11,6 +11,10 @@
   * There is now a `size` property reporting on the total number of results of the query have been loaded from the server.
   * Previously you subscribe to `change` event and check the `evt.type` for values of `data`, `insert`, `remove`, `reset` and `property`.
     This still works, but now you can *also* choose to subscribe to `change:data`, `change:insert`, `change:remove`, `change:reset` and `change:property`.
+* layer.TypingIndicators.TypingListener
+  * Change to constructor parameters.  If using `client.createTypingListener` then it does not affect you
+* layer.TypingIndicators.TypingPublisher
+  * Change to constructor parameters.  If using `client.createTypingPublisher` then it does not affect you
 
 ## 0.9.0 Public Beta Launch
 
