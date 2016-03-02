@@ -12,6 +12,10 @@
   * Previously you subscribe to `change` event and check the `evt.type` for values of `data`, `insert`, `remove`, `reset` and `property`.
     This still works, but now you can *also* choose to subscribe to `change:data`, `change:insert`, `change:remove`, `change:reset` and `change:property`.
 
+#### Fixes
+
+* Fixes issues with websocket reconnect logic
+
 ## 0.9.0 Public Beta Launch
 
 #### Public API Changes

@@ -373,7 +373,17 @@ describe("The Websocket Socket Manager Class", function() {
 
             // Posttest
             expect(websocketManager._scheduleReconnect).toHaveBeenCalledWith();
+        });
 
+        it("Should call _removeSocketEvents if not isOpen", function() {
+            websocketManager.isOpen = false;
+            spyOn(websocketManager, "_removeSocketEvents");
+
+            // Run
+            websocketManager._onError();
+
+            // Posttest
+            expect(websocketManager._removeSocketEvents).toHaveBeenCalledWith();
         });
 
         it("Should call _onSocketClose if isOpen", function() {
@@ -385,7 +395,6 @@ describe("The Websocket Socket Manager Class", function() {
 
             // Posttest
             expect(websocketManager._onSocketClose).toHaveBeenCalledWith();
-
         });
 
         it("Should call socket.close if isOpen", function() {
@@ -868,15 +877,18 @@ describe("The Websocket Socket Manager Class", function() {
         websocketManager._lostConnectionCount = 10;
         spyOn(websocketManager, "connect");
         expect(websocketManager._reconnectId).toEqual(0);
+        var expectedDelaySecs = (client.onlineManager.pingFrequency - 1000) / 1000;
 
         // Run
         websocketManager._scheduleReconnect();
         expect(websocketManager._reconnectId).not.toEqual(0);
         expect(websocketManager.connect).not.toHaveBeenCalled();
 
-        jasmine.clock().tick(layer.Util.getExponentialBackoffSeconds(10000, 10) - 1001);
+        // Midtest
+        jasmine.clock().tick(1000 * layer.Util.getExponentialBackoffSeconds(expectedDelaySecs, 10) - 1001);
         expect(websocketManager.connect).not.toHaveBeenCalled();
 
+        // Posttest
         jasmine.clock().tick(1002);
         expect(websocketManager.connect).toHaveBeenCalled();
       });
