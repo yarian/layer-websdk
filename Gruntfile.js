@@ -301,7 +301,8 @@ module.exports = function (grunt) {
   grunt.loadNpmTasks('grunt-contrib-uglify');
   grunt.loadNpmTasks('grunt-remove');
   grunt.registerTask('debug', ['browserify:debug']);
-  grunt.registerTask('build', ['browserify:build', 'uglify', 'remove:build']);
+  grunt.registerTask('buildmin', ['browserify:build', 'uglify', 'remove:build']);
+  grunt.registerTask('build', ['debug', 'buildmin']);
   grunt.registerTask('prepublish', ['babel:dist']);
 
   // Documentation

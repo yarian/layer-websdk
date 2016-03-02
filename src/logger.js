@@ -57,5 +57,3 @@ Logger.prototype.level = typeof jasmine === 'undefined' ? ERROR : NONE;
 const logger = new Logger();
 
 module.exports = logger;
-
-console.log("LOG LEVEL " + Logger.prototype.level);
