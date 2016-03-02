@@ -242,6 +242,7 @@ class SocketManager extends Root {
     this._clearConnectionFailed();
     logger.debug('Websocket Error causing websocket to close');
     if (!this.isOpen) {
+      this._removeSocketEvents();
       this._lostConnectionCount++;
       this._scheduleReconnect();
     } else {
@@ -526,7 +527,7 @@ class SocketManager extends Root {
     const maxDelay = (this.client.onlineManager.pingFrequency - 1000) / 1000;
     const delay = Utils.getExponentialBackoffSeconds(maxDelay, Math.min(15, this._lostConnectionCount));
     logger.debug('Websocket Reconnect in ' + delay + ' seconds');
-    this._reconnectId = setTimeout(this.connect.bind(this), delay);
+    this._reconnectId = setTimeout(this.connect.bind(this), delay * 1000);
   }
 }
 

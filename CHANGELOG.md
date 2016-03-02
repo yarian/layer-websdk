@@ -16,6 +16,10 @@
 * layer.TypingIndicators.TypingPublisher
   * Change to constructor parameters.  If using `client.createTypingPublisher` then it does not affect you
 
+#### Fixes
+
+* Fixes issues with websocket reconnect logic
+
 ## 0.9.0 Public Beta Launch
 
 #### Public API Changes
