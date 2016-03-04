@@ -57,6 +57,10 @@ Other build commands:
 * `grunt docs`: Generates `docs/index.html` which you can open to view the API documentation.
 * `grunt test`: Run the unit tests
 
+## About this README
+
+This README contains everything you need to get started.  But is NOT an exhaustive source of documentation.  For the full documentation, or for any topics that are missing here, go to the [Web SDK documentation](https://developer.layer.com/docs/websdk).
+
 ## Getting Started
 
 To start using Layer's Web SDK, you need to initialize a client with your Layer Application ID which can be found in the [Developer Dashboard](https://developer.layer.com/projects/keys).
