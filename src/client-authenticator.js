@@ -200,8 +200,7 @@ class Client extends Root {
    * @private
    * @method _connect
    *
-   * TODO: Need to be able to configure what the test request is.  A Query? A Message?  Should
-   * not be hardcoded to create a Conversation
+   * TODO: WEB-958: Use a dedicated session validation endpoint instead of this...
    */
   _connect() {
     if (this.sessionToken) {
@@ -926,6 +925,7 @@ Object.defineProperty(Client.prototype, 'logLevel', {
  * @static
  */
 Client.ResetAfterOfflineDuration = 1000 * 60 * 60 * 30;
+
 /**
  * List of events supported by this class
  * @static

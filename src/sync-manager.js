@@ -10,7 +10,7 @@
  * 3. when a request should be aborted
  * 4. triggering any request callbacks
  *
- * TODO: Currently the sync queue is managed solely in runtime memory.  But the queue should be stored
+ * TODO WEB-850: Currently the sync queue is managed solely in runtime memory.  But the queue should be stored
  * in persistent memory so that a tab-reload can restore the queue without losing commands that the user has
  * been told have been accepted.
  *

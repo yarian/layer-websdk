@@ -894,7 +894,11 @@ describe("Websocket tests", function() {
                 parts: "hello"
             }).send();
 
-            expect(m.recipientStatus).toEqual({});
+            expect(m.recipientStatus).toEqual({
+              a: "pending",
+              b: "pending",
+              c: "read"
+            });
 
             var sample = JSON.parse(JSON.stringify(sampleConv));
             sample.body.object.id = c1.id;
@@ -907,7 +911,13 @@ describe("Websocket tests", function() {
             });
 
             // Posttest
-            expect(m.recipientStatus).not.toBe({});
+            expect(m.recipientStatus).toEqual({
+              1234: "pending",
+              5678: "pending",
+              111: "delivered",
+              777: "read",
+              999: "read"
+            });
         });
 
         it("Should update a message that already exists", function() {
@@ -917,7 +927,11 @@ describe("Websocket tests", function() {
                 parts: "hello"
             }).send();
 
-            expect(m.recipientStatus).toEqual({});
+            expect(m.recipientStatus).toEqual({
+              a: "pending",
+              b: "pending",
+              c: "read"
+            });
 
             var sample = JSON.parse(JSON.stringify(sampleMess));
             sample.body.object.id = m.id;

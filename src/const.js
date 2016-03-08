@@ -39,11 +39,13 @@ module.exports = {
    * @property {string} RECEIPT_STATE.SENT
    * @property {string} RECEIPT_STATE.DELIVERED
    * @property {string} RECEIPT_STATE.READ
+   * @property {string} RECEIPT_STATE.PENDING
    */
   RECEIPT_STATE: {
     SENT: 'sent',
     DELIVERED: 'delivered',
     READ: 'read',
+    PENDING: 'pending',
   },
   LOCALSTORAGE_KEYS: {
     SESSIONDATA: 'layer-session-data-',

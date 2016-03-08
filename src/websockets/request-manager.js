@@ -130,26 +130,24 @@ class WebsocketRequestManager {
     // a 'connected' event... they have not failed.  May need to rethink this for cases where third parties are directly
     // calling the websocket manager bypassing the sync manager.
     if (this.isDestroyed || !this._isOpen()) return;
-    let requestId, count = 0;
+    let count = 0;
     const now = Date.now();
-    for (requestId in this._requestCallbacks) {
-      if (this._requestCallbacks.hasOwnProperty(requestId)) {
-        // If the request hasn't expired, we'll need to reschedule callback cleanup; else if its expired...
-        if (now < this._requestCallbacks[requestId].date + DELAY_UNTIL_TIMEOUT) {
-          count++;
+    Object.keys(this._requestCallbacks).forEach(requestId => {
+      // If the request hasn't expired, we'll need to reschedule callback cleanup; else if its expired...
+      if (now < this._requestCallbacks[requestId].date + DELAY_UNTIL_TIMEOUT) {
+        count++;
+      } else {
+        // If there has been no data from the server, there's probably a problem with the websocket; reconnect.
+        if (now > this.socketManager._lastDataFromServerTimestamp.getTime() + DELAY_UNTIL_TIMEOUT) {
+          this.socketManager._reconnect(false);
+          this._scheduleCallbackCleanup();
+          return;
         } else {
-          // If there has been no data from the server, there's probably a problem with the websocket; reconnect.
-          if (now > this.socketManager._lastDataFromServerTimestamp.getTime() + DELAY_UNTIL_TIMEOUT) {
-            this.socketManager._reconnect(false);
-            this._scheduleCallbackCleanup();
-            return;
-          } else {
-            // The request isn't responding and the socket is good; fail the request.
-            this._timeoutRequest(requestId);
-          }
+          // The request isn't responding and the socket is good; fail the request.
+          this._timeoutRequest(requestId);
         }
       }
-    }
+    });
     if (count) this._scheduleCallbackCleanup();
   }
 

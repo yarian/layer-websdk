@@ -25,6 +25,7 @@ describe("The Client class", function() {
         });
         client.sessionToken = "sessionToken";
         client.userId = "Frodo";
+        client.isReady = true;
     });
 
     afterEach(function() {

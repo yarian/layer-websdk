@@ -138,7 +138,7 @@ describe("The MessageParts class", function() {
             // Posttest
             expect(content.loadContent).toHaveBeenCalledWith("text/dog", jasmine.any(Function));
             content.loadContent.calls.first().args[1]("Test!");
-            expect(part._fetchContentCallback).toHaveBeenCalledWith("Test!", undefined);
+            expect(part._fetchContentCallback).toHaveBeenCalledWith("Test!", undefined, undefined);
         });
 
         it("Should not call content.loadContent if still processing last fetchContent request", function() {
@@ -183,20 +183,20 @@ describe("The MessageParts class", function() {
 
         it("Should set the URL property", function() {
           expect(part.url).toEqual("");
-          part._fetchContentCallback(generateBlob());
+          part._fetchContentCallback(null, generateBlob());
           expect(part.url).toEqual("http://Doh.com");
         });
 
         it("Should clear the isFiring property", function() {
           part.isFiring = true;
-          part._fetchContentCallback("test");
+          part._fetchContentCallback(null, "test");
           expect(part.isFiring).toEqual(false);
         });
 
         it("Should call _fetchContentComplete for non-text/plain", function() {
           spyOn(part, "_fetchContentComplete");
           part.mimeType = "image/png"
-          part._fetchContentCallback("test");
+          part._fetchContentCallback(null, "test");
           expect(part._fetchContentComplete).toHaveBeenCalledWith("test", undefined);
         });
 
@@ -206,7 +206,7 @@ describe("The MessageParts class", function() {
           spyOn(part, "_fetchContentComplete");
 
           part.mimeType = "text/plain"
-          part._fetchContentCallback("test");
+          part._fetchContentCallback(null, "test");
 
           // Posttest
           expect(window.FileReader.prototype.readAsText).toHaveBeenCalledWith("test");
@@ -219,8 +219,14 @@ describe("The MessageParts class", function() {
 
         it("Should call read_fetchContentComplete for text/plain", function() {
           spyOn(part, "_fetchContentComplete");
-          part._fetchContentCallback("test");
+          part._fetchContentCallback(null, "test");
           expect(part._fetchContentComplete).toHaveBeenCalledWith("test", undefined);
+        });
+
+        it("Should trigger content-loaded-error if error", function() {
+          spyOn(part, "trigger");
+          part._fetchContentCallback("MyError");
+          expect(part.trigger).toHaveBeenCalledWith('content-loaded-error', 'MyError');
         });
     });
 
@@ -714,6 +720,24 @@ describe("The MessageParts class", function() {
             });
             expect(part.getText()).toEqual("");
         });
+    });
+
+    describe("The _populateFromServer() method", function() {
+      it("Should ignore this part if it has no Content", function() {
+        var m = new layer.MessagePart({});
+        m._populateFromServer(JSON.parse(JSON.stringify(responses.message1.parts[1])));
+        expect(m._content).toBe(null);
+      });
+
+      it("Should update the expiration", function() {
+          var c = new layer.Content({});
+          c.downloadUrl = "hey";
+          c.expiration = new Date('2010-10-10');
+          var part = new layer.MessagePart({_content: c});
+          part._populateFromServer(JSON.parse(JSON.stringify(responses.message1.parts[1])));
+          expect(part._content.downloadUrl).toEqual(responses.message1.parts[1].content.download_url);
+          expect(part._content.expiration).toEqual(new Date(responses.message1.parts[1].content.expiration));
+      });
     });
 
     describe("The static _createFromServer() method", function() {

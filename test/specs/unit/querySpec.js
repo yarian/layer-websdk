@@ -18,6 +18,7 @@ describe("The Query Class", function() {
         });
         client.sessionToken = "sessionToken";
         client.userId = "Frodo";
+        client.isReady = true;
 
         conversation = client._createObject(responses.conversation1).conversation;
         conversation2 = client._createObject(responses.conversation2).conversation;
@@ -74,7 +75,7 @@ describe("The Query Class", function() {
             }).toThrowError(layer.LayerError.dictionary.clientMissing);
         });
 
-        it("Should call _run", function() {
+        it("Should call _run if isReady", function() {
             // Setup
             var tmp = layer.Query.prototype._run;
             spyOn(layer.Query.prototype, "_run");
@@ -83,6 +84,30 @@ describe("The Query Class", function() {
             var query = new layer.Query({
                 client: client
             });
+
+            // Posttest
+            expect(layer.Query.prototype._run).toHaveBeenCalledWith();
+
+            // Restore
+            layer.Query.prototype._run = tmp;;
+        });
+
+        it("Should call _run WHEN isReady", function() {
+            // Setup
+            var tmp = layer.Query.prototype._run;
+            spyOn(layer.Query.prototype, "_run");
+            client.isReady = false;
+
+            // Run
+            var query = new layer.Query({
+                client: client
+            });
+
+            // Midtest
+            expect(layer.Query.prototype._run).not.toHaveBeenCalled();
+
+            // Run some more
+            client.trigger('ready');
 
             // Posttest
             expect(layer.Query.prototype._run).toHaveBeenCalledWith();

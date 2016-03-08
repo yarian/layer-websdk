@@ -150,7 +150,7 @@ module.exports = function (grunt) {
             presets: ['es2015']}]],
           browserifyOptions: {
             standalone: 'layer',
-            debug: false
+            debug: true
           }
         }
       },

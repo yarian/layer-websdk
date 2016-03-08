@@ -358,18 +358,76 @@ describe("The Typing Indicator Classes", function() {
                 expect(listener.publisher).toEqual(jasmine.any(layer.TypingIndicators.TypingPublisher));
             });
 
-            it("Should add event listeners", function() {
-                input = {
-                    addEventListener: jasmine.createSpy('listener'),
-                    removeEventListener: jasmine.createSpy('remove')
-                };
+            it("Should call setInput", function() {
+                var tmp = layer.TypingIndicators.TypingListener.prototype.setInput;
+                layer.TypingIndicators.TypingListener.prototype.setInput = jasmine.createSpy('setInput');
                 var listener2 = client.createTypingListener(input);
-                expect(input.addEventListener).toHaveBeenCalledWith("keypress", listener2._handleKeyPress);
-                expect(input.addEventListener).toHaveBeenCalledWith("keydown", listener2._handleKeyDown);
+                expect(layer.TypingIndicators.TypingListener.prototype.setInput).toHaveBeenCalledWith(input);
 
                 // Cleanup
+                layer.TypingIndicators.TypingListener.prototype.setInput = tmp;
                 listener2.destroy();
             });
+        });
+
+        describe("The _removeInput() method", function() {
+          it("Should call removeEventListener", function() {
+            var input = listener.input = {
+                removeEventListener: jasmine.createSpy('remove')
+            };
+            listener._removeInput(input);
+            expect(input.removeEventListener).toHaveBeenCalledWith("keypress", listener._handleKeyPress);
+            expect(input.removeEventListener).toHaveBeenCalledWith("keydown", listener._handleKeyDown);
+          });
+
+          it("Should set input to null", function() {
+            listener.input = {
+                removeEventListener: jasmine.createSpy('remove')
+            };
+            listener._removeInput(listener.input);
+            expect(listener.input).toBe(null);
+          });
+        });
+
+        describe("The setInput() method", function() {
+          it("Should add event handlers", function() {
+            var listener2 = client.createTypingListener();
+            input = {
+                addEventListener: jasmine.createSpy('listener'),
+                removeEventListener: jasmine.createSpy('remove')
+            };
+            listener2.setInput(input);
+            expect(input.addEventListener).toHaveBeenCalledWith("keypress", listener2._handleKeyPress);
+            expect(input.addEventListener).toHaveBeenCalledWith("keydown", listener2._handleKeyDown);
+
+            // Cleanup
+            listener2.destroy();
+          });
+
+          it("Should set listener.input", function() {
+            var listener2 = client.createTypingListener();
+            input = {
+                addEventListener: jasmine.createSpy('listener'),
+                removeEventListener: jasmine.createSpy('remove')
+            };
+            listener2.setInput(input);
+            expect(listener2.input).toBe(input);
+          });
+
+          it("Should call _removeInput", function() {
+            var oldInput = {
+                addEventListener: jasmine.createSpy('listener'),
+                removeEventListener: jasmine.createSpy('remove')
+            };
+            var listener2 = client.createTypingListener(oldInput);
+            spyOn(listener2, "_removeInput");
+            input = {
+                addEventListener: jasmine.createSpy('listener'),
+                removeEventListener: jasmine.createSpy('remove')
+            };
+            listener2.setInput(input);
+            expect(listener2._removeInput).toHaveBeenCalledWith(oldInput);
+          });
         });
 
         describe("The destroy() method", function() {
