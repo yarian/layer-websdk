@@ -125,12 +125,9 @@ class Client extends ClientAuth {
     });
 
     // Instantiate Plugins
-    for (let propertyName in Client.plugins) {
-      /* istanbul ignore else */
-      if (Client.plugins.hasOwnProperty(propertyName)) {
-        this[propertyName] = new Client.plugins[propertyName](this);
-      }
-    }
+    Object.keys(Client.plugins).forEach(propertyName => {
+      this[propertyName] = new Client.plugins[propertyName](this);
+    });
   }
 
   /**
@@ -176,15 +173,12 @@ class Client extends ClientAuth {
 
   destroy() {
     // Cleanup all plugins
-    for (let propertyName in Client.plugins) {
-      /* istanbul ignore else */
-      if (Client.plugins.hasOwnProperty(propertyName)) {
-        if (this[propertyName]) {
-          this[propertyName].destroy();
-          delete this[propertyName];
-        }
+    Object.keys(Client.plugins).forEach(propertyName => {
+      if (this[propertyName]) {
+        this[propertyName].destroy();
+        delete this[propertyName];
       }
-    }
+    });
 
     // Cleanup all resources (Conversations, Messages, etc...)
     this._cleanup();
@@ -286,14 +280,11 @@ class Client extends ClientAuth {
       this._triggerAsync('conversations:remove', { conversations: [conversation] });
     }
 
-    for (let id in this._messagesHash) {
-      /* istanbul ignore else */
-      if (this._messagesHash.hasOwnProperty(id)) {
-        if (this._messagesHash[id].conversationId === conversation.id) {
-          this._removeMessage(id);
-        }
+    Object.keys(this._messagesHash).forEach(id => {
+      if (this._messagesHash[id].conversationId === conversation.id) {
+        this._removeMessage(id);
       }
-    }
+    });
 
     return this;
   }
@@ -313,14 +304,10 @@ class Client extends ClientAuth {
       // This is a nasty way to work... but need to find and update all
       // conversationId properties of all Messages or the Query's won't
       // see these as matching the query.
-      for (let id in this._messagesHash) {
-        /* istanbul ignore else */
-        if (this._messagesHash.hasOwnProperty(id)) {
-          if (this._messagesHash[id].conversationId === oldId) {
-            this._messagesHash[id].conversationId = conversation.id;
-          }
-        }
-      }
+      Object.keys(this._messagesHash)
+            .filter(id => this._messagesHash[id].conversationId === oldId)
+            .forEach(id => this._messagesHash[id].conversationId = conversation.id);
+
       // That old id may still be needed for a little while...
       setTimeout(() => {
         if (!this.isDestroyed) delete this._conversationsHash[oldId];
@@ -831,36 +818,30 @@ class Client extends ClientAuth {
    * @return {Boolean}
    */
   _isCachedObject(obj) {
-    for (let id in this._queriesHash) {
-      /* istanbul ignore else */
-      if (this._queriesHash.hasOwnProperty(id)) {
-        const query = this._queriesHash[id];
-        if (query._getItem(obj.id)) return true;
-      }
+    const list = Object.keys(this._queriesHash);
+    for (let i = 0; i < list.length; i++) {
+      const query = this._queriesHash[list[i]];
+      if (query._getItem(obj.id)) return true;
     }
   }
 
   /**
    * On restoring a connection, determine what steps need to be taken to
-   * update our data.
+   * update our data.  A reset boolean property is passed; set based on  client-authenticator's
+   * ResetAfterOfflineDuration static property.
    *
    * @method _connectionRestored
    * @private
-   * @param {number} offlineDuration - Number of miliseconds that the client was offline
-   *
-   * TODO: Determine a threshold for refreshing data vs websocket catchup
+   * @param {boolean} reset - Should the session reset/reload all data or attempt to resume where it left off?
    */
   _connectionRestored(evt) {
     if (evt.reset) {
-      for (let id in this._queriesHash) {
-        /* istanbul ignore else */
-        if (this._queriesHash.hasOwnProperty(id)) {
-          const query = this._queriesHash[id];
-          query.reset();
-        }
-      }
+      logger.debug('Client Connection Restored; Resetting all Queries');
+      Object.keys(this._queriesHash).forEach(id => {
+        const query = this._queriesHash[id];
+        query.reset();
+      });
     }
-    //this._clientReady();
   }
 
   /**

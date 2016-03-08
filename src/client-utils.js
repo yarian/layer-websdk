@@ -134,7 +134,7 @@ exports.clone = (obj) => JSON.parse(JSON.stringify(obj));
  *
  *      defer(function() {alert('That wasn't very long now was it!');});
  *
- * TODO: Add a postMessage handler.
+ * TODO: WEB-842: Add a postMessage handler.
  *
  * @method
  * @param  {Function} f

@@ -430,15 +430,68 @@ describe("The Messages class", function() {
         });
     });
 
+    describe("The __getRecipientStatus() method", function() {
+      var m;
+      beforeEach(function() {
+          conversation.participants = ["a","b","d","999"];
+          var messageData = JSON.parse(JSON.stringify(responses.message1));
+
+          m = new layer.Message({
+              client: client,
+              fromServer: messageData,
+              conversationId: conversation.id
+          });
+      });
+
+      afterEach(function() {
+          m.destroy();
+      });
+
+      it("Should return the participant's value if its not NEW", function() {
+        m.recipientStatus = {
+            a: "sent",
+            b: "delivered",
+            d: "read",
+            999: "read"
+          };
+        expect(m.recipientStatus["b"]).toEqual(layer.Constants.RECEIPT_STATE.DELIVERED);
+        expect(layer.Constants.RECEIPT_STATE.DELIVERED.length > 0).toBe(true);
+      });
+
+      it("Should return {} for a new Message with no Conversation", function() {
+        m.conversationId = '';
+        m.recipientStatus = null;
+        expect(m.recipientStatus).toEqual({});
+      });
+
+      it("Should return PENDING for users who have not yet been sent the Message", function() {
+        m.recipientStatus = {};
+        expect(m.recipientStatus).toEqual({
+          a: layer.Constants.RECEIPT_STATE.PENDING,
+          b: layer.Constants.RECEIPT_STATE.PENDING,
+          d: layer.Constants.RECEIPT_STATE.PENDING,
+          999: layer.Constants.RECEIPT_STATE.READ
+        });
+        expect(layer.Constants.RECEIPT_STATE.PENDING.length > 0).toBe(true);
+      });
+    });
+
     describe("The __updateRecipientStatus() method", function() {
         var m;
         beforeEach(function() {
             conversation.participants = ["a","b","d","999"];
+            var messageData = JSON.parse(JSON.stringify(responses.message1));
+            messageData.recipient_status = {
+              a: "sent",
+              b: "delivered",
+              d: "read",
+              999: "read"
+            };
             m = new layer.Message({
-                parts: "hello",
-                conversation: conversation,
-                client: client
-            });
+              client: client,
+              conversationId: conversation.id,
+              fromServer: messageData
+          });
         });
 
         afterEach(function() {
@@ -452,7 +505,13 @@ describe("The Messages class", function() {
             };
 
             // Posttest
-            expect(m.recipientStatus).toEqual({z: "sent"});
+            expect(m.recipientStatus).toEqual({
+              z: "sent",
+              a: "pending",
+              b: "pending",
+              d: "pending",
+              999: "read"
+            });
         });
 
         it("Should set isRead/isUnread", function() {

@@ -16,7 +16,6 @@ describe("The Root Class", function() {
 
       layer.Root.initClass(A, "A");
       expect(A.name).toEqual("A");
-
     });
 
     it("Should define a getter and setter if there is an adjuster", function() {
@@ -38,6 +37,19 @@ describe("The Root Class", function() {
       A.prototype.constructor = A;
 
       A.prototype.__updateX = function(newValue, oldValue) {};
+      A.prototype.x = 5;
+      layer.Root.initClass(A, "A");
+
+      expect(Object.getOwnPropertyDescriptor(A.prototype, "x").get).toEqual(jasmine.any(Function));
+      expect(Object.getOwnPropertyDescriptor(A.prototype, "x").set).toEqual(jasmine.any(Function));
+    });
+
+    it("Should define a getter and setter if there is a getter", function() {
+      function A(){ layer.Root.call(this, arguments[0]); };
+      A.prototype = Object.create(layer.Root.prototype);
+      A.prototype.constructor = A;
+
+      A.prototype.__getX = function(pkey) {};
       A.prototype.x = 5;
       layer.Root.initClass(A, "A");
 
@@ -163,6 +175,19 @@ describe("The Root Class", function() {
       A.prototype = Object.create(layer.Root.prototype);
       A.prototype.constructor = A;
 
+      A.prototype.__getX = function(pKey) {return "howdy" + this[pKey];}
+      A.prototype.x = 5;
+      layer.Root.initClass(A, "A");
+
+      var a = new A({x: 10});
+      expect(a.x).toEqual("howdy10");
+    });
+
+    it("Should use the getter if provided to retrieve values", function() {
+      function A(){ layer.Root.call(this, arguments[0]); };
+      A.prototype = Object.create(layer.Root.prototype);
+      A.prototype.constructor = A;
+
       A.prototype.__updateX = function(newValue) {}
       A.prototype.x = 5;
       layer.Root.initClass(A, "A");
@@ -192,16 +217,6 @@ describe("The Root Class", function() {
 
       expect(A._ignoredEvents).toEqual(layer.Root._ignoredEvents);
     })
-
-    it("Should get default _inObjectIgnore", function() {
-      function A(){ layer.Root.call(this, arguments[0]); };
-      A.prototype = Object.create(layer.Root.prototype);
-      A.prototype.constructor = A;
-
-      layer.Root.initClass(A, "A");
-
-      expect(A._inObjectIgnore).toEqual(layer.Root._inObjectIgnore);
-    });
   });
 
   describe("Root instances", function() {
@@ -367,7 +382,6 @@ describe("The Root Class", function() {
         A.prototype.nextA = null;
         A.prototype.childAs = null;
 
-        A._inObjectIgnore = ['z'].concat(layer.Root._inObjectIgnore);
         layer.Root.initClass(A);
       });
 
@@ -376,12 +390,6 @@ describe("The Root Class", function() {
         var aObj = a.toObject();
         expect(aObj.x).toEqual(5);
         expect(aObj.y).toEqual(12);
-      });
-
-      it("Should ignore ignored properties", function() {
-        var a = new A();
-        var aObj = a.toObject();
-        expect(aObj.z).toBe(undefined);
       });
 
       it("Should ignore private properties", function() {

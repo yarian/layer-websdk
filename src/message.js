@@ -155,7 +155,7 @@ class Message extends Syncable {
     this.localCreatedAt = new Date();
 
     this._disableEvents = true;
-    if (!this.recipientStatus) this.recipientStatus = {};
+    if (!options.fromServer) this.recipientStatus = {};
     else this.__updateRecipientStatus(this.recipientStatus);
     this._disableEvents = false;
 
@@ -250,6 +250,32 @@ class Message extends Syncable {
   }
 
   /**
+   * Accessor called whenever the app accesses `message.recipientStatus`;
+   * insures that participants who haven't yet been sent the Message are marked as layer.Constants.RECEIPT_STATE.PENDING
+   *
+   * @method __getRecipientStatus
+   * @param {string} pKey - The actual property key where the value is stored
+   * @private
+   * @return {Object}
+   */
+  __getRecipientStatus(pKey) {
+    const value = this[pKey] || {};
+    const client = this.getClient();
+    if (client) {
+      const userId = client.userId;
+      const conversation = this.getConversation();
+      if (conversation) {
+        conversation.participants.forEach(participant => {
+          if (!value[participant]) {
+            value[participant] = participant === userId ? Constants.RECEIPT_STATE.READ : Constants.RECEIPT_STATE.PENDING;
+          }
+        });
+      }
+    }
+    return value;
+  }
+
+  /**
    * Handle changes to the recipientStatus property.
    *
    * Any time the recipientStatus property is set,
@@ -322,17 +348,15 @@ class Message extends Syncable {
    */
   _getReceiptStatus(status, userId) {
     let readCount = 0, deliveredCount = 0;
-    let participant;
-    for (participant in status) {
-      if (participant !== userId && status.hasOwnProperty(participant)) {
-        if (status[participant] === Constants.RECEIPT_STATE.READ) {
-          readCount++;
-          deliveredCount++;
-        } else if (status[participant] === Constants.RECEIPT_STATE.DELIVERED) {
-          deliveredCount++;
-        }
+    Object.keys(status).filter(participant => participant !== userId).forEach(participant => {
+      if (status[participant] === Constants.RECEIPT_STATE.READ) {
+        readCount++;
+        deliveredCount++;
+      } else if (status[participant] === Constants.RECEIPT_STATE.DELIVERED) {
+        deliveredCount++;
       }
-    }
+    });
+
     return {
       readCount,
       deliveredCount,
@@ -810,20 +834,6 @@ class Message extends Syncable {
     });
     textArray = textArray.filter(data => data);
     return textArray.join(joinStr);
-  }
-
-  /**
-   * Utility method extracts an array of image urls that can be put into `img` tags
-   *
-   * TODO: Not sure how valid/useful this is
-   *
-   * @method getImageUrls
-   * @return {string[]} Array of urls
-   */
-  getImageURLs() {
-    return this.parts.filter(part => {
-      return Message.imageTypes.indexOf(part.mimeType) !== -1;
-    }).map(part => part.getURL());
   }
 
   /**

@@ -161,22 +161,26 @@ class MessagePart extends Root {
     if (this._content && !this.isFiring) {
       this.isFiring = true;
       const type = this.mimeType === 'image/jpeg+preview' ? 'image/jpeg' : this.mimeType;
-      this._content.loadContent(type, result => this._fetchContentCallback(result, callback));
+      this._content.loadContent(type, (err, result) => this._fetchContentCallback(err, result, callback));
     }
     return this;
   }
 
-  _fetchContentCallback(result, callback) {
-    this.url = URL.createObjectURL(result);
-    this.isFiring = false;
-    if (this.mimeType === 'text/plain') {
-      const reader = new fileReader();
-      reader.addEventListener('loadend', () => {
-        this._fetchContentComplete(reader.result, callback);
-      });
-      reader.readAsText(result);
+  _fetchContentCallback(err, result, callback) {
+    if (err) {
+      this.trigger('content-loaded-error', err);
     } else {
-      this._fetchContentComplete(result, callback);
+      this.url = URL.createObjectURL(result);
+      this.isFiring = false;
+      if (this.mimeType === 'text/plain') {
+        const reader = new fileReader();
+        reader.addEventListener('loadend', () => {
+          this._fetchContentComplete(reader.result, callback);
+        });
+        reader.readAsText(result);
+      } else {
+        this._fetchContentComplete(result, callback);
+      }
     }
   }
 
@@ -384,7 +388,10 @@ class MessagePart extends Root {
 
   // At this time, Parts do not change on the server so no update needed
   _populateFromServer(part) {
-    // Do nothing
+    if (part.content && this._content) {
+      this._content.downloadUrl = part.content.download_url;
+      this._content.expiration = new Date(part.content.expiration);
+    }
   }
 
   /**
@@ -497,7 +504,7 @@ MessagePart.prototype.encoding = '';
  */
 MessagePart.prototype.size = 0;
 
-MessagePart._supportedEvents = ['parts:send', 'content-loaded', 'url-loaded'].concat(Root._supportedEvents);
+MessagePart._supportedEvents = ['parts:send', 'content-loaded', 'url-loaded', 'content-loaded-error'].concat(Root._supportedEvents);
 Root.initClass.apply(MessagePart, [MessagePart, 'MessagePart']);
 
 module.exports = MessagePart;

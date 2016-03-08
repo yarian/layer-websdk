@@ -13,9 +13,6 @@
  *
  * NOTE: Apps that want to be notified of changes to online/offline state should see layer.Client's `online` event.
  *
- * TODO: the testUrl needs an accompanying testMethod and testData; currently presumed
- * to be a nonces call
- *
  * NOTE: One iteration of this class treated navigator.onLine = false as fact.  If onLine is false, then we don't need to test
  * anything.  If its true, then this class verifies it can reach layer's servers.  However, https://code.google.com/p/chromium/issues/detail?id=277372 has replicated multiple times in chrome; this bug causes one tab of chrome to have navigator.onLine=false while all other tabs
  * correctly report navigator.onLine=true.  As a result, we can't rely on this value and this class must continue to poll the server while

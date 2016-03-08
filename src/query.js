@@ -157,11 +157,6 @@
  * @extends layer.Root
  *
  */
-
-// TODO: If Client isn't ready, wait for it to be ready and then call _run()
-// TODO: Review handling of End Of Results
-// TODO: Review using a boolean instead of dataType; or constants.
-// TODO: Review using 'change:data' 'change:insert', 'change:remove', 'change:property' events
 const Root = require('./root');
 const LayerError = require('./layer-error');
 const Util = require('./client-utils');
@@ -194,7 +189,12 @@ class Query extends Root {
     this._initialPaginationWindow = this.paginationWindow;
     if (!this.client) throw new Error(LayerError.dictionary.clientMissing);
     this.client.on('all', this._handleChangeEvents, this);
-    this._run();
+
+    if (!this.client.isReady) {
+      this.client.once('ready', () => this._run(), this);
+    } else {
+      this._run();
+    }
   }
 
   /**
@@ -275,7 +275,10 @@ class Query extends Root {
     this.isFiring = false;
     this._predicate = null;
     this.paginationWindow = this._initialPaginationWindow;
-    this._triggerChange({data: [], type: 'reset'});
+    this._triggerChange({
+      data: [],
+      type: 'reset',
+    });
   }
 
   /**
@@ -392,12 +395,12 @@ class Query extends Root {
       // Query gets MAX_PAGE_SIZE results instead of MAX_PAGE_SIZE + 1 results.
       if (conversation && conversation.lastMessage &&
           lastMessage && lastMessage.id === conversation.lastMessage.id) {
-            fromId = '';
+        fromId = '';
       }
 
       // If the last message we have loaded is already the Conversation's lastMessage, then just request data without paging,
       // common occurence when query is populated with only a single result: conversation.lastMessage.
-      //if (conversation && conversation.lastMessage && lastMessage && lastMessage.id === conversation.lastMessage.id) fromId = '';
+      // if (conversation && conversation.lastMessage && lastMessage && lastMessage.id === conversation.lastMessage.id) fromId = '';
       const newRequest = `conversations/${predicateIds.uuid}/messages?page_size=${pageSize}${fromId}`;
 
       // Don't query on temporary ids, nor repeat still firing queries
@@ -596,7 +599,7 @@ class Query extends Root {
     }
   }
 
-  // TODO: Refactor this into functions for instance, object, sortBy createdAt, sortBy lastMessage
+  // TODO WEB-968: Refactor this into functions for instance, object, sortBy createdAt, sortBy lastMessage
   _handleConversationChangeEvent(evt) {
     let index = this._getIndex(evt.target.id);
 
@@ -908,8 +911,8 @@ class Query extends Root {
   }
 
   _triggerChange(evt) {
-     this.trigger('change', evt);
-     this.trigger('change:' + evt.type, evt);
+    this.trigger('change', evt);
+    this.trigger('change:' + evt.type, evt);
   }
 }
 

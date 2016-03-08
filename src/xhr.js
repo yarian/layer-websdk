@@ -43,8 +43,7 @@
  *
  * 1. Make this a subclass of Root and make it a singleton so it can inherit a proper event system
  * 2. Result should be a layer.ServerResponse instance
- * 3. Babelify this
- * 4. Should only access link headers if requested; annoying having it throw errors every other time.
+ * 3. Should only access link headers if requested; annoying having it throw errors every other time.
  */
 
 // Don't set xhr to window.XMLHttpRequest as it will bypass jasmine's
@@ -74,10 +73,10 @@ module.exports = (request, callback) => {
   const req = Xhr ? new Xhr() : new XMLHttpRequest();
   const method = (request.method || 'GET').toUpperCase();
 
-  const onload = function() {
-    //console.log('RESPONSE:' + this.status);
-    //console.log(this.responseText);
-    const headers = {'content-type': this.getResponseHeader('content-type')};
+  const onload = function onload() {
+    const headers = {
+      'content-type': this.getResponseHeader('content-type'),
+    };
 
     const result = {
       status: this.status,
@@ -109,7 +108,7 @@ module.exports = (request, callback) => {
 
       module.exports.trigger({
         target: this,
-        status: !this.responseText && !this.status ? 'connection:error' : 'connection:success'
+        status: !this.responseText && !this.status ? 'connection:error' : 'connection:success',
       });
 
       if (!this.responseText && !this.status) {
@@ -180,12 +179,10 @@ module.exports = (request, callback) => {
     ) {
       data = typeof request.data === 'string' ? request.data : JSON.stringify(request.data);
     } else if (request.data && typeof request.data === 'object') {
-      for (let name in request.data) {
-        if (request.data.hasOwnProperty(name)) {
-          if (data) data += '&';
-          data += name + '=' + request.data[name];
-        }
-      }
+      Object.keys(request.data).forEach(name => {
+        if (data) data += '&';
+        data += name + '=' + request.data[name];
+      });
     } else {
       data = request.data; // Some form of raw string/data
     }
@@ -202,11 +199,7 @@ module.exports = (request, callback) => {
   if (request.responseType) req.responseType = request.responseType;
 
   if (request.headers) {
-    for (let headerName in request.headers) {
-      if (request.headers.hasOwnProperty(headerName)) {
-        req.setRequestHeader(headerName, request.headers[headerName]);
-      }
-    }
+    Object.keys(request.headers).forEach(headerName => req.setRequestHeader(headerName, request.headers[headerName]));
   }
 
   try {
@@ -215,7 +208,7 @@ module.exports = (request, callback) => {
     } else {
       req.send(data);
     }
-  } catch(e) {
+  } catch (e) {
     // do nothing
   }
 };

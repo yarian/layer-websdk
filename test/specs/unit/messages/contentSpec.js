@@ -72,7 +72,7 @@ describe("The Content class", function() {
             });
 
             // Posttest
-            expect(spy).toHaveBeenCalledWith(jasmine.any(Blob));
+            expect(spy).toHaveBeenCalledWith(null, jasmine.any(Blob));
         });
 
         it("Should call the callback if Blob is undefined", function() {
@@ -93,7 +93,31 @@ describe("The Content class", function() {
             });
 
             // Posttest
-            expect(spy).toHaveBeenCalledWith("abc938a");
+            expect(spy).toHaveBeenCalledWith(null, "abc938a");
+
+            // Cleanup
+            window.Blob = tmp;
+        });
+
+        it("Should call the callback with an error", function() {
+            var tmp = window.Blob;
+            window.Blob = undefined;
+
+            var content = new layer.Content({
+                downloadUrl: "http://hey.com"
+            });
+            var spy = jasmine.createSpy('spy');
+
+            // Run
+            content.loadContent("text/plain", spy);
+
+            requests.mostRecent().response({
+                status: 404,
+                responseText: "abc938a"
+            });
+
+            // Posttest
+            expect(spy).toHaveBeenCalledWith("abc938a", null);
 
             // Cleanup
             window.Blob = tmp;
