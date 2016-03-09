@@ -224,7 +224,7 @@ module.exports = function (grunt) {
     // Testing and Coverage tasks
     jasmine: {
       options: {
-        helpers: ['test/lib/mock-ajax.js', 'test/specs/responses.js', 'test/lib/browser-utils.js'],
+        helpers: ['test/lib/mock-ajax.js', 'test/specs/responses.js'],
         specs: ['test/specs/unit/*Spec.js', 'test/specs/unit/messages/*Spec.js'],
         summary: true
       },

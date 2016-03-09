@@ -8,6 +8,15 @@ The Layer Web SDK is a JavaScript library for adding chat services to your web a
 
 This **public beta is NOT production ready**; while we will not stop you from using it in production, your expectations of polish and support will need to account for this. There are known limitations and known concerns with the Layer Web SDK.
 
+## Supported Browsers
+
+* IE 11 and Edge
+* Safari 7
+* Chrome 42 and up
+* Firefox 40 and up
+
+Older versions of Chrome and Firefox will likely work.
+
 ## Installation
 
 All examples below assume your using the CDN installation method.

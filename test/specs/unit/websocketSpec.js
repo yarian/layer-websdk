@@ -2,23 +2,22 @@
 describe("The Websocket Socket Manager Class", function() {
     var socket, client, websocketManager;
     var appId = "Fred's App";
+    var nativeWebsocket;
 
     beforeAll(function() {
         // Test for phantomjs websocket handling
-        var ws = new WebSocket("wss://testthisfakeurl.com");
-        if (!ws.url) {
-            window.WebSocket = function WebSocket(url) {
-                this.url = url;
-                this.close = function() {};
-                this.send = function() {};
-                this.addEventListener = function() {};
-                this.removeEventListener = function() {};
-            };
-            window.WebSocket.CONNECTING = 0;
-            window.WebSocket.OPEN = 1;
-            window.WebSocket.CLOSING = 2;
-            window.WebSocket.CLOSED = 3;
-        }
+        nativeWebsocket = window.WebSocket;
+        window.WebSocket = function WebSocket(url) {
+            this.url = url;
+            this.close = function() {};
+            this.send = function() {};
+            this.addEventListener = function() {};
+            this.removeEventListener = function() {};
+        };
+        window.WebSocket.CONNECTING = 0;
+        window.WebSocket.OPEN = 1;
+        window.WebSocket.CLOSING = 2;
+        window.WebSocket.CLOSED = 3;
    });
 
     beforeEach(function() {
@@ -49,6 +48,7 @@ describe("The Websocket Socket Manager Class", function() {
     });
 
     afterAll(function() {
+        window.WebSocket = nativeWebsocket;
         layer.Client.destroyAllClients();
     });
 
@@ -321,21 +321,13 @@ describe("The Websocket Socket Manager Class", function() {
         });
 
         it("Should return false if readyState != open", function() {
-            if (typeof WebSocket == "undefined") {
-                expect(true).toBe(true);
-            } else {
-                websocketManager._socket.readyState = WebSocket.CLOSED;
-                expect(websocketManager._isOpen()).toEqual(false);
-            }
+            websocketManager._socket.readyState = WebSocket.CLOSED;
+            expect(websocketManager._isOpen()).toEqual(false);
         });
 
         it("Should return true if readyState == open", function() {
-            if (typeof WebSocket == "undefined") {
-                expect(true).toBe(true);
-            } else {
-                websocketManager._socket.readyState = WebSocket.OPEN;
-                expect(websocketManager._isOpen()).toEqual(true);
-            }
+            websocketManager._socket.readyState = WebSocket.OPEN;
+            expect(websocketManager._isOpen()).toEqual(true);
         });
     });
 
@@ -481,6 +473,7 @@ describe("The Websocket Socket Manager Class", function() {
         it("Should set _inReplay if _inReplay isn't set", function() {
             spyOn(websocketManager, "_isOpen").and.returnValue(true);
             websocketManager._inReplay = false;
+            websocketManager._socket.readyState = WebSocket.OPEN;
             websocketManager.replayEvents(timestamp);
             expect(websocketManager._inReplay).toBe(true);
         });
