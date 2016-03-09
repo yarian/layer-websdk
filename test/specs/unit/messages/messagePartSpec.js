@@ -232,6 +232,12 @@ describe("The MessageParts class", function() {
           part._fetchContentCallback("MyError");
           expect(part.trigger).toHaveBeenCalledWith('content-loaded-error', 'MyError');
         });
+
+        it("Should trigger content-loaded-error if error", function() {
+          spyOn(part, "trigger");
+          part._fetchContentCallback("MyError");
+          expect(part.trigger).toHaveBeenCalledWith('content-loaded-error', 'MyError');
+        });
     });
 
     describe("The _fetchContentComplete() method", function() {
