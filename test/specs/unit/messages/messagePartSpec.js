@@ -184,20 +184,21 @@ describe("The MessageParts class", function() {
         it("Should set the URL property", function() {
           expect(part.url).toEqual("");
           part._fetchContentCallback(generateBlob());
-          expect(part.url).toEqual("http://Doh.com");
+          expect(part.url).toMatch(/^blob:(http%3A|file:\/\/\/)/);
         });
 
         it("Should clear the isFiring property", function() {
           part.isFiring = true;
-          part._fetchContentCallback("test");
+          part._fetchContentCallback(generateBlob());
           expect(part.isFiring).toEqual(false);
         });
 
         it("Should call _fetchContentComplete for non-text/plain", function() {
           spyOn(part, "_fetchContentComplete");
           part.mimeType = "image/png"
-          part._fetchContentCallback("test");
-          expect(part._fetchContentComplete).toHaveBeenCalledWith("test", undefined);
+          var blob = generateBlob();
+          part._fetchContentCallback(blob);
+          expect(part._fetchContentComplete).toHaveBeenCalledWith(blob, undefined);
         });
 
         it("Should call readAsText for text/plain", function() {
@@ -206,10 +207,11 @@ describe("The MessageParts class", function() {
           spyOn(part, "_fetchContentComplete");
 
           part.mimeType = "text/plain"
-          part._fetchContentCallback("test");
+          var blob = generateBlob();
+          part._fetchContentCallback(blob);
 
           // Posttest
-          expect(window.FileReader.prototype.readAsText).toHaveBeenCalledWith("test");
+          expect(window.FileReader.prototype.readAsText).toHaveBeenCalledWith(blob);
 
           expect(part._fetchContentComplete).not.toHaveBeenCalled();
 
@@ -219,8 +221,9 @@ describe("The MessageParts class", function() {
 
         it("Should call read_fetchContentComplete for text/plain", function() {
           spyOn(part, "_fetchContentComplete");
-          part._fetchContentCallback("test");
-          expect(part._fetchContentComplete).toHaveBeenCalledWith("test", undefined);
+          var blob = generateBlob();
+          part._fetchContentCallback(blob);
+          expect(part._fetchContentComplete).toHaveBeenCalledWith(blob, undefined);
         });
     });
 
