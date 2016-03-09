@@ -14,6 +14,7 @@
 * layer.TypingIndicators.TypingListener
   * Now has a setInput method that can be used to change what input the Listener is monitoring when sending
     typing indicators to other users.
+
 ## 0.9.1
 
 #### Bug Fixes
