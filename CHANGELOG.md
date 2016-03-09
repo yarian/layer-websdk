@@ -1,6 +1,24 @@
 # Javascript SDK Change Log
 
+## 0.9.2 (Unreleased)
+
+#### Public API Changes
+
+* layer.Message
+  * The `recipientStatus` property now returns layer.RECEIPT_STATE.PENDING for any recipient to whom the Message has not yet been sent
+  * The `getImageURLs` method has been removed.
+* layer.MessagePart
+  * The `fetchContent` method now triggers an `content-loaded-error` event if it fails to load the Content (content has expired for example, and must be refreshed)
+* layer.Query
+  * Now runs query as soon as client is ready (for queries created prior to Ready).
+* layer.TypingIndicators.TypingListener
+  * Now has a setInput method that can be used to change what input the Listener is monitoring when sending
+    typing indicators to other users.
 ## 0.9.1
+
+#### Bug Fixes
+
+* layer.MessagePart now loads new Rich Content downloadUrl and expiration dates whenever Query reloads the Message.
 
 #### Public API Changes
 

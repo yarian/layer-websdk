@@ -60,18 +60,15 @@ class LayerEvent {
 
     // Copy the args into either this Event object... or into the change object.
     // Wouldn't be needed if this inherited from Root.
-    for (let name in args) {
-      /* istanbul ignore else */
-      if (args.hasOwnProperty(name)) {
-        // Even if we are copying properties into the change object, target remains
-        // a property of LayerEvent.
-        if (ptr !== this && name === 'target') {
-          this.target = args.target;
-        } else {
-          ptr[name] = args[name];
-        }
+    Object.keys(args).forEach(name => {
+      // Even if we are copying properties into the change object, target remains
+      // a property of LayerEvent.
+      if (ptr !== this && name === 'target') {
+        this.target = args.target;
+      } else {
+        ptr[name] = args[name];
       }
-    }
+    });
     this.eventName = eventName;
   }
 

@@ -85,9 +85,6 @@ class Conversation extends Syncable {
    * @param {boolean} [options.distinct=true] - Is the conversation distinct
    * @param {Object} [options.metadata] - An object containing Conversation Metadata.
    * @return {layer.Conversation}
-   *
-   * TODO: Decrement the unread counter any time a message is read
-   * Needed for offline reading;
    */
   constructor(options = {}) {
     // Setup default values
@@ -386,7 +383,7 @@ class Conversation extends Syncable {
    * New participants will immediately show up in the Conversation,
    * but may not have synced with the server yet.
    *
-   * TODO: Roll participants back on getting a server error
+   * TODO WEB-967: Roll participants back on getting a server error
    *
    * @method addParticipants
    * @param  {string[]} participants - Array of participant ids
@@ -409,7 +406,7 @@ class Conversation extends Syncable {
    *
    * Throws error if you attempt to remove ALL participants.
    *
-   * TODO: Roll participants back on getting a server error
+   * TODO  WEB-967: Roll participants back on getting a server error
    *
    * @method removeParticipants
    * @param  {string[]} participants - Array of participant ids
@@ -433,7 +430,7 @@ class Conversation extends Syncable {
    * Changed participants will immediately show up in the Conversation,
    * but may not have synced with the server yet.
    *
-   * TODO: Roll participants back on getting a server error
+   * TODO WEB-967: Roll participants back on getting a server error
    *
    * @method replaceParticipants
    * @param  {string[]} participants - Array of participant ids
@@ -1356,8 +1353,6 @@ Conversation.bubbleEventParent = 'getClient';
 Conversation.CREATED = 'Created';
 Conversation.FOUND = 'Found';
 Conversation.FOUND_WITHOUT_REQUESTED_METADATA = 'FoundMismatch';
-
-Conversation._inObjectIgnore = Syncable._inObjectIgnore;
 
 Conversation._supportedEvents = [
 

@@ -31,14 +31,7 @@ class LayerError {
       };
     }
 
-    let name;
-    for (name in options) {
-      /* istanbul ignore else */
-      if (options.hasOwnProperty(name)) {
-        this[name] = options[name];
-      }
-    }
-
+    Object.keys(options).forEach(name => this[name] = options[name]);
     if (!this.data) this.data = {};
   }
 

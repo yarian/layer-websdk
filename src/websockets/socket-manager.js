@@ -13,8 +13,6 @@
  * @class  layer.Websockets.SocketManager
  * @extends layer.Root
  * @private
- *
- * TODO: Need to make better use of info from the layer.OnlineStateManager.
  */
 const Root = require('../root');
 const Utils = require('../client-utils');
@@ -185,7 +183,7 @@ class SocketManager extends Root {
       this._removeSocketEvents();
       this._socket.close();
       this._socket = null;
-    } catch(e) {
+    } catch (e) {
       // No-op
     }
 
@@ -240,7 +238,7 @@ class SocketManager extends Root {
   _onError(err) {
     if (this._closing) return;
     this._clearConnectionFailed();
-    logger.debug('Websocket Error causing websocket to close');
+    logger.debug('Websocket Error causing websocket to close', err);
     if (!this.isOpen) {
       this._removeSocketEvents();
       this._lostConnectionCount++;
@@ -445,6 +443,7 @@ class SocketManager extends Root {
   close() {
     logger.debug('Websocket close requested');
     this._closing = true;
+    this.isOpen = false;
     if (this._socket) {
       // Close all event handlers and set socket to null
       // without waiting for browser event to call
@@ -533,7 +532,6 @@ class SocketManager extends Root {
 
 /**
  * Is the websocket connection currently open?
- * TODO: Integrate info from the layer.OnlineStateManager.
  * @type {Boolean}
  */
 SocketManager.prototype.isOpen = false;

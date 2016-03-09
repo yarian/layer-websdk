@@ -244,6 +244,7 @@ describe("The Util Library", function() {
         var client, conversation, config, message;
         beforeEach(function() {
             client = new layer.Client({appId: "fred"});
+            client.userId = "c";
             conversation = client.createConversation({
                 participants: ["a", "b"],
                 metadata: {
@@ -299,7 +300,7 @@ describe("The Util Library", function() {
         });
 
         it("Should update recipientStatus", function() {
-            message.recipientStatus = {a: "sent", b: "sent"};
+            message.recipientStatus = {a: "sent", b: "sent", c: "read"};
             layer.Util.layerParse({
                 client: client,
                 object: message,
@@ -313,12 +314,13 @@ describe("The Util Library", function() {
             // Posttest
             expect(message.recipientStatus).toEqual({
                 a: "read",
-                b: "delivered"
+                b: "delivered",
+                c: "read"
             });
         });
 
         it("Should call __updateRecipientStatus", function() {
-            message.recipientStatus = {a: "sent", b: "sent"};
+            message.recipientStatus = {a: "sent", b: "sent", c: "read"};
             spyOn(message, "__updateRecipientStatus");
             layer.Util.layerParse({
                 client: client,
@@ -333,10 +335,12 @@ describe("The Util Library", function() {
             // Posttest
             expect(message.__updateRecipientStatus).toHaveBeenCalledWith({
                 a: "read",
-                b: "delivered"
+                b: "delivered",
+                c: "read"
             }, {
                 a: "sent",
-                b: "sent"
+                b: "sent",
+                c: "read"
             });
         });
     });

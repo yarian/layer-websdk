@@ -14,9 +14,16 @@ const {STARTED, PAUSED, FINISHED} = require('./typing-indicators');
  *
  *      typingListener.setConversation(mySelectedConversation);
  *
- * TODO: This class assumes that the textbox lasts for the full
- * lifespan of your app and does not unsubscribe from its events.
- * This needs to be cleaned up for a broader class of apps.
+ * There are two ways of cleaning up all pointers to your input so it can be garbage collected:
+ *
+ * 1. Destroy the listener:
+ *
+ *        typingListener.destroy();
+ *
+ * 2. Remove or replace the input:
+ *
+ *        typingListener.setInput(null);
+ *        typingListener.setInput(newInput);
  *
  * @class  layer.TypingIndicators.TypingListener
  */
@@ -28,12 +35,11 @@ class TypingListener {
    *
    * @method constructor
    * @param  {Object} args
-   * @param {HTMLElement} input - A Text editor dom node that will have typing indicators
-   * @param {Object} [conversation=null] - The Conversation Object or Instance that the input will send messages to
-   * @param {string} clientId - The ID of the client; used so that the TypingPublisher can access its websocket manager
+   * @param {string} args.clientId - The ID of the client; used so that the TypingPublisher can access its websocket manager*
+   * @param {HTMLElement} [args.input=null] - A Text editor dom node that will have typing indicators
+   * @param {Object} [args.conversation=null] - The Conversation Object or Instance that the input will send messages to
    */
   constructor(args) {
-    this.input = args.input;
     this.clientId = args.clientId;
     this.conversation = args.conversation;
     this.publisher = new TypingPublisher({
@@ -44,21 +50,58 @@ class TypingListener {
     this.intervalId = 0;
     this.lastKeyId = 0;
 
-    // Use keypress rather than keydown because the user hitting alt-tab to change
-    // windows, and other meta keys should not result in typing indicators
     this._handleKeyPress = this._handleKeyPress.bind(this);
     this._handleKeyDown = this._handleKeyDown.bind(this);
-    this.input.addEventListener('keypress', this._handleKeyPress);
-    this.input.addEventListener('keydown', this._handleKeyDown);
+    this.setInput(args.input);
   }
 
   destroy() {
-    if (this.input) {
-      this.input.removeEventListener('keypress', this._handleKeyPress);
-      this.input.removeEventListener('keydown', this._handleKeyDown);
-    }
+    this._removeInput(this.input);
     this.publisher.destroy();
-    this.input = null;
+  }
+
+  /**
+   * Change the input being tracked by your TypingListener, and broadcasting typing changes to other users.
+   * If you are removing your input from the DOM, you can simply call
+   *
+   *     typingListener.setInput(null);
+   *
+   * And all event handlers will be removed, allowing for garbage collection
+   * to cleanup your input.
+   *
+   * You can also call setInput with a newly created input:
+   *
+   *     var input = document.createElement('input');
+   *     typingListener.setInput(input);
+   *
+   * @method setInput
+   * @param {HTMLElement} input - Textarea or text input
+   */
+  setInput(input) {
+    if (input !== this.input) {
+      this._removeInput(this.input);
+      this.input = input;
+
+      // Use keypress rather than keydown because the user hitting alt-tab to change
+      // windows, and other meta keys should not result in typing indicators
+      this.input.addEventListener('keypress', this._handleKeyPress);
+      this.input.addEventListener('keydown', this._handleKeyDown);
+    }
+  }
+
+  /**
+   * Cleanup and remove all links and callbacks keeping input from being garbage collected
+   *
+   * @method _removeInput
+   * @private
+   * @param {HTMLElement} input - Textarea or text input
+   */
+  _removeInput(input) {
+    if (input) {
+      input.removeEventListener('keypress', this._handleKeyPress);
+      input.removeEventListener('keydown', this._handleKeyDown);
+      this.input = null;
+    }
   }
 
   /**

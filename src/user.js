@@ -204,7 +204,6 @@ User.prototype.iconClass = "";
 User.prototype.conversation = null;
 User.prototype._toObject = null;
 
-User._inObjectIgnore = [].concat(Root._inObjectIgnore);
 User._supportedEvents = ["conversations:change"].concat(Root._supportedEvents);
 Root.initClass.apply(User, [User, "User"]);
 

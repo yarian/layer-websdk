@@ -126,10 +126,6 @@ const eventSplitter = /\s+/;
  * @class layer.Root
  * @author Michael Kantor
  */
-/*
- * TODO: Remove _inObjectIgnore;
- *       May require update to layer.User
- */
 class Root extends EventClass {
 
   /**
@@ -240,8 +236,6 @@ class Root extends EventClass {
     try {
       const keys = Object.keys(this.constructor.prototype);
       keys.forEach(key => {
-        // Skip any properties defined in the class's _inObjectIgnore array
-        if (this.constructor._inObjectIgnore.indexOf(key) !== -1) return;
         const v = this[key];
 
         // Ignore private/protected properties and functions
@@ -281,7 +275,9 @@ class Root extends EventClass {
           obj[key] = v;
         }
       });
-    } catch (e) { }
+    } catch (e) {
+      // no-op
+    }
     this.__inToObject = false;
     return obj;
   }
@@ -307,12 +303,7 @@ class Root extends EventClass {
         this._warnForEvent(name);
       }
     } else if (name && typeof name === 'object') {
-      let keyName;
-      for (keyName in name) {
-        if (name.hasOwnProperty(keyName)) {
-          this._warnForEvent(keyName);
-        }
-      }
+      Object.keys(name).forEach(keyName => this._warnForEvent(keyName));
     }
   }
 
@@ -428,23 +419,13 @@ class Root extends EventClass {
     const args = Array.prototype.slice.call(arguments);
 
     if (args[1]) {
-      let newArg = { target: this };
+      const newArg = { target: this };
 
       if (args[1] instanceof LayerEvent) {
         // A LayerEvent will be an argument when bubbling events up; these args can be used as-is
       } else {
         if (typeof args[1] === 'object') {
-          // Occasionally someone may want to explicitly pass in a target
-          // if ('target' in args[1]) {
-          //   newArg = args[1];
-          // } else {
-            let name;
-            for (name in args[1]) {
-              if (args[1].hasOwnProperty(name)) {
-                newArg[name] = args[1][name];
-              }
-            }
-          //}
+          Object.keys(args[1]).forEach(name => newArg[name] = args[1][name]);
         } else {
           newArg.data = args[1];
         }
@@ -587,14 +568,14 @@ function defineProperty(newClass, propertyName) {
   const pKey = '__' + propertyName;
   const camel = propertyName.substring(0, 1).toUpperCase() + propertyName.substring(1);
 
-  if (newClass.prototype['__adjust' + camel] || newClass.prototype['__update' + camel]) {
+  if (newClass.prototype['__adjust' + camel] || newClass.prototype['__update' + camel] || newClass.prototype['__get' + camel]) {
     // set default value
     newClass.prototype[pKey] = newClass.prototype[propertyName];
 
     Object.defineProperty(newClass.prototype, propertyName, {
       enumerable: true,
       get: function get() {
-        return this[pKey];
+        return this['__get' + camel] ? this['__get' + camel](pKey) : this[pKey];
       },
       set: function set(inValue) {
         if (this.isDestroyed) return;
@@ -623,7 +604,6 @@ function initClass(newClass, className) {
   // Make sure our new class has a _supportedEvents, _ignoredEvents, _inObjectIgnore and EVENTS properties
   if (!newClass._supportedEvents) newClass._supportedEvents = Root._supportedEvents;
   if (!newClass._ignoredEvents) newClass._ignoredEvents = Root._ignoredEvents;
-  if (!newClass._inObjectIgnore) newClass._inObjectIgnore = Root._inObjectIgnore;
 
   // Generate a list of properties for this class; we don't include any
   // properties from layer.Root
@@ -639,7 +619,6 @@ Root.prototype.internalId = '';
 Root.prototype.isInitializing = true;
 Root.prototype._subscriptions = null;
 Root.prototype._disableEvents = false;
-Root._inObjectIgnore = ['BackboneEvents', 'events', 'isInitializing'];
 Root._supportedEvents = ['destroy', 'all'];
 Root._ignoredEvents = [];
 module.exports = Root;

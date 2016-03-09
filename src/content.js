@@ -49,8 +49,6 @@ class Content extends Root {
    *
    * Note that typically one should use MessagePart.loadContent() rather than Content.loadContent()
    *
-   * TODO: A 400 response means the content has expired; have yet to validate that we need to test for this.
-   *
    * @method loadContent
    * @param {string} mimeType - Mime type for the Blob
    * @param {Function} callback
@@ -61,12 +59,16 @@ class Content extends Root {
       url: this.downloadUrl,
       responseType: 'arraybuffer',
     }, result => {
-      if (typeof Blob !== 'undefined') {
-        const blob = new Blob([result.data], {type: mimeType});
-        callback(blob);
+      if (result.success) {
+        if (typeof Blob !== 'undefined') {
+          const blob = new Blob([result.data], {type: mimeType});
+          callback(null, blob);
+        } else {
+          // If the blob class isn't defined (nodejs) then just return the result as is
+          callback(null, result.data);
+        }
       } else {
-        // If the blob class isn't defined (nodejs) then just return the result as is
-        callback(result.data);
+        callback(result.data, null);
       }
     });
   }
@@ -94,8 +96,6 @@ class Content extends Root {
    * Is the download url expired or about to expire?
    * We can't be sure of the state of the device's internal clock,
    * so if its within 10 minutes of expiring, just treat it as expired.
-   *
-   * TODO: I would like a better solution to this.
    *
    * @method isExpired
    * @returns {Boolean}
