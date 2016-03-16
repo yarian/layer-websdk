@@ -19,7 +19,6 @@ const registry = {};
 function register(client) {
   const appId = client.appId;
   if (registry[appId] && !registry[appId].isDestroyed) {
-    //console.warn(`A new Client with appId ${appId} has caused a prior client to be destroyed`);
     registry[appId].destroy();
   }
   registry[appId] = client;

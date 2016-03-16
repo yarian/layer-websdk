@@ -148,7 +148,6 @@ describe("The Conversation Class", function() {
 
             // Posttest
             expect(conversation.lastMessage).toBe(null);
-            expect(m.isDestroyed).toBe(true);
         });
 
         it("Should call _removeConversation", function() {
@@ -715,6 +714,19 @@ describe("The Conversation Class", function() {
                     newValue: conversation.id,
                     property: 'id',
                 });
+        });
+
+        it("Should write a _tempId property", function() {
+            // Setup
+            spyOn(conversation, "_triggerAsync");
+            var initialId = conversation.id;
+
+            // Run
+            conversation._populateFromServer(c);
+
+            // Posttest
+            expect(conversation._tempId).toEqual(initialId);
+            expect(conversation.id).not.toEqual(initialId);
         });
 
         it("Should setup lastMessage", function() {

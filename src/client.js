@@ -103,6 +103,8 @@ class Client extends ClientAuth {
     // Initialize Properties
     this._conversationsHash = {};
     this._messagesHash = {};
+    this._tempConversationsHash = {};
+    this._tempMessagesHash = {};
     this._queriesHash = {};
 
     if (!options.users) {
@@ -222,6 +224,8 @@ class Client extends ClientAuth {
     if (typeof id !== 'string') throw new Error(LayerError.dictionary.idParamRequired);
     if (this._conversationsHash[id]) {
       return this._conversationsHash[id];
+    } else if (this._tempConversationsHash[id] && this._conversationsHash[this._tempConversationsHash[id]]) {
+      return this._conversationsHash[this._tempConversationsHash[id]];
     } else if (canLoad) {
       return Conversation.load(id, this);
     }
@@ -279,10 +283,12 @@ class Client extends ClientAuth {
       delete this._conversationsHash[conversation.id];
       this._triggerAsync('conversations:remove', { conversations: [conversation] });
     }
+    delete this._tempConversationsHash[conversation._tempId];
 
+    // Remove any Message associated with this Conversation
     Object.keys(this._messagesHash).forEach(id => {
       if (this._messagesHash[id].conversationId === conversation.id) {
-        this._removeMessage(id);
+        this._messagesHash[id].destroy();
       }
     });
 
@@ -300,6 +306,10 @@ class Client extends ClientAuth {
   _updateConversationId(conversation, oldId) {
     if (this._conversationsHash[oldId]) {
       this._conversationsHash[conversation.id] = conversation;
+      delete this._conversationsHash[oldId];
+
+      // Enable components that still have the old ID to still call getConversation with it
+      this._tempConversationsHash[oldId] = conversation.id;
 
       // This is a nasty way to work... but need to find and update all
       // conversationId properties of all Messages or the Query's won't
@@ -307,11 +317,6 @@ class Client extends ClientAuth {
       Object.keys(this._messagesHash)
             .filter(id => this._messagesHash[id].conversationId === oldId)
             .forEach(id => this._messagesHash[id].conversationId = conversation.id);
-
-      // That old id may still be needed for a little while...
-      setTimeout(() => {
-        if (!this.isDestroyed) delete this._conversationsHash[oldId];
-      }, 60000);
     }
   }
 
@@ -345,6 +350,8 @@ class Client extends ClientAuth {
 
     if (this._messagesHash[id]) {
       return this._messagesHash[id];
+    } else if (this._tempMessagesHash[id] && this._messagesHash[this._tempMessagesHash[id]]) {
+      return this._messagesHash[this._tempMessagesHash[id]];
     } else if (canLoad) {
       return Message.load(id, this);
     }
@@ -400,6 +407,7 @@ class Client extends ClientAuth {
     message = this._messagesHash[id];
     if (message) {
       delete this._messagesHash[id];
+      delete this._tempMessagesHash[message._tempId];
       if (!this._inCleanup) {
         this._triggerAsync('messages:remove', { messages: [message] });
         const conv = message.getConversation();
@@ -419,13 +427,10 @@ class Client extends ClientAuth {
    */
   _updateMessageId(message, oldId) {
     this._messagesHash[message.id] = message;
+    delete this._messagesHash[oldId];
 
-    // That old id may still be needed for a little while...
-    setTimeout(() => {
-      if (!this.isDestroyed) {
-        delete this._messagesHash[oldId];
-      }
-    }, 60000);
+    // Enable components that still have the old ID to still call getMessage with it
+    this._tempMessagesHash[oldId] = message.id;
   }
 
   /**
@@ -463,11 +468,14 @@ class Client extends ClientAuth {
    */
   _createObject(obj) {
     switch (Util.typeFromID(obj.id)) {
-      case 'messages':
+      case 'messages': {
         const conversation = this.getConversation(obj.conversation.id, true);
         return Message._createFromServer(obj, conversation);
-      case 'conversations':
+      }
+
+      case 'conversations': {
         return Conversation._createFromServer(obj, this);
+      }
     }
   }
 
@@ -484,11 +492,11 @@ class Client extends ClientAuth {
 
     const addConversations = this._delayedTriggers.filter((evt) => evt[0] === 'conversations:add');
     const removeConversations = this._delayedTriggers.filter((evt) => evt[0] === 'conversations:remove');
-    this._foldEvents(addConversations,      'conversations', this);
-    this._foldEvents(removeConversations,   'conversations', this);
+    this._foldEvents(addConversations, 'conversations', this);
+    this._foldEvents(removeConversations, 'conversations', this);
 
-    const addMessages     = this._delayedTriggers.filter((evt) => evt[0] === 'messages:add');
-    const removeMessages  = this._delayedTriggers.filter((evt) => evt[0] === 'messages:remove');
+    const addMessages = this._delayedTriggers.filter((evt) => evt[0] === 'messages:add');
+    const removeMessages = this._delayedTriggers.filter((evt) => evt[0] === 'messages:remove');
 
     this._foldEvents(addMessages, 'messages', this);
     this._foldEvents(removeMessages, 'messages', this);
@@ -498,7 +506,7 @@ class Client extends ClientAuth {
 
   trigger(eventName, evt) {
     this._triggerLogger(eventName, evt);
-    super.trigger(...arguments);
+    super.trigger(eventName, evt);
   }
 
   /**
@@ -508,7 +516,13 @@ class Client extends ClientAuth {
    * @private
    */
   _triggerLogger(eventName, evt) {
-    if (['conversations:add', 'conversations:remove', 'conversations:change', 'messages:add', 'messages:remove', 'messages:change', 'challenge', 'ready'].indexOf(eventName) !== -1) {
+    const infoEvents = [
+      'conversations:add', 'conversations:remove',
+      'conversations:change', 'messages:add',
+      'messages:remove', 'messages:change',
+      'challenge', 'ready',
+    ];
+    if (infoEvents.indexOf(eventName) !== -1) {
       if (evt && evt.isChange) {
         logger.info(`Client Event: ${eventName} ${evt.changes.map(change => change.property).join(', ')}`);
       } else {
@@ -783,7 +797,12 @@ class Client extends ClientAuth {
    */
   _removeQuery(query) {
     if (query) {
-      this._checkCache(query.data);
+      if (!this._inCleanup) {
+        const data = query.data
+          .map(obj => this._getObject(obj.id))
+          .filter(obj => obj);
+        this._checkCache(data);
+      }
       this.off(null, null, query);
       delete this._queriesHash[query.id];
     }
@@ -800,10 +819,7 @@ class Client extends ClientAuth {
   _checkCache(objects) {
     objects.forEach(obj => {
       if (!this._isCachedObject(obj)) {
-        this._removeObject(obj);
-        if (obj.lastMessage && !this._isCachedObject(obj.lastMessage)) {
-          this._removeObject(obj.lastMessage);
-        }
+        obj.destroy();
       }
     });
   }
@@ -853,9 +869,7 @@ class Client extends ClientAuth {
    */
   _removeObject(obj) {
     if (obj instanceof Root === false) obj = this._getObject(obj.id);
-    if (obj) {
-      return obj.destroy();
-    }
+    if (obj) obj.destroy();
   }
 
   /**
@@ -984,6 +998,23 @@ Client.prototype._conversationsHash = null;
  * @type {Object}
  */
 Client.prototype._messagesHash = null;
+
+
+/**
+ * Hash of temp layer.Conversation objects for quick lookup by id
+ *
+ * @private
+ * @property _tempConversationsHash {Object}
+ */
+Client.prototype._tempConversationsHash = null;
+
+/**
+ * Hash of temp layer.Message objects for quick lookup by id
+ *
+ * @private
+ * @type {Object}
+ */
+Client.prototype._tempMessagesHash = null;
 
 
 /**

@@ -180,6 +180,7 @@ class SocketManager extends Root {
     // readyState=CONNECTING.  Does it throw an error?  Does it call the onClose or onError event handlers?
     // Remove all event handlers so that calling close won't trigger any calls.
     try {
+      this.isOpen = false;
       this._removeSocketEvents();
       this._socket.close();
       this._socket = null;

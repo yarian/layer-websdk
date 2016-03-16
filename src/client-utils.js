@@ -301,6 +301,5 @@ exports.doesObjectMatch = (requestedData, actualData) => {
  * @param {Mixed} value
  * @returns {boolean}
  */
-exports.includes = (items, value) => {
-  return items.indexOf(value) !== -1;
-};
+exports.includes = (items, value) => items.indexOf(value) !== -1;
+

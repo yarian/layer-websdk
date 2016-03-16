@@ -1050,6 +1050,8 @@ describe("The Messages class", function() {
         it("Should copy in part data on receiving a parts:send event and call send", function() {
             // Setup
             spyOn(m, "_send");
+            spyOn(m.parts[0], "_send");
+            spyOn(m.parts[1], "_send");
 
             // Run
             m._preparePartsForSending({parts: [null, null]});
@@ -1192,31 +1194,6 @@ describe("The Messages class", function() {
 
             // Posttest
             expect(m._triggerAsync).toHaveBeenCalledWith("messages:sent");
-        });
-
-        it("Should trigger messages:change", function() {
-            // Setup
-            spyOn(m, "_triggerAsync");
-            var id = m.id;
-
-            // Run
-            m._sendResult({
-                success: true,
-                data: {
-                    id: "dohId",
-                    sender: {
-                        user_id: "999"
-                    },
-                    parts: [{mime_type: "text/plain", body: "Doh!"}]
-                }
-            });
-
-            // Posttest
-            expect(m._triggerAsync).toHaveBeenCalledWith("messages:change", {
-                oldValue: id,
-                newValue: "dohId",
-                property: 'id'
-            });
         });
     });
 
@@ -1381,6 +1358,9 @@ describe("The Messages class", function() {
 
             // Posttest
             expect(client._removeMessage).toHaveBeenCalledWith(m);
+
+            // Cleanup
+            delete client._messagesHash[m.id];
         });
 
         it("Should trigger destroy", function() {
@@ -1487,6 +1467,28 @@ describe("The Messages class", function() {
             expect(m.parts[1]._populateFromServer).toHaveBeenCalledWith(responses.message1.parts[1]);
         });
 
+        it("Should call MessagePart._populateFromServer even if parts don't have IDs", function() {
+            // Setup
+            m = new layer.Message({
+              client: client,
+              fromServer: responses.message1
+            });
+            m.parts[0].id = m.parts[1].id = '';
+            spyOn(m.parts[0], "_populateFromServer");
+            spyOn(m.parts[1], "_populateFromServer");
+            var parts = m.parts;
+
+            // Run
+            m._populateFromServer(responses.message1);
+
+            // Posttest
+            expect(m.parts[0]).toBe(parts[0]);
+            expect(m.parts[1]).toBe(parts[1]);
+            expect(m.parts.length).toEqual(2);
+            expect(m.parts[0]._populateFromServer).toHaveBeenCalledWith(responses.message1.parts[0]);
+            expect(m.parts[1]._populateFromServer).toHaveBeenCalledWith(responses.message1.parts[1]);
+        });
+
         it("Should call __updateRecipientStatus()", function() {
             // Setup
             m = new layer.Message({
@@ -1540,6 +1542,73 @@ describe("The Messages class", function() {
 
             // Posttest
             expect(m._setSynced).toHaveBeenCalled();
+        });
+
+        it("Should trigger an ID change", function() {
+            // Setup
+            m = new layer.Message({
+                client: client
+            });
+            spyOn(m, "_triggerAsync");
+            var id = m.id;
+
+            // Run
+            m._populateFromServer({
+                id: "dohId",
+                sender: {
+                    user_id: "999"
+                },
+                parts: [{mime_type: "text/plain", body: "Doh!"}]
+            });
+
+            // Posttest
+            expect(m._triggerAsync).toHaveBeenCalledWith("messages:change", {
+                oldValue: id,
+                newValue: "dohId",
+                property: 'id'
+            });
+        });
+
+        it("Should call _updateMessageId", function() {
+            // Setup
+            m = new layer.Message({
+                client: client
+            });
+            spyOn(client, "_updateMessageId");
+            var id = m.id;
+
+            // Run
+            m._populateFromServer({
+                id: "dohId",
+                sender: {
+                    user_id: "999"
+                },
+                parts: [{mime_type: "text/plain", body: "Doh!"}]
+            });
+
+            // Posttest
+            expect(client._updateMessageId).toHaveBeenCalledWith(m, id);
+        });
+
+        it("Should cache the tempId", function() {
+            // Setup
+            m = new layer.Message({
+                client: client
+            });
+            var id = m.id;
+
+            // Run
+            m._populateFromServer({
+                id: "dohId",
+                sender: {
+                    user_id: "999"
+                },
+                parts: [{mime_type: "text/plain", body: "Doh!"}]
+            });
+
+            // Posttest
+            expect(m._tempId).toEqual(id);
+            expect(m._tempId).not.toEqual(m.id);
         });
     });
 

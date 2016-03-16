@@ -63,7 +63,7 @@ class SyncEvent  {
    * @returns {Object}
    */
   toObject() {
-    return {data: this.data};
+    return { data: this.data };
   }
 }
 
@@ -224,4 +224,4 @@ class WebsocketSyncEvent extends SyncEvent {
   }
 }
 
-module.exports = {SyncEvent, XHRSyncEvent, WebsocketSyncEvent};
+module.exports = { SyncEvent, XHRSyncEvent, WebsocketSyncEvent };

@@ -128,10 +128,7 @@ class Conversation extends Syncable {
    * @method destroy
    */
   destroy() {
-    if (this.lastMessage && !this.lastMessage.isDestroyed) {
-      this.lastMessage.destroy();
-      this.lastMessage = null;
-    }
+    this.lastMessage = null;
 
     // Client fires 'conversations:remove' and then removes the Conversation.
     if (this.clientId) this.getClient()._removeConversation(this);
@@ -286,7 +283,7 @@ class Conversation extends Syncable {
    * @private
    * @param  {Object} result
    */
-  _createResult({ success: success, data: data }) {
+  _createResult({ success, data }) {
     if (success) {
       this._createSuccess(data);
     } else if (data.id === 'conflict') {
@@ -346,6 +343,7 @@ class Conversation extends Syncable {
     const id = this.id;
     this.id = conversation.id;
     if (id !== this.id) {
+      this._tempId = id;
       client._updateConversationId(this, id);
       this._triggerAsync('conversations:change', {
         oldValue: id,
@@ -762,7 +760,7 @@ class Conversation extends Syncable {
       }
       layerPatchOperations.push({
         operation: 'delete',
-        property: property,
+        property,
       });
     }, this);
 
@@ -978,8 +976,8 @@ class Conversation extends Syncable {
     if (newValue && oldValue && newValue.id === oldValue.id) return;
     this._triggerAsync('conversations:change', {
       property: 'lastMessage',
-      newValue: newValue,
-      oldValue: oldValue,
+      newValue,
+      oldValue,
     });
   }
 
@@ -1021,9 +1019,9 @@ class Conversation extends Syncable {
     if (JSON.stringify(newValue) !== JSON.stringify(oldValue)) {
       this._triggerAsync('conversations:change', {
         property: 'metadata',
-        newValue: newValue,
-        oldValue: oldValue,
-        paths: paths,
+        newValue,
+        oldValue,
+        paths,
       });
     }
   }
@@ -1083,28 +1081,28 @@ class Conversation extends Syncable {
    * @return {layer.Conversation}        [description]
    */
   static _createFromServer(convObj, client) {
-    let conversation, found;
+    let conversation;
 
     // Make sure we have a client... or abort
     if (!(client instanceof Root)) throw new Error(LayerError.dictionary.clientMissing);
 
     // If the Conversation already exists in cache, update the cache
-    found = client.getConversation(convObj.id);
+    const found = client.getConversation(convObj.id);
     if (found) {
       conversation = found;
       conversation._populateFromServer(convObj);
     } else {
       // If the Conversation does not exist, create it; side effects will cache it
       conversation = new Conversation({
-        client: client,
+        client,
         fromServer: convObj,
       });
     }
 
     // Return Conversation and whether it was new/cached
     return {
-      conversation: conversation,
-      'new': !found,
+      conversation,
+      new: !found,
     };
   }
 
@@ -1120,9 +1118,9 @@ class Conversation extends Syncable {
   static load(id, client) {
     if (!client) throw new Error(LayerError.dictionary.clientMissing);
     const conversation = new Conversation({
-      id: id,
       url: client.url + id.substring(8),
-      client: client,
+      id,
+      client,
     });
     conversation._load();
     return conversation;
@@ -1160,10 +1158,9 @@ class Conversation extends Syncable {
    * @return {layer.Conversation}
    */
   static create(options) {
-    let conv;
     if (!options.client) throw new Error(LayerError.dictionary.clientMissing);
     if (options.distinct) {
-      conv = this._createDistinct(options);
+      const conv = this._createDistinct(options);
       if (conv) return conv;
     }
 
@@ -1203,7 +1200,8 @@ class Conversation extends Syncable {
     if (conv) {
       conv._sendDistinctEvent = new LayerEvent({
         target: conv,
-        result: !options.metadata || Util.doesObjectMatch(options.metadata, conv.metadata) ? Conversation.FOUND : Conversation.FOUND_WITHOUT_REQUESTED_METADATA,
+        result: !options.metadata || Util.doesObjectMatch(options.metadata, conv.metadata) ?
+          Conversation.FOUND : Conversation.FOUND_WITHOUT_REQUESTED_METADATA,
       }, 'conversations:sent');
       return conv;
     }
@@ -1333,6 +1331,17 @@ Conversation.prototype._toObject = null;
  * @private
  */
 Conversation.prototype._sendDistinctEvent = null;
+
+/**
+ * A locally created Conversation will get a temporary ID.
+ * Some may try to lookup the Conversation using the temporary ID even
+ * though it may have later received an ID from the server.
+ * Keep the temporary ID so we can correctly index and cleanup.
+ *
+ * @type {String}
+ * @private
+ */
+Conversation.prototype._tempId = '';
 
 /**
  * Prefix to use when generating an ID for instances of this class

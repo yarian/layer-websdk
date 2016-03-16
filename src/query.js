@@ -168,13 +168,13 @@ const findConvIdRegex = new RegExp(/^conversation.id\s*=\s*['"]((temp_)?layer:\/
 
 class Query extends Root {
 
-  constructor() {
+  constructor(...args) {
     let options;
-    if (arguments.length === 2) {
-      options = arguments[1].build();
-      options.client = arguments[0];
+    if (args.length === 2) {
+      options = args[1].build();
+      options.client = args[0];
     } else {
-      options = arguments[0];
+      options = args[0];
     }
     if ('paginationWindow' in options) {
       const paginationWindow = options.paginationWindow;
@@ -230,10 +230,9 @@ class Query extends Root {
    */
   update(options = {}) {
     let needsRefresh,
-      needsRecreate,
-      optionsBuilt;
+      needsRecreate;
 
-    optionsBuilt = (typeof options.build === 'function') ? options.build() : options;
+    const optionsBuilt = (typeof options.build === 'function') ? options.build() : options;
 
     if ('paginationWindow' in optionsBuilt && this.paginationWindow !== optionsBuilt.paginationWindow) {
       this.paginationWindow = Math.min(Query.MaxPageSize + this.size, optionsBuilt.paginationWindow);
@@ -361,7 +360,7 @@ class Query extends Root {
       const uuid = (this._predicate || conversationId).replace(/^(temp_)?layer\:\/\/\/conversations\//, '');
       if (uuid) {
         return {
-          uuid: uuid,
+          uuid,
           id: conversationId,
         };
       }
@@ -441,7 +440,7 @@ class Query extends Root {
    * @param  {Object} results - Full xhr response object with server results
    */
   _processRunResults(results, requestUrl) {
-    if (requestUrl !== this._firingRequest) return;
+    if (requestUrl !== this._firingRequest || this.isDestroyed) return;
 
     this.isFiring = false;
     this._firingRequest = '';
@@ -725,7 +724,10 @@ class Query extends Root {
     evt.conversations.forEach(conversation => {
       const index = this._getIndex(conversation.id);
       if (index !== -1) {
-        removed.push({ data: conversation, index: index });
+        removed.push({
+          data: conversation,
+          index,
+        });
         if (this.dataType === Query.ObjectDataType) {
           this.data = [...this.data.slice(0, index), ...this.data.slice(index + 1)];
         } else {
@@ -887,7 +889,10 @@ class Query extends Root {
     evt.messages.forEach(message => {
       const index = this._getIndex(message.id);
       if (index !== -1) {
-        removed.push({ data: message, index: index });
+        removed.push({
+          data: message,
+          index,
+        });
         if (this.dataType === Query.ObjectDataType) {
           this.data = [
             ...this.data.slice(0, index),

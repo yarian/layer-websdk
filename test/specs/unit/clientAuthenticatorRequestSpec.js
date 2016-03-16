@@ -568,4 +568,82 @@ describe("The Client Authenticator Requests", function() {
             expect(results.data.id).toEqual("fred");
         });
     });
+
+    describe("The Push Token Methods", function() {
+      it("Should have a working registerIOSPushToken() method", function() {
+        var callback = jasmine.createSpy('callback');
+        client.registerIOSPushToken({
+          token: "a",
+          deviceId: "b",
+          iosVersion: "c",
+          bundleId: "d"
+        }, callback);
+
+        expect(requests.mostRecent()).toEqual(jasmine.objectContaining({
+          url: client.url + "/push_tokens",
+          method: "POST",
+          params: JSON.stringify({
+           token: "a",
+           type: "apns",
+           device_id: "b",
+           ios_version: "c",
+           apns_bundle_id: "d"
+          })
+        }));
+
+        var response = {
+            status: 200,
+            responseText: JSON.stringify({doh: "a deer"})
+        };
+        requests.mostRecent().response(response);
+        expect(callback).toHaveBeenCalledWith({doh: "a deer"});
+      });
+
+      it("Should have a working registerAndroidPushToken() method", function() {
+        var callback = jasmine.createSpy('callback');
+        client.registerAndroidPushToken({
+          token: "a",
+          deviceId: "b",
+          senderId: "c"
+        }, callback);
+
+        expect(requests.mostRecent()).toEqual(jasmine.objectContaining({
+          url: client.url + "/push_tokens",
+          method: "POST",
+          params: JSON.stringify({
+           token: "a",
+           type: "gcm",
+           device_id: "b",
+           gcm_sender_id: "c"
+          })
+        }));
+
+        var response = {
+            status: 200,
+            responseText: JSON.stringify({doh: "a deer"})
+        };
+        requests.mostRecent().response(response);
+        expect(callback).toHaveBeenCalledWith({doh: "a deer"});
+
+      });
+
+      it("Should have a working unregisterPushToken() method", function() {
+        var callback = jasmine.createSpy('callback');
+        client.unregisterPushToken("a", callback);
+
+        expect(requests.mostRecent()).toEqual(jasmine.objectContaining({
+          url: client.url + "/push_tokens/a",
+          method: "DELETE"
+        }));
+
+        var response = {
+            status: 200,
+            responseText: JSON.stringify({doh: "a deer"})
+        };
+        requests.mostRecent().response(response);
+        expect(callback).toHaveBeenCalledWith({doh: "a deer"});
+
+      });
+
+    });
 });

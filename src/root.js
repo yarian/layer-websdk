@@ -151,7 +151,9 @@ class Root extends EventClass {
     SystemBus.on(this.internalId + '-delayed-event', this._processDelayedTriggers, this);
 
     // Generate a temporary id if there isn't an id
-    if (!this.id && !options.id && this.constructor.prefixUUID) this.id = 'temp_' + this.constructor.prefixUUID + Utils.generateUUID();
+    if (!this.id && !options.id && this.constructor.prefixUUID) {
+      this.id = 'temp_' + this.constructor.prefixUUID + Utils.generateUUID();
+    }
 
     // Copy in all properties; setup all event handlers
     let key;
@@ -330,13 +332,13 @@ class Root extends EventClass {
    */
   on(name, handler, context) {
     this._prepareOn(name, handler, context);
-    Events.on.apply(this, arguments);
+    Events.on.apply(this, [name, handler, context]);
     return this;
   }
 
   once(name, handler, context) {
     this._prepareOn(name, handler, context);
-    Events.once.apply(this, arguments);
+    Events.once.apply(this, [name, handler, context]);
     return this;
   }
 
@@ -370,9 +372,9 @@ class Root extends EventClass {
    * @param {Mixed} arg           Values that will be placed within a layer.LayerEvent
    * @return {layer.Root} this
    */
-  trigger() {
+  trigger(...args) {
     if (this._disableEvents) return this;
-    return this._trigger(...arguments);
+    return this._trigger(...args);
   }
 
   /**
@@ -383,23 +385,23 @@ class Root extends EventClass {
    * @param {string} eventName - Name of the event
    * @return {Object} Return *this* for chaining
    */
-  _trigger() {
-    if (!Utils.includes(this.constructor._supportedEvents, arguments[0])) {
-      if (!Utils.includes(this.constructor._ignoredEvents, arguments[0])) {
-        Logger.error(this.toString() + ' ignored ' + arguments[0]);
+  _trigger(...args) {
+    if (!Utils.includes(this.constructor._supportedEvents, args[0])) {
+      if (!Utils.includes(this.constructor._ignoredEvents, args[0])) {
+        Logger.error(this.toString() + ' ignored ' + args[0]);
       }
       return;
     }
 
-    const args = this._getTriggerArgs(...arguments);
+    const computedArgs = this._getTriggerArgs(...args);
 
-    Events.trigger.apply(this, args);
+    Events.trigger.apply(this, computedArgs);
 
     const parentProp = this.constructor.bubbleEventParent;
     if (parentProp) {
       let parentValue = this[parentProp];
       parentValue = (typeof parentValue === 'function') ? parentValue.apply(this) : parentValue;
-      if (parentValue) parentValue.trigger(...args);
+      if (parentValue) parentValue.trigger(...computedArgs);
     }
   }
 
@@ -415,27 +417,27 @@ class Root extends EventClass {
    * @private
    * @return {Mixed[]} - First element of array is eventName, second element is layer.LayerEvent.
    */
-  _getTriggerArgs() {
-    const args = Array.prototype.slice.call(arguments);
+  _getTriggerArgs(...args) {
+    const computedArgs = Array.prototype.slice.call(args);
 
     if (args[1]) {
       const newArg = { target: this };
 
-      if (args[1] instanceof LayerEvent) {
+      if (computedArgs[1] instanceof LayerEvent) {
         // A LayerEvent will be an argument when bubbling events up; these args can be used as-is
       } else {
-        if (typeof args[1] === 'object') {
-          Object.keys(args[1]).forEach(name => newArg[name] = args[1][name]);
+        if (typeof computedArgs[1] === 'object') {
+          Object.keys(computedArgs[1]).forEach(name => {newArg[name] = computedArgs[1][name];});
         } else {
-          newArg.data = args[1];
+          newArg.data = computedArgs[1];
         }
-        args[1] = new LayerEvent(newArg, args[0]);
+        computedArgs[1] = new LayerEvent(newArg, computedArgs[0]);
       }
     } else {
-      args[1] = new LayerEvent({ target: this }, args[0]);
+      computedArgs[1] = new LayerEvent({ target: this }, computedArgs[0]);
     }
 
-    return args;
+    return computedArgs;
   }
 
   /**
@@ -458,14 +460,16 @@ class Root extends EventClass {
    * @param {Mixed} arg           Values that will be placed within a layer.LayerEvent
    * @return {layer.Root} this
    */
-  _triggerAsync() {
-    const args = this._getTriggerArgs(...arguments);
-    this._delayedTriggers.push(args);
+  _triggerAsync(...args) {
+    const computedArgs = this._getTriggerArgs(...args);
+    this._delayedTriggers.push(computedArgs);
 
     // NOTE: It is unclear at this time how it happens, but on very rare occasions, we see processDelayedTriggers
     // fail to get called when length = 1, and after that length just continuously grows.  So we add
     // the _lastDelayedTrigger test to insure that it will still run.
-    if (this._delayedTriggers.length === 1 || this._delayedTriggers.length && this._lastDelayedTrigger + 500 < Date.now()) {
+    const shouldScheduleTrigger = this._delayedTriggers.length === 1 ||
+      this._delayedTriggers.length && this._lastDelayedTrigger + 500 < Date.now();
+    if (shouldScheduleTrigger) {
       this._lastDelayedTrigger = Date.now();
       if (typeof postMessage === 'function' && typeof jasmine === 'undefined') {
         window.postMessage({
@@ -524,9 +528,7 @@ class Root extends EventClass {
    * @private
    */
   _foldChangeEvents() {
-    const events = this._delayedTriggers.filter(function (evt) {
-      return evt[1].isChange;
-    });
+    const events = this._delayedTriggers.filter(evt => evt[1].isChange);
     events.forEach((evt, i) => {
       if (i > 0) {
         events[0][1]._mergeChanges(evt[1]);

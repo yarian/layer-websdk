@@ -347,7 +347,8 @@ class Message extends Syncable {
    * @returns {number} result.deliveredCount
    */
   _getReceiptStatus(status, userId) {
-    let readCount = 0, deliveredCount = 0;
+    let readCount = 0,
+      deliveredCount = 0;
     Object.keys(status).filter(participant => participant !== userId).forEach(participant => {
       if (status[participant] === Constants.RECEIPT_STATE.READ) {
         readCount++;
@@ -457,7 +458,7 @@ class Message extends Syncable {
       url: '/receipts',
       method: 'POST',
       data: {
-        type: type,
+        type,
       },
       sync: {
         // This should not be treated as a POST/CREATE request on the Message
@@ -525,7 +526,7 @@ class Message extends Syncable {
     const client = this.getClient();
     let count = 0;
     this.parts.forEach((part, index) => {
-      part.on('parts:send', evt => {
+      part.once('parts:send', evt => {
         data.parts[index] = {
           mime_type: evt.mime_type,
         };
@@ -564,7 +565,7 @@ class Message extends Syncable {
         return {
           method: 'Message.create',
           object_id: conversation.id,
-          data: data,
+          data,
         };
       },
       sync: {
@@ -591,14 +592,7 @@ class Message extends Syncable {
       const id = this.id;
       const client = this.getClient();
       this._populateFromServer(data);
-
-      client._updateMessageId(this, id);
       this._triggerAsync('messages:sent');
-      this._triggerAsync('messages:change', {
-        oldValue: id,
-        newValue: this.id,
-        property: 'id',
-      });
     } else {
       this.trigger('messages:sent-error', { error: data });
       this.destroy();
@@ -706,9 +700,17 @@ class Message extends Syncable {
    * @param  {Object} m - Server description of the message
    */
   _populateFromServer(message) {
+    const tempId = this.id;
     this.id = message.id;
     this.url = message.url;
     this.position = message.position;
+
+    // Assign IDs to preexisting Parts so that we can call getPartById()
+    if (this.parts) {
+      this.parts.forEach((part, index) => {
+        if (!part.id) part.id = this.id + '/parts/' + index;
+      });
+    }
 
     this.parts = message.parts.map(part => {
       const existingPart = this.getPartById(part.id);
@@ -733,6 +735,16 @@ class Message extends Syncable {
     };
 
     this._setSynced();
+
+    if (tempId && tempId !== this.id) {
+      this._tempId = tempId;
+      this.getClient()._updateMessageId(this, tempId);
+      this._triggerAsync('messages:change', {
+        oldValue: tempId,
+        newValue: this.id,
+        property: 'id',
+      });
+    }
   }
 
   /**
@@ -827,11 +839,9 @@ class Message extends Syncable {
    * @return {string}
    */
   getText(joinStr = '. ') {
-    let textArray = this.parts.map(part => {
-      if (part.mimeType === 'text/plain') {
-        return part.body;
-      }
-    });
+    let textArray = this.parts
+      .filter(part => part.mimeType === 'text/plain')
+      .map(part => part.body);
     textArray = textArray.filter(data => data);
     return textArray.join(joinStr);
   }
@@ -906,11 +916,13 @@ class Message extends Syncable {
     }
 
     const status = message.recipientStatus[client.userId];
-    if (status !== Constants.RECEIPT_STATE.READ && status !== Constants.RECEIPT_STATE.DELIVERED) message._sendReceipt('delivery');
+    if (status !== Constants.RECEIPT_STATE.READ && status !== Constants.RECEIPT_STATE.DELIVERED) {
+      message._sendReceipt('delivery');
+    }
 
     return {
-      message: message,
-      'new': !found,
+      message,
+      new: !found,
     };
   }
 
@@ -928,7 +940,7 @@ class Message extends Syncable {
     if (id.indexOf('layer:///messages/') !== 0) throw new Error(LayerError.dictionary.invalidId);
 
     const message = new Message({
-      id: id,
+      id,
       url: client.url + id.substring(8),
       clientId: client.appId,
     });
@@ -1124,6 +1136,17 @@ Message.prototype.readStatus = Constants.RECIPIENT_STATE.NONE;
  */
 Message.prototype.deliveryStatus = Constants.RECIPIENT_STATE.NONE;
 
+
+/**
+ * A locally created Message will get a temporary ID.
+ * Some may try to lookup the Message using the temporary ID even
+ * though it may have later received an ID from the server.
+ * Keep the temporary ID so we can correctly index and cleanup.
+ *
+ * @type {String}
+ * @private
+ */
+Message.prototype._tempId = '';
 
 /**
  * The time that this client created this instance.
