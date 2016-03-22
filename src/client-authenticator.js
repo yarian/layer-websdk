@@ -37,13 +37,13 @@ const LayerError = require('./layer-error');
 const OnlineManager = require('./online-state-manager');
 const SyncManager = require('./sync-manager');
 const { XHRSyncEvent, WebsocketSyncEvent } = require('./sync-event');
-const { ACCEPT, LOCALSTORAGE_KEYS, LOG } = require('./const');
+const { ACCEPT, LOCALSTORAGE_KEYS } = require('./const');
 const atob = typeof window === 'undefined' ? require('atob') : window.atob;
 const logger = require('./logger');
 
 const MAX_XHR_RETRIES = 3;
 
-class Client extends Root {
+class ClientAuthenticator extends Root {
 
   /**
    * Create a new Client.
@@ -77,9 +77,11 @@ class Client extends Root {
     // We won't copy in userId; thats set from the identity-token... or from cache.
     // the userId argument is a way to identify if there has been a change of users.
     const requestedUserId = options.userId;
-    let cachedSessionData = '', cachedUserId = '';
+    let cachedSessionData = '',
+      cachedUserId = '';
     try {
-      cachedSessionData = global.localStorage ? global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + options.appId] : null;
+      cachedSessionData = global.localStorage ?
+        global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + options.appId] : null;
       cachedUserId = cachedSessionData ? JSON.parse(cachedSessionData).userId : '';
     } catch (error) {
       // Do nothing
@@ -178,7 +180,8 @@ class Client extends Root {
    */
   _getSessionToken() {
     if (this.sessionToken) return this.sessionToken;
-    const cachedSessionData = global.localStorage ? global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId] : '{}';
+    const cachedSessionData = global.localStorage ?
+      global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId] : '{}';
     try {
       return JSON.parse(cachedSessionData).sessionToken;
     } catch (error) {
@@ -315,7 +318,7 @@ class Client extends Root {
   _authenticate(nonce) {
     if (nonce) {
       this.trigger('challenge', {
-        nonce: nonce,
+        nonce,
         callback: this.answerAuthenticationChallenge.bind(this),
       });
     }
@@ -346,8 +349,8 @@ class Client extends Root {
         method: 'POST',
         sync: false,
         data: {
-          'identity_token': identityToken,
-          'app_id': this.appId,
+          identity_token: identityToken,
+          app_id: this.appId,
         },
       }, (result) => this._authResponse(result, identityToken));
     }
@@ -484,7 +487,7 @@ class Client extends Root {
    * Call `client.login()` to restart the authentication process.
    *
    * @method logout
-   * @return {layer.Client} this
+   * @return {layer.ClientAuthenticator} this
    */
   logout() {
     if (this.isAuthenticated) {
@@ -507,7 +510,7 @@ class Client extends Root {
    * call `login()`.
    *
    * @method login
-   * @return {layer.Client} this
+   * @return {layer.ClientAuthenticator} this
    */
   login() {
     this._connect();
@@ -521,7 +524,7 @@ class Client extends Root {
    *
    * @method _resetSession
    * @private
-   * @returns {layer.Client} this
+   * @returns {layer.ClientAuthenticator} this
    */
   _resetSession() {
     this.isReady = false;
@@ -536,6 +539,77 @@ class Client extends Root {
 
     this.trigger('deauthenticated');
     this.onlineManager.stop();
+  }
+
+
+  /**
+   * Register your IOS device to receive notifications.
+   * For use with native code only (Cordova, React Native, Titanium, etc...)
+   *
+   * @method registerIOSPushToken
+   * @param {Object} options
+   * @param {string} options.deviceId - Your IOS device's device ID
+   * @param {string} options.iosVersion - Your IOS device's version number
+   * @param {string} options.token - Your Apple APNS Token
+   * @param {string} [options.bundleId] - Your Apple APNS Bundle ID ("com.layer.bundleid")
+   * @param {Function} [callback=null] - Optional callback
+   * @param {layer.LayerError} callback.error - LayerError if there was an error; null if successful
+   */
+  registerIOSPushToken(options, callback) {
+    this.xhr({
+      url: 'push_tokens',
+      method: 'POST',
+      sync: false,
+      data: {
+        token: options.token,
+        type: 'apns',
+        device_id: options.deviceId,
+        ios_version: options.iosVersion,
+        apns_bundle_id: options.bundleId,
+      },
+    }, (result) => callback(result.data));
+  }
+
+  /**
+   * Register your Android device to receive notifications.
+   * For use with native code only (Cordova, React Native, Titanium, etc...)
+   *
+   * @method registerAndroidPushToken
+   * @param {Object} options
+   * @param {string} options.deviceId - Your IOS device's device ID
+   * @param {string} options.token - Your GCM push Token
+   * @param {string} options.senderId - Your GCM Sender ID/Project Number
+   * @param {Function} [callback=null] - Optional callback
+   * @param {layer.LayerError} callback.error - LayerError if there was an error; null if successful
+   */
+  registerAndroidPushToken(options, callback) {
+    this.xhr({
+      url: 'push_tokens',
+      method: 'POST',
+      sync: false,
+      data: {
+        token: options.token,
+        type: 'gcm',
+        device_id: options.deviceId,
+        gcm_sender_id: options.senderId,
+      },
+    }, (result) => callback(result.data));
+  }
+
+  /**
+   * Register your Android device to receive notifications.
+   * For use with native code only (Cordova, React Native, Titanium, etc...)
+   *
+   * @method unregisterPushToken
+   * @param {string} deviceId - Your IOS device's device ID
+   * @param {Function} [callback=null] - Optional callback
+   * @param {layer.LayerError} callback.error - LayerError if there was an error; null if successful
+   */
+  unregisterPushToken(deviceId, callback) {
+    this.xhr({
+      url: 'push_tokens/' + deviceId,
+      method: 'DELETE',
+    }, (result) => callback(result.data));
   }
 
   /* SESSION MANAGEMENT METHODS END */
@@ -606,7 +680,7 @@ class Client extends Root {
     const isOnline = evt.eventName === 'connected';
     const obj = { isOnline };
     if (isOnline) {
-      obj.reset = duration > Client.ResetAfterOfflineDuration;
+      obj.reset = duration > ClientAuthenticator.ResetAfterOfflineDuration;
     }
     this.trigger('online', obj);
   }
@@ -810,14 +884,14 @@ class Client extends Root {
  * Should never be true if isConnected is false.
  * @type {Boolean}
  */
-Client.prototype.isAuthenticated = false;
+ClientAuthenticator.prototype.isAuthenticated = false;
 
 /**
  * State variable; indicates that client is currently connected to server
  * (may not be authenticated yet)
  * @type {Boolean}
  */
-Client.prototype.isConnected = false;
+ClientAuthenticator.prototype.isConnected = false;
 
 /**
  * State variable; indicates that client is ready for the app to use.
@@ -825,14 +899,14 @@ Client.prototype.isConnected = false;
  *
  * @type {boolean}
  */
-Client.prototype.isReady = false;
+ClientAuthenticator.prototype.isReady = false;
 
 /**
  * Your Layer Application ID. This value can not be changed once connected.
  * To find your Layer Application ID, see your Layer Developer Dashboard.
  * @type {String}
  */
-Client.prototype.appId = '';
+ClientAuthenticator.prototype.appId = '';
 
 /**
  * You can use this to find the userId you are logged in as.
@@ -840,49 +914,49 @@ Client.prototype.appId = '';
  * will only restore a session if that session belonged to that same userId.
  * @type {String}
  */
-Client.prototype.userId = '';
+ClientAuthenticator.prototype.userId = '';
 
 /**
  * Your current session token that authenticates your requests.
  * @type {String}
  */
-Client.prototype.sessionToken = '';
+ClientAuthenticator.prototype.sessionToken = '';
 
 /**
  * URL to Layer's Web API server.
  * @type {String}
  */
-Client.prototype.url = 'https://api.layer.com';
+ClientAuthenticator.prototype.url = 'https://api.layer.com';
 
 /**
  * Web Socket Manager
  * @type {layer.Websockets.SocketManager}
  */
-Client.prototype.socketManager = null;
+ClientAuthenticator.prototype.socketManager = null;
 
 /**
  * Web Socket Request Manager
 * @type {layer.Websockets.RequestManager}
  */
-Client.prototype.socketRequestManager = null;
+ClientAuthenticator.prototype.socketRequestManager = null;
 
 /**
  * Web Socket Manager
  * @type {layer.Websockets.ChangeManager}
  */
-Client.prototype.socketChangeManager = null;
+ClientAuthenticator.prototype.socketChangeManager = null;
 
 /**
  * Service for managing online as well as offline server requests
  * @type {layer.SyncManager}
  */
-Client.prototype.syncManager = null;
+ClientAuthenticator.prototype.syncManager = null;
 
 /**
  * Service for managing online/offline state and events
  * @type {layer.OnlineStateManager}
  */
-Client.prototype.onlineManager = null;
+ClientAuthenticator.prototype.onlineManager = null;
 
 /**
  * Is true if the client is authenticated and connected to the server;
@@ -893,7 +967,7 @@ Client.prototype.onlineManager = null;
  *
  * @type {boolean}
  */
-Object.defineProperty(Client.prototype, 'isOnline', {
+Object.defineProperty(ClientAuthenticator.prototype, 'isOnline', {
   enumerable: true,
   get: function get() {
     return this.onlineManager && this.onlineManager.isOnline;
@@ -911,7 +985,7 @@ Object.defineProperty(Client.prototype, 'isOnline', {
  *
  * @type {number}
  */
-Object.defineProperty(Client.prototype, 'logLevel', {
+Object.defineProperty(ClientAuthenticator.prototype, 'logLevel', {
   enumerable: false,
   get: function get() { return logger.level; },
   set: function set(value) { logger.level = value; },
@@ -924,7 +998,7 @@ Object.defineProperty(Client.prototype, 'logLevel', {
  * @type {number}
  * @static
  */
-Client.ResetAfterOfflineDuration = 1000 * 60 * 60 * 30;
+ClientAuthenticator.ResetAfterOfflineDuration = 1000 * 60 * 60 * 30;
 
 /**
  * List of events supported by this class
@@ -932,7 +1006,7 @@ Client.ResetAfterOfflineDuration = 1000 * 60 * 60 * 30;
  * @protected
  * @type {string[]}
  */
-Client._supportedEvents = [
+ClientAuthenticator._supportedEvents = [
   /**
    * The client is ready for action
    *
@@ -1036,6 +1110,6 @@ Client._supportedEvents = [
   'online',
 ].concat(Root._supportedEvents);
 
-Root.initClass.apply(Client, [Client, 'Client']);
+Root.initClass.apply(ClientAuthenticator, [ClientAuthenticator, 'ClientAuthenticator']);
 
-module.exports = Client;
+module.exports = ClientAuthenticator;

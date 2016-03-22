@@ -61,7 +61,7 @@ class Content extends Root {
     }, result => {
       if (result.success) {
         if (typeof Blob !== 'undefined') {
-          const blob = new Blob([result.data], {type: mimeType});
+          const blob = new Blob([result.data], { type: mimeType });
           callback(null, blob);
         } else {
           // If the blob class isn't defined (nodejs) then just return the result as is
@@ -89,7 +89,7 @@ class Content extends Root {
       this.expiration = data.expiration;
       this.downloadUrl = data.download_url;
       if (callback) callback(this.downloadUrl);
-    })
+    });
   }
 
   /**

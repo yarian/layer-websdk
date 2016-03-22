@@ -32,8 +32,8 @@ class WebsocketRequestManager {
     this.client = options.client;
     this.socketManager = options.socketManager;
     this.socketManager.on({
-      'message': this._handleResponse,
-      'disconnected': this._reset,
+      message: this._handleResponse,
+      disconnected: this._reset,
     }, this);
 
     this._requestCallbacks = {};
@@ -59,8 +59,8 @@ class WebsocketRequestManager {
       if (requestId && this._requestCallbacks[requestId]) {
         this._requestCallbacks[requestId].callback({
           success: msg.success,
-          data: data,
           fullData: evt.data,
+          data,
         });
         delete this._requestCallbacks[requestId];
       }
@@ -84,7 +84,10 @@ class WebsocketRequestManager {
    */
   sendRequest(data, callback) {
     if (!this._isOpen()) {
-      return callback ? callback(new LayerError({ success: false, data: { id: 'not_connected', code: 0, message: 'WebSocket not connected' } })) : undefined;
+      return !callback ? undefined : callback(new LayerError({
+        success: false,
+        data: { id: 'not_connected', code: 0, message: 'WebSocket not connected' },
+      }));
     }
     const body = Utils.clone(data);
     body.request_id = 'r' + this._nextRequestId++;
@@ -92,13 +95,13 @@ class WebsocketRequestManager {
     if (callback) {
       this._requestCallbacks[body.request_id] = {
         date: Date.now(),
-        callback: callback,
+        callback,
       };
     }
 
     this.socketManager.send({
       type: 'request',
-      body: body,
+      body,
     });
     this._scheduleCallbackCleanup();
   }
@@ -133,8 +136,9 @@ class WebsocketRequestManager {
     let count = 0;
     const now = Date.now();
     Object.keys(this._requestCallbacks).forEach(requestId => {
+      const callbackConfig = this._requestCallbacks[requestId];
       // If the request hasn't expired, we'll need to reschedule callback cleanup; else if its expired...
-      if (now < this._requestCallbacks[requestId].date + DELAY_UNTIL_TIMEOUT) {
+      if (callbackConfig && now < callbackConfig.date + DELAY_UNTIL_TIMEOUT) {
         count++;
       } else {
         // If there has been no data from the server, there's probably a problem with the websocket; reconnect.

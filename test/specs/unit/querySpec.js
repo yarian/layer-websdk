@@ -749,6 +749,20 @@ describe("The Query Class", function() {
             expect(query._appendResults).not.toHaveBeenCalled();
         });
 
+        it("Should not call _appendResults if isDestroyed", function() {
+            spyOn(query, "_appendResults");
+            query.isDestroyed = true;
+            query._processRunResults({
+                success: true,
+                data: [{id: "a"}],
+                xhr: {}
+            }, 'joe');
+            expect(query._appendResults).not.toHaveBeenCalled();
+
+            // Cleanup
+            query.isDestroyed = false;
+        });
+
         it("Should not clear isFiring or _firingRequest if request is not the most recent request", function() {
             spyOn(query, "_appendResults");
             query._firingRequest = 'fred';

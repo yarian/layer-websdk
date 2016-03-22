@@ -67,5 +67,5 @@ module.exports = {
     WARN: 2,
     ERROR: 1,
     NONE: 0,
-  }
+  },
 };

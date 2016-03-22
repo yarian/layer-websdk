@@ -14,6 +14,14 @@
 * layer.TypingIndicators.TypingListener
   * Now has a setInput method that can be used to change what input the Listener is monitoring when sending
     typing indicators to other users.
+* layer.Client
+  * Adds registerIOSPushToken() method for push notification support in hybrid apps
+  * Adds registerAndroidPushToken() method for push notification support in hybrid apps
+  * Adds unregisterPushToken() method
+
+#### Bug Fixes
+
+* A round of memory leak fixes
 
 ## 0.9.1
 

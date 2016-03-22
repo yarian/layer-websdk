@@ -180,7 +180,7 @@ class ConversationsQuery {
    * @return {layer.QueryBuilder} this
    */
   sortBy(fieldName, asc = false) {
-    this._query.sortBy = [{[fieldName]: asc ? 'asc' : 'desc'}];
+    this._query.sortBy = [{ [fieldName]: asc ? 'asc' : 'desc' }];
     return this;
   }
 

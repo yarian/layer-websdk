@@ -136,7 +136,9 @@ class SyncManager extends Root {
    * @return {Boolean}
    */
   _findUnfiredCreate(requestEvt) {
-    return Boolean(this.queue.filter(evt => evt.target === requestEvt.target && evt.operation === 'POST' && !evt.firing).length);
+    return Boolean(this.queue.filter(evt =>
+      evt.target === requestEvt.target && evt.operation === 'POST' && !evt.firing).length
+    );
   }
 
   /**
@@ -153,7 +155,8 @@ class SyncManager extends Root {
     if (this.isOnline() && requestEvt && !requestEvt.firing) {
       if (requestEvt instanceof WebsocketSyncEvent) {
         if (this.socketManager && this.socketManager._isOpen()) {
-          logger.debug(`Sync Manager Websocket Request Firing ${requestEvt.operation} on target ${requestEvt.target}`, requestEvt.toObject());
+          logger.debug(`Sync Manager Websocket Request Firing ${requestEvt.operation} on target ${requestEvt.target}`,
+            requestEvt.toObject());
           this.requestManager.sendRequest(requestEvt._getRequestData(),
               result => this._xhrResult(result, requestEvt));
           requestEvt.firing = true;
@@ -161,7 +164,8 @@ class SyncManager extends Root {
           logger.debug('Sync Manager Websocket Request skipped; socket closed');
         }
       } else {
-        logger.debug(`Sync Manager XHR Request Firing ${requestEvt.operation} ${requestEvt.target}`, requestEvt.toObject());
+        logger.debug(`Sync Manager XHR Request Firing ${requestEvt.operation} ${requestEvt.target}`,
+          requestEvt.toObject());
         xhr(requestEvt._getRequestData(), result => this._xhrResult(result, requestEvt));
         requestEvt.firing = true;
       }

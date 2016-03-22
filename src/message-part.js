@@ -66,7 +66,7 @@ const LayerError = require('./layer-error');
 const HasBlob = typeof Blob !== 'undefined';
 
 /* istanbul ignore next */
-let fileReader = typeof window === 'undefined' ? require('filereader') : FileReader;
+const LocalFileReader = typeof window === 'undefined' ? require('filereader') : FileReader;
 
 
 class MessagePart extends Root {
@@ -82,12 +82,12 @@ class MessagePart extends Root {
    *
    * @return {layer.MessagePart}
    */
-  constructor(options) {
+  constructor(options, ...args) {
     let newOptions = options;
     if (typeof options === 'string') {
-      newOptions = {body: options};
-      if (arguments.length > 1) {
-        newOptions.mimeType = arguments[1];
+      newOptions = { body: options };
+      if (args.length > 0) {
+        newOptions.mimeType = args[0];
       } else {
         newOptions.mimeType = 'text/plain';
       }
@@ -173,7 +173,7 @@ class MessagePart extends Root {
       this.url = URL.createObjectURL(result);
       this.isFiring = false;
       if (this.mimeType === 'text/plain') {
-        const reader = new fileReader();
+        const reader = new LocalFileReader();
         reader.addEventListener('loadend', () => {
           this._fetchContentComplete(reader.result, callback);
         });
@@ -217,7 +217,6 @@ class MessagePart extends Root {
     if (!this._content) throw new Error(LayerError.dictionary.contentRequired);
     if (this._content.isExpired()) {
       this._content.refreshContent(this._getClient(), url => this._fetchStreamComplete(url, callback));
-
     } else {
       this._fetchStreamComplete(this._content.downloadUrl, callback);
     }
@@ -291,8 +290,7 @@ class MessagePart extends Root {
 
   _sendBlob(client) {
     /* istanbul ignore else */
-    if (window.isPhantomJS) fileReader = FileReader; // Assumes test script has replaced FileReader with a new object
-    const reader = new fileReader();
+    const reader = new LocalFileReader();
     reader.onloadend = () => {
       const base64data = reader.result;
       if (base64data.length < 2048) {
