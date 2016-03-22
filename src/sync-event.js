@@ -81,11 +81,22 @@ SyncEvent.prototype.operation = '';
 /**
  * Indicates whether this request currently in-flight.
  *
- * Set to true by _xhr() method,
- * set to false on completion by layer.SyncManager.
+ * * Set to true by _xhr() method,
+ * * set to false on completion by layer.SyncManager.
+ * * set to false automatically after 2 minutes
+ *
  * @property {Boolean}
  */
-SyncEvent.prototype.firing = false;
+Object.defineProperty(SyncEvent.prototype, 'firing', {
+  enumerable: true,
+  set: function set(value) {
+    this.__firing = value;
+    if (value) this.__firedAt = Date.now();
+  },
+  get: function get() {
+    return Boolean(this.__firing && Date.now() - this.__firedAt < SyncEvent.FIRING_EXPIRIATION);
+  },
+});
 
 /**
  * Indicates whether the request completed successfully.
@@ -139,6 +150,16 @@ SyncEvent.prototype.depends = null;
  * @type {Object}
  */
 SyncEvent.prototype.data = null;
+
+/**
+ * After firing a request, if that firing state fails to clear after this number of miliseconds,
+ * consider it to no longer be firing.  Under normal conditions, firing will be set to false explicitly.
+ * This check insures that any failure of that process does not leave us stuck with a firing request
+ * blocking the queue.
+ * @type {number}
+ * @static
+ */
+SyncEvent.FIRING_EXPIRIATION = 1000 * 60 * 2;
 
 class XHRSyncEvent extends SyncEvent {
 

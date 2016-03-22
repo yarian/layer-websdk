@@ -819,6 +819,7 @@ class Client extends ClientAuth {
   _checkCache(objects) {
     objects.forEach(obj => {
       if (!this._isCachedObject(obj)) {
+        if (obj instanceof Root === false) obj = this._getObject(obj.id);
         obj.destroy();
       }
     });
@@ -846,6 +847,9 @@ class Client extends ClientAuth {
    * update our data.  A reset boolean property is passed; set based on  client-authenticator's
    * ResetAfterOfflineDuration static property.
    *
+   * Note it is possible for an application to have logic that causes queries to be created/destroyed
+   * as a side-effect of query.reset destroying all data. So we must test to see if queries exist.
+   *
    * @method _connectionRestored
    * @private
    * @param {boolean} reset - Should the session reset/reload all data or attempt to resume where it left off?
@@ -855,7 +859,7 @@ class Client extends ClientAuth {
       logger.debug('Client Connection Restored; Resetting all Queries');
       Object.keys(this._queriesHash).forEach(id => {
         const query = this._queriesHash[id];
-        query.reset();
+        if (query) query.reset();
       });
     }
   }
@@ -868,7 +872,6 @@ class Client extends ClientAuth {
    * @param  {layer.Root|Object}  obj - A Message or Conversation Instance or Object
    */
   _removeObject(obj) {
-    if (obj instanceof Root === false) obj = this._getObject(obj.id);
     if (obj) obj.destroy();
   }
 

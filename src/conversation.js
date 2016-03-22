@@ -284,6 +284,7 @@ class Conversation extends Syncable {
    * @param  {Object} result
    */
   _createResult({ success, data }) {
+    if (this.isDestroyed) return;
     if (success) {
       this._createSuccess(data);
     } else if (data.id === 'conflict') {
@@ -532,13 +533,15 @@ class Conversation extends Syncable {
    */
   delete(destroy) {
     const id = this.id;
-    const client = this.getClient();
-    this._xhr({
-      method: 'DELETE',
-      url: '?destroy=' + Boolean(destroy),
-    }, result => {
-      if (!result.success) Conversation.load(id, client);
-    });
+    if (!this.isTempId()) {
+      const client = this.getClient();
+      this._xhr({
+        method: 'DELETE',
+        url: '?destroy=' + Boolean(destroy),
+      }, result => {
+        if (!result.success) Conversation.load(id, client);
+      });
+    }
 
     this._deleted();
     this.destroy();
@@ -870,7 +873,7 @@ class Conversation extends Syncable {
     if (!result.success) {
       this.syncState = Constants.SYNC_STATE.NEW;
       this.trigger('conversations:loaded-error', { error: result.data });
-      this.getClient()._removeConversation(this);
+      this.destroy();
     } else {
       // If successful, copy the properties into this object
       this._populateFromServer(result.data);
@@ -927,6 +930,9 @@ class Conversation extends Syncable {
    * Any triggering of this from a websocket patch unread_message_count should wait a second before firing any events
    * so that if there are a series of these updates, we don't see a lot of jitter.
    *
+   * NOTE: _oldUnreadCount is used to pass data to _updateUnreadCountEvent because this method can be called many times
+   * a second, and we only want to trigger this with a summary of changes rather than each individual change.
+   *
    * @method __updateUnreadCount
    * @private
    * @param  {number} newValue
@@ -949,6 +955,7 @@ class Conversation extends Syncable {
    * @private
    */
   _updateUnreadCountEvent() {
+    if (this.isDestroyed) return;
     const oldValue = this._oldUnreadCount;
     const newValue = this.__unreadCount;
     this._oldUnreadCount = undefined;

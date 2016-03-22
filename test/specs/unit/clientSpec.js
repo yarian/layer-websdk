@@ -1217,6 +1217,29 @@ describe("The Client class", function() {
             expect(c3.isDestroyed).toBe(false);
         });
 
+
+        it("Should handle immutable objects; keeping Conversations if they are in a Query and remove and destroy all others", function() {
+            // Setup
+            var query = client.createQuery({model: layer.Query.Conversation});
+            var c1 = client.createConversation(["a"]);
+            var c2 = client.createConversation(["b"]);
+            var c3 = client.createConversation(["c"]);
+            query.data = [c1, c3];
+
+            // Pretest
+            expect(Object.keys(client._conversationsHash))
+                .toEqual(jasmine.arrayContaining([c1.id, c2.id, c3.id]));
+
+            // Run
+            client._checkCache([c1.toObject(), c2.toObject(), c3.toObject()]);
+
+            // Posttest
+            expect(Object.keys(client._conversationsHash)).toEqual(jasmine.arrayContaining([c1.id, c3.id]));
+            expect(c1.isDestroyed).toBe(false);
+            expect(c2.isDestroyed).toBe(true);
+            expect(c3.isDestroyed).toBe(false);
+        });
+
         it("Should keep Messages if they are in a Query and remove and destroy all others", function() {
             // Setup
             var c = client.createConversation(["a"]);

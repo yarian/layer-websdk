@@ -221,7 +221,7 @@ describe("The Websocket Request Manager Class", function() {
 
         it("Should call _timeoutRequest if the request has expired and there have been other websocket data received", function() {
             spyOn(requestManager, "_timeoutRequest");
-            client.socketManager._lastDataFromServerTimestamp = new Date();
+            client.socketManager._lastDataFromServerTimestamp = Date.now();
             requestManager._runCallbackCleanup();
             expect(requestManager._timeoutRequest).toHaveBeenCalledWith("b");
             expect(requestManager._timeoutRequest).toHaveBeenCalledWith("c");
@@ -232,7 +232,7 @@ describe("The Websocket Request Manager Class", function() {
         it("Should reconnect and reschedule if the request has expired and there has been no other websocket data received", function() {
             spyOn(client.socketManager, "_reconnect");
             spyOn(requestManager, "_scheduleCallbackCleanup");
-            client.socketManager._lastDataFromServerTimestamp = new Date('2010-10-10');
+            client.socketManager._lastDataFromServerTimestamp = new Date('2010-10-10').getTime();
             requestManager._runCallbackCleanup();
             expect(client.socketManager._reconnect).toHaveBeenCalledWith(false);
             expect(requestManager._scheduleCallbackCleanup).toHaveBeenCalledWith();
@@ -240,14 +240,14 @@ describe("The Websocket Request Manager Class", function() {
 
         it("Should reschedule if any requests have not timed out", function() {
             spyOn(requestManager, "_scheduleCallbackCleanup");
-            client.socketManager._lastDataFromServerTimestamp = new Date();
+            client.socketManager._lastDataFromServerTimestamp =  Date.now();
             requestManager._runCallbackCleanup();
             expect(requestManager._scheduleCallbackCleanup).toHaveBeenCalledWith();
         });
 
         it("Should skip _scheduleCallbackCleanup if no remaining requests", function() {
             spyOn(requestManager, "_scheduleCallbackCleanup");
-            client.socketManager._lastDataFromServerTimestamp = new Date();
+            client.socketManager._lastDataFromServerTimestamp =  Date.now();
             delete requestManager._requestCallbacks.a;
             delete requestManager._requestCallbacks.d;
             requestManager._runCallbackCleanup();
@@ -255,7 +255,7 @@ describe("The Websocket Request Manager Class", function() {
         });
 
         it("Should clear _callbackCleanupId if all events are old", function() {
-          client.socketManager._lastDataFromServerTimestamp = new Date();
+          client.socketManager._lastDataFromServerTimestamp =  Date.now();
           requestManager._callbackCleanupId = 5;
           delete requestManager._requestCallbacks.a;
           delete requestManager._requestCallbacks.d;

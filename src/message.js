@@ -708,7 +708,7 @@ class Message extends Syncable {
     // Assign IDs to preexisting Parts so that we can call getPartById()
     if (this.parts) {
       this.parts.forEach((part, index) => {
-        if (!part.id) part.id = this.id + '/parts/' + index;
+        if (!part.id) part.id = `${this.id}/parts/${index}`;
       });
     }
 
@@ -957,6 +957,7 @@ class Message extends Syncable {
     if (!result.success) {
       message.syncState = Constants.SYNC_STATE.NEW;
       message._triggerAsync('messages:loaded-error', { error: result.data });
+      setTimeout(() => message.destroy(), 100); // Insure destroyed AFTER loaded-error event has triggered
     } else {
       this._loadSuccess(message, client, result.data);
     }

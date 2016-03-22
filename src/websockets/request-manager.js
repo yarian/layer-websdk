@@ -142,7 +142,7 @@ class WebsocketRequestManager {
         count++;
       } else {
         // If there has been no data from the server, there's probably a problem with the websocket; reconnect.
-        if (now > this.socketManager._lastDataFromServerTimestamp.getTime() + DELAY_UNTIL_TIMEOUT) {
+        if (now > this.socketManager._lastDataFromServerTimestamp + DELAY_UNTIL_TIMEOUT) {
           this.socketManager._reconnect(false);
           this._scheduleCallbackCleanup();
           return;

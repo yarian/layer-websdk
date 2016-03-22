@@ -18,6 +18,8 @@
   * Adds registerIOSPushToken() method for push notification support in hybrid apps
   * Adds registerAndroidPushToken() method for push notification support in hybrid apps
   * Adds unregisterPushToken() method
+* layer.Root
+  * Adds isTempId() method which can be used with Conversations and Messages to see if the the ID property is a temporary ID or a server generated ID.
 
 #### Bug Fixes
 

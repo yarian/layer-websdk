@@ -425,6 +425,10 @@ describe("The SyncManager Class", function() {
             expect(syncManager._getErrorState({status: 503}, {retryCount: layer.SyncManager.MAX_RETRIES }, true)).toEqual("tooManyFailuresWhileOnline");
         });
 
+        it("Should return notFound if server returns not_found", function() {
+            expect(syncManager._getErrorState({status: 404, data: {code: 102}}, {retryCount: layer.SyncManager.MAX_RETRIES }, true)).toEqual("notFound");
+        });
+
         it("Should return reauthorize if there is a nonce", function() {
             expect(syncManager._getErrorState({status: 401, data: {data: {nonce: "fred"}}}, {retryCount: 0}, true)).toEqual("reauthorize");
             expect(syncManager._getErrorState({status: 402, data: {data: {nonce: "fred"}}}, {retryCount: 0}, true)).not.toEqual("reauthorize");
@@ -456,6 +460,18 @@ describe("The SyncManager Class", function() {
 
             // Posttest
             expect(syncManager._getErrorState).toHaveBeenCalledWith(result, request, true);
+        });
+
+        it("Should call _xhrHandleServerError if notFound", function() {
+            spyOn(syncManager, "_xhrHandleServerError");
+            spyOn(syncManager, "_getErrorState").and.returnValue("notFound");
+            var result = {request: request};
+
+            // Run
+            syncManager._xhrError(result);
+
+            // Posttest
+            expect(syncManager._xhrHandleServerError).toHaveBeenCalledWith(result, jasmine.any(String));
         });
 
         it("Should call _xhrHandleServerError if tooManyFailuresWhileOnline if too many 408s", function() {

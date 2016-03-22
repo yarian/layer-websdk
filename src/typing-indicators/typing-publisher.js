@@ -64,7 +64,7 @@ class TypingPublisher {
    */
   constructor(args) {
     this.clientId = args.clientId;
-    this.conversation = args.conversation;
+    if (args.conversation) this.conversation = this._getClient().getConversation(args.conversation.id);
     this.state = FINISHED;
     this._lastMessageTime = 0;
   }
@@ -79,7 +79,7 @@ class TypingPublisher {
    */
   setConversation(conv) {
     this.setState(FINISHED);
-    this.conversation = conv;
+    this.conversation = conv ? this._getClient().getConversation(conv.id) : null;
     this.state = FINISHED;
   }
 
@@ -183,7 +183,7 @@ class TypingPublisher {
    * * layer.TypingIndicators.FINISHED
    */
   _send(state) {
-    if (this.conversation.id.match(/temp_/)) return;
+    if (this.conversation.isTempId()) return;
     this._lastMessageTime = Date.now();
     const ws = this._getClient().socketManager;
     ws.sendSignal({

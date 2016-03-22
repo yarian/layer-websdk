@@ -328,7 +328,7 @@ class Query extends Root {
     // This is a pagination rather than an initial request if there is already data; get the fromId
     // which is the id of the last result.
     const lastConversation = this.data[this.data.length - 1];
-    const fromId = (lastConversation && !lastConversation.id.match(/temp_/) ? '&from_id=' + lastConversation.id : '');
+    const fromId = (lastConversation && !lastConversation.isTempId() ? '&from_id=' + lastConversation.id : '');
     const sortBy = this._getSortField();
 
     this.isFiring = true;
@@ -378,7 +378,7 @@ class Query extends Root {
     // This is a pagination rather than an initial request if there is already data; get the fromId
     // which is the id of the last result.
     const lastMessage = this.data[this.data.length - 1];
-    let fromId = (lastMessage && !lastMessage.id.match(/temp_/) ? '&from_id=' + lastMessage.id : '');
+    let fromId = (lastMessage && !lastMessage.isTempId() ? '&from_id=' + lastMessage.id : '');
     const predicateIds = this._getConversationPredicateIds();
 
     // Do nothing if we don't have a conversation to query on
