@@ -202,6 +202,8 @@ class SyncManager extends Root {
       } else {
         return 'offline';
       }
+    } else if (result.status === 404 && result.data && result.data.code === 102) {
+        return 'notFound';
     } else if (result.status === 408) {
       if (requestEvt.retryCount >= SyncManager.MAX_RETRIES) {
         return 'tooManyFailuresWhileOnline';
@@ -243,6 +245,9 @@ class SyncManager extends Root {
     switch (errState) {
       case 'tooManyFailuresWhileOnline':
         this._xhrHandleServerError(result, 'Sync Manager Server Unavailable Too Long; removing request');
+        break;
+      case 'notFound':
+        this._xhrHandleServerError(result, 'Resource not found; presumably deleted');
         break;
       case 'validateOnlineAndRetry':
         // Server appears to be hung but will eventually recover.

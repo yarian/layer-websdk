@@ -1345,6 +1345,37 @@ describe("The Conversation Class", function() {
         });
     });
 
+    describe("The _updateUnreadCountEvent() method", function() {
+      it("Should trigger a change event if there is a change", function() {
+        conversation._oldUnreadCount = 5;
+        conversation.__unreadCount = 10;
+        spyOn(conversation, "_triggerAsync");
+        conversation._updateUnreadCountEvent();
+        expect(conversation._triggerAsync).toHaveBeenCalledWith('conversations:change', {
+          newValue: 10,
+          oldValue: 5,
+          property: 'unreadCount'
+        });
+      });
+
+      it("Should not trigger a change event if there is no change", function() {
+        conversation._oldUnreadCount = 5;
+        conversation.__unreadCount = 5;
+        spyOn(conversation, "_triggerAsync");
+        conversation._updateUnreadCountEvent();
+        expect(conversation._triggerAsync).not.toHaveBeenCalled();
+      });
+
+      it("Should do nothing if isDestroyed", function() {
+        conversation._oldUnreadCount = 5;
+        conversation.__unreadCount = 10;
+        conversation.isDestroyed = true;
+        spyOn(conversation, "_triggerAsync");
+        conversation._updateUnreadCountEvent();
+        expect(conversation._triggerAsync).not.toHaveBeenCalled();
+      });
+    });
+
     describe("The __updateLastMessage() method", function() {
       it("Should trigger an event if Message ID changes", function() {
         spyOn(conversation, "_triggerAsync");
@@ -1531,15 +1562,15 @@ describe("The Conversation Class", function() {
                 });
         });
 
-        it("Should call _removeConversation on error", function() {
+        it("Should call destroy on error", function() {
             // Setup
-            spyOn(client, "_removeConversation");
+            spyOn(conversation, "destroy");
 
             // Run
             conversation._loadResult({success: false, response: "Argh"});
 
             // Posttest
-            expect(client._removeConversation).toHaveBeenCalledWith(conversation);
+            expect(conversation.destroy).toHaveBeenCalledWith();
         });
 
         it("Should call _populateFromServer on success", function() {

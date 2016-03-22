@@ -572,6 +572,16 @@ describe("The Typing Indicator Classes", function() {
                 expect(publisher.conversation).toBe(conversation);
             });
 
+            it("Should update the conversation property with an Object", function() {
+                publisher.setConversation({id: conversation.id});
+                expect(publisher.conversation).toBe(conversation);
+            });
+
+            it("Should update to null", function() {
+                publisher.setConversation(null);
+                expect(publisher.conversation).toBe(null);
+            });
+
             it("Should call setState FINISHED on the old Conversation", function() {
                 var hadConversation;
                 spyOn(publisher, "setState").and.callFake(function() {

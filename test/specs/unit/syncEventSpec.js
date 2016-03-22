@@ -1,5 +1,11 @@
 /*eslint-disable */
 describe("The SyncEvent Classes", function() {
+    beforeEach(function() {
+      jasmine.clock().install();
+    });
+    afterEach(function() {
+      jasmine.clock().uninstall();
+    });
 
     describe("The SyncEvent Class", function() {
         describe("The constructor() method", function() {
@@ -137,5 +143,30 @@ describe("The SyncEvent Classes", function() {
             });
 
         });
+    });
+
+    describe("The firing property", function() {
+      it("Should reset to false after 2 minutes", function() {
+        var evt = new layer.XHRSyncEvent({
+            url: "hey"
+        });
+        expect(evt.firing).toBe(false);
+        var d = new Date();
+        jasmine.clock().mockDate(d);
+
+
+
+        // Run
+        evt.firing = true;
+        expect(evt.firing).toBe(true);
+
+        d.setSeconds(d.getSeconds() + 119);
+        jasmine.clock().mockDate(d);
+        expect(evt.firing).toBe(true);
+
+        d.setSeconds(d.getSeconds() + 2);
+        jasmine.clock().mockDate(d);
+        expect(evt.firing).toBe(false);
+      });
     });
 });

@@ -52,7 +52,7 @@ class SocketManager extends Root {
     // Any time the Client triggers a ready event we need to reconnect.
     this.client.on('authenticated', this.connect, this);
 
-    this._lastTimestamp = new Date();
+    this._lastTimestamp = Date.now();
   }
 
   /**
@@ -63,8 +63,8 @@ class SocketManager extends Root {
    * @private
    */
   _reset() {
-    this._lastTimestamp = null;
-    this._lastDataFromServerTimestamp = null;
+    this._lastTimestamp = 0;
+    this._lastDataFromServerTimestamp = 0;
     this._lastCounter = null;
     this._hasCounter = false;
 
@@ -305,13 +305,14 @@ class SocketManager extends Root {
    * Replays all missed change packets since the specified timestamp
    *
    * @method replayEvents
-   * @param  {string}   timestamp - Iso formatted date string
+   * @param  {string|number}   timestamp - Iso formatted date string; if number will be transformed into formatted date string.
    * @param  {boolean} [force=false] - if true, cancel any in progress replayEvents and start a new one
    * @param  {Function} [callback] - Optional callback for completion
    */
   replayEvents(timestamp, force, callback) {
     if (!timestamp) return;
     if (force) this._inReplay = false;
+    if (typeof timestamp === 'number') timestamp = new Date(timestamp).toISOString();
 
     // If we are already waiting for a replay to complete, record the timestamp from which we
     // need to replay on our next replay request
@@ -385,14 +386,14 @@ class SocketManager extends Root {
       const skippedCounter = this._lastCounter + 1 !== msg.counter;
       this._hasCounter = true;
       this._lastCounter = msg.counter;
-      this._lastDataFromServerTimestamp = new Date();
+      this._lastDataFromServerTimestamp = Date.now();
 
       // If we've missed a counter, replay to get; note that we had to update _lastCounter
       // for replayEvents to work correctly.
       if (skippedCounter) {
         this.replayEvents(this._lastTimestamp);
       } else {
-        this._lastTimestamp = new Date(msg.timestamp);
+        this._lastTimestamp = new Date(msg.timestamp).getTime();
       }
 
       this.trigger('message', {
@@ -551,8 +552,8 @@ SocketManager.prototype._reconnectId = 0;
  */
 SocketManager.prototype._connectionFailedId = 0;
 
-SocketManager.prototype._lastTimestamp = null;
-SocketManager.prototype._lastDataFromServerTimestamp = null;
+SocketManager.prototype._lastTimestamp = 0;
+SocketManager.prototype._lastDataFromServerTimestamp = 0;
 SocketManager.prototype._lastCounter = null;
 SocketManager.prototype._hasCounter = false;
 

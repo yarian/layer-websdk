@@ -2089,6 +2089,24 @@ describe("The Messages class", function() {
             });
             expect(m.isLoading).toBe(false);
         });
+
+        it("Should schedule destroy", function() {
+            var m = layer.Message.load(responses.message1.id, client);
+
+            // Run
+            layer.Message._loadResult(m, client, {
+                success: false,
+                data: {}
+            });
+
+            // Posttest1
+            expect(m.isDestroyed).toBe(false);
+
+            // Posttest2
+            jasmine.clock().tick(101);
+            expect(m.isDestroyed).toBe(true);
+
+        });
     });
 
     describe("The _loadSuccess() method", function() {

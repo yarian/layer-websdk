@@ -278,7 +278,7 @@ describe("The Websocket Socket Manager Class", function() {
         it("Should call replayEvents if there is a lastCounter", function() {
             spyOn(websocketManager, "_isOpen").and.returnValue(true);
             websocketManager._hasCounter = true;
-            websocketManager._lastTimestamp = new Date();
+            websocketManager._lastTimestamp = Date.now();
             spyOn(websocketManager, "replayEvents");
 
             // Run
@@ -291,7 +291,7 @@ describe("The Websocket Socket Manager Class", function() {
         it("Should skip replayEvents and call if there is not a lastCounter", function() {
             spyOn(websocketManager, "_isOpen").and.returnValue(true);
             websocketManager._hasCounter = false;
-            websocketManager._lastTimestamp = new Date();
+            websocketManager._lastTimestamp = Date.now();
             spyOn(websocketManager, "replayEvents");
             spyOn(websocketManager, "_reschedulePing");
 
@@ -653,7 +653,7 @@ describe("The Websocket Socket Manager Class", function() {
                 timestamp: new Date("10/10/2010"),
                 counter: 6
             })});
-            expect(websocketManager._lastTimestamp).toEqual(new Date("10/10/2010"));
+            expect(websocketManager._lastTimestamp).toEqual(new Date("10/10/2010").getTime());
         });
 
         it("Should not update _lastTimestamp if a counter was skipped", function() {
