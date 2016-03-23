@@ -34,6 +34,7 @@
  *
  * @class  layer.User
  * @extends layer.Root
+ * @private // Make this public when Identities is released
  */
 "use strict";
 var Root = require("./root");

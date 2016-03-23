@@ -2,28 +2,26 @@
  * Basic XHR Library with some notions hardcoded in
  * of what the Layer server expects/returns.
  *
+    layer.xhr({
+      url: 'http://my.com/mydata',
+      data: {hey: 'ho', there: 'folk'},
+      method: 'GET',
+      format: 'json',
+      headers: {'fred': 'Joe'},
+      timeout: 50000
+    }, function(result) {
+      if (!result.success) {
+        errorHandler(result.data, result.headers, result.status);
+      } else {
+        successHandler(result.data, result.headers, result.xhr);
+      }
+    });
+ *
  * @class layer.xhr
  */
 
 /**
  * Send a Request.
- *
- *
-  layer.xhr({
-    url: 'http://my.com/mydata',
-    data: {hey: 'ho', there: 'folk'},
-    method: 'GET',
-    format: 'json',
-    headers: {'fred': 'Joe'},
-    timeout: 50000
-  }, function(result) {
-    if (!result.success) {
-      errorHandler(result.data, result.headers, result.status);
-    } else {
-      successHandler(result.data, result.headers, result.xhr);
-    }
-  });
- *
  *
  * @method  xhr
  * @param {Object} options

@@ -1,8 +1,21 @@
 /**
- * Represents resources that are syncable with the server; represents the state of the object's sync.
+ * The Syncable abstract clas represents resources that are syncable with the server.
+ * This is currently used for Messages and Conversations.
+ * It represents the state of the object's sync, as one of:
+ *
+ *  * layer.Constants.SYNC_STATE.NEW: Newly created; local only.
+ *  * layer.Constants.SYNC_STATE.SAVING: Newly created; being sent to the server
+ *  * layer.Constants.SYNC_STATE.SYNCING: Exists on both client and server, but changes are being sent to server.
+ *  * layer.Constants.SYNC_STATE.SYNCED: Exists on both client and server and is synced.
+ *  * layer.Constants.SYNC_STATE.LOADING: Exists on server; loading it into client.
+ *
+ * NOTE: There is a special case for Messages where isSending is true and syncState !== layer.Constants.SYNC_STATE.SAVING,
+ * which occurs after `send()` has been called, but while waiting for Rich Content to upload prior to actually
+ * sending this to the server.
  *
  * @class layer.Syncable
  * @extends layer.Root
+ * @abstract
  */
 
 const Root = require('./root');
@@ -58,7 +71,7 @@ class Syncable extends Root {
  *  * layer.Constants.SYNC_STATE.SYNCED: Exists on both client and server and is synced.
  *  * layer.Constants.SYNC_STATE.LOADING: Exists on server; loading it into client.
  *
- * NOTE: There is a special case where isSending is true and syncState !== layer.Constants.SYNC_STATE.SAVING,
+ * NOTE: There is a special case for Messages where isSending is true and syncState !== layer.Constants.SYNC_STATE.SAVING,
  * which occurs after `send()` has been called, but while waiting for Rich Content to upload prior to actually
  * sending this to the server.
  *

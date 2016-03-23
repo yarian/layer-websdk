@@ -1,4 +1,12 @@
 /**
+ * Layer Constants are stored in two places:
+ *
+ * 1. As part of the layer.Constants singleton
+ * 2. As static properties on classes.
+ *
+ * Typically the static property constants are designed to be changed by developers to customize behaviors,
+ * and tend to only be used by that single class.
+ *
  * @class layer.Constants
  * @singleton
  */
@@ -6,11 +14,11 @@ module.exports = {
   /**
    * Is the object synchronized with the server?
    * @property {Object} [SYNC_STATE=null]
-   * @property {string} SYNC_STATE.NEW
-   * @property {string} SYNC_STATE.SAVING
-   * @property {string} SYNC_STATE.SYNCING
-   * @property {string} SYNC_STATE.SYNCED
-   * @property {string} SYNC_STATE.LOADING
+   * @property {string} SYNC_STATE.NEW      - Object is newly created, was created locally, not from server data, and has not yet been sent to the server.
+   * @property {string} SYNC_STATE.SAVING   - Object is newly created and is being sent to the server.
+   * @property {string} SYNC_STATE.SYNCING  - Object exists both locally and on server but is being synced with changes.
+   * @property {string} SYNC_STATE.SYNCED   - Object exists both locally and on server and at last check was in sync.
+   * @property {string} SYNC_STATE.LOADING  - Object is being loaded from the server and may not have its properties set yet.
    */
   SYNC_STATE: {
     NEW: 'NEW',
@@ -23,9 +31,9 @@ module.exports = {
   /**
    * Values for readStatus/deliveryStatus
    * @property {Object} [RECIPIENT_STATE=]
-   * @property {string} RECIPIENT_STATE.NONE
-   * @property {string} RECIPIENT_STATE.SOME
-   * @property {string} RECIPIENT_STATE.ALL
+   * @property {string} RECIPIENT_STATE.NONE - No users have read (or received) this Message
+   * @property {string} RECIPIENT_STATE.SOME - Some users have read (or received) this Message
+   * @property {string} RECIPIENT_STATE.ALL  - All users have read (or received) this Message
    */
   RECIPIENT_STATE: {
     NONE: 'NONE',
@@ -36,10 +44,10 @@ module.exports = {
   /**
    * Values for recipientStatus
    * @property {Object} [RECEIPT_STATE=]
-   * @property {string} RECEIPT_STATE.SENT
-   * @property {string} RECEIPT_STATE.DELIVERED
-   * @property {string} RECEIPT_STATE.READ
-   * @property {string} RECEIPT_STATE.PENDING
+   * @property {string} RECEIPT_STATE.SENT      - The Message has been sent to the specified user but it has not yet been received by their device.
+   * @property {string} RECEIPT_STATE.DELIVERED - The Message has been delivered to the specified use but has not yet been read.
+   * @property {string} RECEIPT_STATE.READ      - The Message has been read by the specified user.
+   * @property {string} RECEIPT_STATE.PENDING   - The request to send this Message to the specified user has not yet been received by the server.
    */
   RECEIPT_STATE: {
     SENT: 'sent',
@@ -67,5 +75,8 @@ module.exports = {
     WARN: 2,
     ERROR: 1,
     NONE: 0,
+  },
+  DELETION_MODE: {
+    ALL: 1,
   },
 };

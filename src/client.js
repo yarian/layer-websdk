@@ -1,65 +1,65 @@
 /**
  * The Layer Client; this is the top level component for any Layer based application.
 
-  var client = new layer.Client({
-    appId: 'layer:///apps/staging/ffffffff-ffff-ffff-ffff-ffffffffffff',
-    userId: 'Fred',
-    challenge: function(evt) {
+    var client = new layer.Client({
+      appId: 'layer:///apps/staging/ffffffff-ffff-ffff-ffff-ffffffffffff',
+      userId: 'Fred',
+      challenge: function(evt) {
+        myAuthenticator({
+          nonce: evt.nonce,
+          onSuccess: evt.callback
+        });
+      },
+      ready: function(client) {
+        alert('I am Client; Server: Serve me!');
+      }
+    });
+ *
+ * You can also initialize this as
+
+    var client = new layer.Client({
+      appId: 'layer:///apps/staging/ffffffff-ffff-ffff-ffff-ffffffffffff',
+      userId: 'Fred'
+    });
+
+    client.on('challenge', function(evt) {
       myAuthenticator({
         nonce: evt.nonce,
         onSuccess: evt.callback
       });
-    },
-    ready: function(client) {
-      alert('I am Client, Server: Serve me!');
-    }
-  });
- *
- * You can also initialize this as
-
-  var client = new layer.Client({
-    appId: 'layer:///apps/staging/ffffffff-ffff-ffff-ffff-ffffffffffff',
-    userId: 'Fred'
-  });
-
-  client.on('challenge', function(evt) {
-    myAuthenticator({
-      nonce: evt.nonce,
-      onSuccess: evt.callback
     });
-  });
 
-  client.on('ready', function(client) {
-    alert('I am Client, Server: Serve me!');
-  });
+    client.on('ready', function(client) {
+      alert('I am Client; Server: Serve me!');
+    });
  *
- * Key Properties:
+ * ## API Synopsis:
  *
- * * userId: User ID of the authenticated user
- * * appId: The ID for your application, insures that the Client connects to the right application on the server
+ * The following Properties, Methods and Events are the most commonly used ones.  See the full API below
+ * for the rest of the API.
+ *
+ * ### Properties:
+ *
+ * * layer.Client.userId: User ID of the authenticated user
+ * * layer.Client.appId: The ID for your application
  *
  *
- * Methods:
+ * ### Methods:
  *
- * * `createConversation()`: Create a new layer.Conversation.
- * * `createQuery()`: Create a new layer.Query.
- * * `getMessage()`: Input a Message ID, and output a Message from cache.
- * * `getConversation()`: Input a Conversation ID, and output a Conversation from cache.
- * * `getQuery()`: Input a Query ID, and output a Query from cache.
- * * `on()` and `off()`: event listeners
- * * `destroy()`: Cleanup all resources used by this client, including all Messages and Conversations.
+ * * layer.Client.createConversation(): Create a new layer.Conversation.
+ * * layer.Client.createQuery(): Create a new layer.Query.
+ * * layer.Client.getMessage(): Input a Message ID, and output a Message from cache.
+ * * layer.Client.getConversation(): Input a Conversation ID, and output a Conversation from cache.
+ * * layer.Client.on() and layer.Conversation.off(): event listeners
+ * * layer.Client.destroy(): Cleanup all resources used by this client, including all Messages and Conversations.
  *
- * Events:
+ * ### Events:
  *
  * * `challenge`: Provides a nonce and a callback; you call the callback once you have an Identity Token.
  * * `ready`: Your application can now start using the Layer services
- * * `conversations:add`, `conversations:delete`, `conversations:change`:
- *   used to notify of changes that may affect your Conversations.
- * * `messages:add`, `messages:delete`, `messages:change`:
- *   used to notify of changes that may affect your Messages.
  * * `messages:notify`: Used to notify your application of new messages for which a local notification may be suitable.
  *
- * Logging:
+ * ## Logging:
  *
  * There are two ways to change the log level for Layer's logger:
  *
@@ -133,10 +133,7 @@ class Client extends ClientAuth {
   }
 
   /**
-   * Cleanup all resources (Conversations, Messages, etc...) prior to destroy or reauthentication
-   *
-   * NOTE: Doing cleanup on objects that have recently changed IDs and have
-   * multiple IDs registered gets a bit messy.
+   * Cleanup all resources (Conversations, Messages, etc...) prior to destroy or reauthentication.
    *
    * @method _cleanup
    * @private
@@ -196,14 +193,13 @@ class Client extends ClientAuth {
   /**
    * Retrieve a conversation by Identifier.
    *
-   *
-   * Retrives the conversation by Identifier.
-   *
    *      var c = client.getConversation('layer:///conversations/uuid');
    *
-   * If there is not a conversation with that id,
-   * it will try to load one from the server.  The method will return
-   * a layer.Conversation instance that has no data; the loaded/loaded-error events
+   * If there is not a conversation with that id, it will return null.
+   *
+   * If you want it to load it from cache and then from server if not in cache, use the `canLoad` parameter.
+   * If loading from the server, the method will return
+   * a layer.Conversation instance that has no data; the conversations:loaded/conversations:loaded-error events
    * will let you know when the conversation has finished/failed loading from the server.
    *
    *      var c = client.getConversation('layer:///conversations/123', true)
@@ -238,11 +234,12 @@ class Client extends ClientAuth {
    * automatically calls _addConversation for you:
    *
    *      var conv = new layer.Conversation({
-   *          client: myclient,
+   *          client: client,
    *          participants: ['a', 'b']
    *      });
    *
-   *      var conv = myclient.createConversation(['a', 'b']);
+   *      // OR:
+   *      var conv = client.createConversation(['a', 'b']);
    *
    * @method _addConversation
    * @protected
@@ -324,11 +321,13 @@ class Client extends ClientAuth {
   /**
    * Retrieve the message by message id.
    *
-   * Useful for finding a message when you have only the ID
+   * Useful for finding a message when you have only the ID.
    *
-   * If the message is not found,
-   * it will try to load one from the server.  The method will return
-   * a layer.Message instance that has no data; the loaded/loaded-error events
+   * If the message is not found, it will return null.
+   *
+   * If you want it to load it from cache and then from server if not in cache, use the `canLoad` parameter.
+   * If loading from the server, the method will return
+   * a layer.Message instance that has no data; the messages:loaded/messages:loaded-error events
    * will let you know when the message has finished/failed loading from the server.
    *
    *      var m = client.getMessage('layer:///messages/123', true)
@@ -360,7 +359,7 @@ class Client extends ClientAuth {
   /**
    * Get a MessagePart by ID
    * @method getMessagePart
-   * @param {String} id -- ID of the Message Part
+   * @param {String} id - ID of the Message Part; layer:///messages/uuid/parts/5
    */
   getMessagePart(id) {
     if (typeof id !== 'string') throw new Error(LayerError.dictionary.idParamRequired);
@@ -371,7 +370,9 @@ class Client extends ClientAuth {
   }
 
   /**
-   * Registers an array of messages in _messagesHash
+   * Registers a message in _messagesHash and triggers events.
+   *
+   * May also update Conversation.lastMessage.
    *
    * @method _addMessage
    * @protected
@@ -393,10 +394,11 @@ class Client extends ClientAuth {
   }
 
   /**
-   * Removes message from _messagesHash
-   * Accepts IDs as input so that we can take a 'temp_' id
-   * as input and delete it rather than the object's Current ID
-   * which no longer uses 'temp_'.
+   * Removes message from _messagesHash.
+   *
+   * Accepts IDs or Message instances
+   *
+   * TODO: Remove support for remove by ID
    *
    * @method _removeMessage
    * @private
@@ -434,17 +436,18 @@ class Client extends ClientAuth {
   }
 
   /**
-   * Takes as input an object id, and either calls getConversation() or getMessage()
-   * as needed.  Will only get cached objects, will not get objects from the server.
+   * Takes as input an object id, and either calls getConversation() or getMessage() as needed.
+   *
+   * Will only get cached objects, will not get objects from the server.
    *
    * This is not a public method mostly so there's no ambiguity over using getXXX
-   * or getObject.  getXXX typically has an option to load the resource, which this
+   * or _getObject.  getXXX typically has an option to load the resource, which this
    * does not.
    *
    * @method _getObject
    * @protected
-   * @param  {string} id - Message or Conversation id
-   * @return {layer.Message|layer.Conversation}
+   * @param  {string} id - Message, Conversation or Query id
+   * @return {layer.Message|layer.Conversation|layer.Query}
    */
   _getObject(id) {
     switch (Util.typeFromID(id)) {
@@ -480,8 +483,10 @@ class Client extends ClientAuth {
   }
 
   /**
-   * Before any delayed triggers are fired, fold together all of the addConversation
-   * and removeConversation events so that 100 addConversation events can be fired as
+   * Merge events into smaller numbers of more complete events.
+   *
+   * Before any delayed triggers are fired, fold together all of the conversations:add
+   * and conversations:remove events so that 100 conversations:add events can be fired as
    * a single event.
    *
    * @method _processDelayedTriggers
@@ -510,7 +515,9 @@ class Client extends ClientAuth {
   }
 
   /**
-   * Does logging on all triggered events
+   * Does logging on all triggered events.
+   *
+   * All logging is done at `debug` or `info` levels.
    *
    * @method _triggerLogger
    * @private
@@ -559,7 +566,7 @@ class Client extends ClientAuth {
    * @return {layer.Conversation}
    *
    * @deprecated
-   * This should be replaced by the Query API.
+   * This should be replaced by iterating over your layer.Query data.
    */
   findCachedConversation(func, context) {
     const test = context ? func.bind(context) : func;
@@ -628,6 +635,7 @@ class Client extends ClientAuth {
 
   /**
    * __ Methods are automatically called by property setters.
+   *
    * Insure that any attempt to set the `users` property sets it to an array.
    *
    * @method __adjustUsers
@@ -640,6 +648,7 @@ class Client extends ClientAuth {
 
   /**
    * __ Methods are automatically called by property setters.
+   *
    * Insure that each user in the users array gets its client property setup.
    *
    * @method __adjustUsers
@@ -653,13 +662,10 @@ class Client extends ClientAuth {
   }
 
   /**
-   * This method is a shortcut to the layer.Conversation#constructor method
+   * This method is recommended way to create a Conversation.
    *
-   * It adds some conveniences:
-   *
-   * 1. Automatically adds in the client parameter, which is required by the
-   *     layer.Conversation#constructor.
-   * 2. Allows for an array of participants as the sole argument
+   * There are a few ways to invoke it; note that the default behavior is to create a Distinct Conversation
+   * unless otherwise stated via the layer.Conversation.distinct property.
    *
    *         client.createConversation(['a', 'b']);
    *
@@ -677,7 +683,7 @@ class Client extends ClientAuth {
    *             }
    *         });
    *
-   * If you try to create a distinct conversation that already exists,
+   * If you try to create a Distinct Conversation that already exists,
    * you will get back an existing Conversation, and any requested metadata
    * will NOT be set; you will get whatever metadata the matching Conversation
    * already had.
@@ -810,11 +816,12 @@ class Client extends ClientAuth {
 
   /**
    * Check to see if the specified objects can safely be removed from cache.
+   *
    * Removes from cache if an object is not part of any Query's result set.
    *
    * @method _checkCache
    * @private
-   * @param  {layer.Root[]|Object[]} objects - Array of Objects or Instances representing Messages or Conversations
+   * @param  {layer.Root[]} objects - Array of Messages or Conversations
    */
   _checkCache(objects) {
     objects.forEach(obj => {
@@ -827,11 +834,12 @@ class Client extends ClientAuth {
 
   /**
    * Returns true if the specified object should continue to be part of the cache.
+   *
    * Result is based on whether the object is part of the data for a Query.
    *
    * @method _isCachedObject
    * @private
-   * @param  {layer.Root|Object}  obj - A Message or Conversation Instance or Object
+   * @param  {layer.Root} obj - A Message or Conversation Instance
    * @return {Boolean}
    */
   _isCachedObject(obj) {
@@ -843,12 +851,12 @@ class Client extends ClientAuth {
   }
 
   /**
-   * On restoring a connection, determine what steps need to be taken to
-   * update our data.  A reset boolean property is passed; set based on  client-authenticator's
-   * ResetAfterOfflineDuration static property.
+   * On restoring a connection, determine what steps need to be taken to update our data.
+   *
+   * A reset boolean property is passed; set based on  layer.ClientAuthenticator.ResetAfterOfflineDuration.
    *
    * Note it is possible for an application to have logic that causes queries to be created/destroyed
-   * as a side-effect of query.reset destroying all data. So we must test to see if queries exist.
+   * as a side-effect of layer.Query.reset destroying all data. So we must test to see if queries exist.
    *
    * @method _connectionRestored
    * @private
@@ -869,7 +877,7 @@ class Client extends ClientAuth {
    *
    * @method _removeObject
    * @private
-   * @param  {layer.Root|Object}  obj - A Message or Conversation Instance or Object
+   * @param  {layer.Root}  obj - A Message or Conversation Instance
    */
   _removeObject(obj) {
     if (obj) obj.destroy();
@@ -877,14 +885,14 @@ class Client extends ClientAuth {
 
   /**
    * Creates a layer.TypingIndicators.TypingListener instance
-   * bound to the specified dom node
+   * bound to the specified dom node.
    *
    *      var typingListener = client.createTypingListener(document.getElementById('myTextBox'));
    *      typingListener.setConversation(mySelectedConversation);
    *
    * Use this method to instantiate a listener, and call
-   * `setConversation` every time you want to change which Conversation
-   * it should report your user is typing into.
+   * layer.TypingIndicators.TypingListener.setConversation every time you want to change which Conversation
+   * it reports your user is typing into.
    *
    * @method createTypingListener
    * @param  {HTMLElement} inputNode - Text input to watch for keystrokes
@@ -899,8 +907,9 @@ class Client extends ClientAuth {
   }
 
   /**
-   * Creates a layer.TypingIndicators.TypingPublisher
-   * so you can manage your Typing Indicators without using
+   * Creates a layer.TypingIndicators.TypingPublisher.
+   *
+   * The TypingPublisher lets you manage your Typing Indicators without using
    * the layer.TypingIndicators.TypingListener.
    *
    *      var typingPublisher = client.createTypingPublisher();
@@ -908,13 +917,15 @@ class Client extends ClientAuth {
    *      typingPublisher.setState(layer.TypingIndicators.STARTED);
    *
    * Use this method to instantiate a listener, and call
-   * `setConversation` every time you want to change which Conversation
-   * it should report your user is typing into.
-   * Use `setState` to inform other users of your current state.
+   * layer.TypingIndicators.TypingPublisher.setConversation every time you want to change which Conversation
+   * it reports your user is typing into.
+   *
+   * Use layer.TypingIndicators.TypingPublisher.setState to inform other users of your current state.
    * Note that the `STARTED` state only lasts for 2.5 seconds, so you
    * must repeatedly call setState for as long as this state should continue.
    * This is typically done by simply calling it every time a user hits
    * a key.
+   *
    * @method createTypingPublisher
    * @return {layer.TypingIndicators.TypingPublisher}
    */
@@ -944,7 +955,7 @@ class Client extends ClientAuth {
     ClientRegistry.getAll().forEach(client => client.destroy());
   }
 
-  /**
+  /*
    * Registers a plugin which can add capabilities to the Client.
    *
    * Capabilities must be triggered by Events/Event Listeners.
@@ -990,7 +1001,7 @@ class Client extends ClientAuth {
  * Hash of layer.Conversation objects for quick lookup by id
  *
  * @private
- * @property _conversationsHash {Object}
+ * @property {Object}
  */
 Client.prototype._conversationsHash = null;
 
@@ -1004,15 +1015,15 @@ Client.prototype._messagesHash = null;
 
 
 /**
- * Hash of temp layer.Conversation objects for quick lookup by id
+ * Hash mapping temporary Conversation IDs to server generated IDs.
  *
  * @private
- * @property _tempConversationsHash {Object}
+ * @type {Object}
  */
 Client.prototype._tempConversationsHash = null;
 
 /**
- * Hash of temp layer.Message objects for quick lookup by id
+ * Hash mapping temporary Message IDs to server generated IDs.
  *
  * @private
  * @type {Object}
@@ -1094,9 +1105,9 @@ Client._supportedEvents = [
    * Called after creating the conversation
    * on the server.  The Result property is one of:
    *
-   * * Conversation.CREATED: A new Conversation has been created
-   * * Conversation.FOUND: A matching Distinct Conversation has been found
-   * * Conversation.FOUND_WITHOUT_REQUESTED_METADATA: A matching Distinct Conversation has been found
+   * * layer.Conversation.CREATED: A new Conversation has been created
+   * * layer.Conversation.FOUND: A matching Distinct Conversation has been found
+   * * layer.Conversation.FOUND_WITHOUT_REQUESTED_METADATA: A matching Distinct Conversation has been found
    *                       but note that the metadata is NOT what you requested.
    *
    * All of these results will also mean that the updated property values have been
@@ -1192,11 +1203,11 @@ Client._supportedEvents = [
    * * Receiving a new Message via websocket
    * * Querying/downloading a set of Messages
    *
-   *      client.on('messages:add', function(evt) {
-   *          evt.messages.forEach(function(message) {
-   *              myView.addMessage(message);
-   *          });
-   *      });
+          client.on('messages:add', function(evt) {
+              evt.messages.forEach(function(message) {
+                  myView.addMessage(message);
+              });
+          });
    *
    * @event
    * @param {layer.LayerEvent} evt
@@ -1262,7 +1273,7 @@ Client._supportedEvents = [
    *
    * @event
    * @param {layer.LayerEvent} evt
-   * @param {layer.LayerError} evt.error    4
+   * @param {layer.LayerError} evt.error
    */
   'messages:sent-error',
 
@@ -1292,8 +1303,7 @@ Client._supportedEvents = [
   /**
    * A message has been marked as read.
    *
-   * This is a local event not a change recieved from
-   * a remote user.
+   * This is can be triggered by a local event, or by this same user on a separate device or browser.
    *
    *      client.on('messages:read', function(evt) {
    *          myView.renderUnreadStatus(evt.target);
@@ -1308,7 +1318,7 @@ Client._supportedEvents = [
   /**
    * A Conversation has been deleted from the server.
    *
-   * Caused by either a successful call to delete() on the Conversation
+   * Caused by either a successful call to layer.Conversation.delete() on the Conversation
    * or by a remote user.
    *
    *      client.on('conversations:delete', function(evt) {
@@ -1324,7 +1334,7 @@ Client._supportedEvents = [
   /**
    * A Message has been deleted from the server.
    *
-   * Caused by either a successful call to delete() on the Message
+   * Caused by either a successful call to layer.Message.delete() on the Message
    * or by a remote user.
    *
    *      client.on('messages:delete', function(evt) {

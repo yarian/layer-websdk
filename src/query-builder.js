@@ -56,7 +56,7 @@ class MessagesQuery {
   }
 
   /**
-   * Query for messages in this Conversation
+   * Query for messages in this Conversation.
    *
    * @method forConversation
    * @param  {String} conversationId
@@ -104,6 +104,7 @@ class MessagesQuery {
 
 /**
  * Query builder class generating queries for a set of Conversations.
+ *
  * Used in Creating and Updating layer.Query instances.
  * Note that at this time, the only thing we can query for is
  * ALL Conversations; primary use for this is to page through the Conversations.
@@ -238,6 +239,7 @@ const QueryBuilder = {
   /**
    * Takes the return value of QueryBuilder.prototype.build and creates a
    * new QueryBuilder.
+   *
    * Used within layer.Query.prototype.toBuilder.
    *
    * @method fromQueryObject

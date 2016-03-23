@@ -7,7 +7,7 @@
  *
  * Who is the Typing Publisher for?  Its used by the layer.TypingIndicators.TypingListener; if your using
  * the TypingListener, you don't need this.  If you want to provide your own logic for when to send typing
- * states, then you need the Typing Publisher.
+ * states, then you need the TypingPublisher.
  *
  * Create an instance using:
  *
@@ -31,12 +31,12 @@
  * A few rules for how the *publisher* works internally:
  *
  *  - it maintains an indicator state for the current conversation
- *  - if user calls  `setState(layer.TypingIndicators.STARTED);` publisher sends the event immediately
- *  - if user calls the same method under _2.5 seconds_ with the same typing indicator state (`started`), publisher waits
+ *  - if app calls  `setState(layer.TypingIndicators.STARTED);` publisher sends the event immediately
+ *  - if app calls the same method under _2.5 seconds_ with the same typing indicator state (`started`), publisher waits
  *    for those 2.5 seconds to pass and then publishes the ephemeral event
- *  - if user calls the same methods multiple times within _2.5 seconds_ with the same value,
+ *  - if app calls the same methods multiple times within _2.5 seconds_ with the same value,
  *    publisher waits until end of 2.5 second period and sends the state only once.
- *  - if user calls the same method under _2.5 seconds_ with a different typing indicator state (say `paused`),
+ *  - if app calls the same method under _2.5 seconds_ with a different typing indicator state (say `paused`),
  *    publisher immediately sends the event
  *  - if 2.5 seconds passes without any events, state transitions from 'started' to 'paused'
  *  - if 2.5 seconds passes without any events, state transitions from 'paused' to 'finished'
@@ -53,6 +53,8 @@ class TypingPublisher {
 
 
   /**
+   * Create a Typing Publisher.  See layer.Client.createTypingPublisher.
+   *
    * The TypingPublisher needs
    * to know what Conversation its publishing changes for...
    * but it does not require that parameter during initialization.
@@ -70,8 +72,9 @@ class TypingPublisher {
   }
 
   /**
-   * Set which Conversation we are reporting on state changes
-   * for.  If this instance managed a previous Conversation,
+   * Set which Conversation we are reporting on state changes for.
+   *
+   * If this instance managed a previous Conversation,
    * its state is immediately transitioned to "finished".
    *
    * @method setConversation
@@ -84,8 +87,7 @@ class TypingPublisher {
   }
 
   /**
-   * Sets the state and either sends the state to the server
-   * or schedules it to be sent.
+   * Sets the state and either sends the state to the server or schedules it to be sent.
    *
    * @method setState
    * @param  {string} state - One of
@@ -129,6 +131,8 @@ class TypingPublisher {
   }
 
   /**
+   * Start loop to automatically change to next state.
+   *
    * Any time we are set to 'started' or 'paused' we should transition
    * to the next state after 2.5 seconds of no setState calls.
    *
@@ -152,7 +156,9 @@ class TypingPublisher {
 
 
   /**
-   * Schedule the next state refresh message so as to be at least INTERVAL ms after
+   * Schedule the next state refresh message.
+   *
+   * It should be at least INTERVAL ms after
    * the last state message of the same state
    *
    * @method _scheduleNextMessage

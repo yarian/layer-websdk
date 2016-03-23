@@ -29,7 +29,9 @@ const Utils = require('./client-utils');
 
 class SyncManager extends Root {
   /**
-   * Creates a new SyncManager.  An Application is expected to only have one of these.
+   * Creates a new SyncManager.
+   *
+   * An Application is expected to only have one SyncManager.
    *
    *      var socketManager = new layer.Websockets.SocketManager({client: client});
    *      var requestManager = new layer.Websockets.RequestManager({client: client, socketManager: socketManager});
@@ -70,6 +72,8 @@ class SyncManager extends Root {
   }
 
   /**
+   * Process sync request when connection is restored.
+   *
    * Any time we go back online (as signaled by the onlineStateManager),
    * Process the next Sync Event (will do nothing if one is already firing)
    *
@@ -84,7 +88,7 @@ class SyncManager extends Root {
       setTimeout(() => this._processNextRequest(), 100);
     } else if (evt.eventName === 'disconnected') {
       if (this.queue.length) {
-        this.queue[0].firing = false;
+        this.queue[0].isFiring = false;
       }
     }
   }
@@ -110,7 +114,8 @@ class SyncManager extends Root {
         target: requestEvt.target,
       });
     } else {
-      logger.info(`Sync Manager Request PATCH ${requestEvt.target} request ignored; create request still enqueued`); logger.debug(requestEvt.toObject());
+      logger.info(`Sync Manager Request PATCH ${requestEvt.target} request ignored; create request still enqueued`);
+      logger.debug(requestEvt.toObject());
     }
 
     // If its a DELETE request, purge all other requests on that target.
@@ -127,8 +132,11 @@ class SyncManager extends Root {
   }
 
   /**
+   * Find create request for this resource.
+   *
    * Determine if the given target has a POST request waiting to create
-   * the resource, and return any matching
+   * the resource, and return any matching requests. Used
+   * for folding PATCH requests into an unfired CREATE/POST request.
    *
    * @method _findUnfiredCreate
    * @private
@@ -137,12 +145,13 @@ class SyncManager extends Root {
    */
   _findUnfiredCreate(requestEvt) {
     return Boolean(this.queue.filter(evt =>
-      evt.target === requestEvt.target && evt.operation === 'POST' && !evt.firing).length
+      evt.target === requestEvt.target && evt.operation === 'POST' && !evt.isFiring).length
     );
   }
 
   /**
    * Process the next request in the queue.
+   *
    * Request is dequeued on completing the process.
    * If the first request in the queue is firing, do nothing.
    *
@@ -152,14 +161,14 @@ class SyncManager extends Root {
   _processNextRequest() {
     if (this.isDestroyed) return;
     const requestEvt = this.queue[0];
-    if (this.isOnline() && requestEvt && !requestEvt.firing) {
+    if (this.isOnline() && requestEvt && !requestEvt.isFiring) {
       if (requestEvt instanceof WebsocketSyncEvent) {
         if (this.socketManager && this.socketManager._isOpen()) {
           logger.debug(`Sync Manager Websocket Request Firing ${requestEvt.operation} on target ${requestEvt.target}`,
             requestEvt.toObject());
           this.requestManager.sendRequest(requestEvt._getRequestData(),
               result => this._xhrResult(result, requestEvt));
-          requestEvt.firing = true;
+          requestEvt.isFiring = true;
         } else {
           logger.debug('Sync Manager Websocket Request skipped; socket closed');
         }
@@ -167,16 +176,16 @@ class SyncManager extends Root {
         logger.debug(`Sync Manager XHR Request Firing ${requestEvt.operation} ${requestEvt.target}`,
           requestEvt.toObject());
         xhr(requestEvt._getRequestData(), result => this._xhrResult(result, requestEvt));
-        requestEvt.firing = true;
+        requestEvt.isFiring = true;
       }
-    } else if (requestEvt && requestEvt.firing) {
-      logger.debug(`Sync Manager processNext skipped; request still firing ${requestEvt.operation} on target ${requestEvt.target}`,
-                   requestEvt.toObject());
+    } else if (requestEvt && requestEvt.isFiring) {
+      logger.debug(`Sync Manager processNext skipped; request still firing ${requestEvt.operation} ` +
+        `on target ${requestEvt.target}`, requestEvt.toObject());
     }
   }
 
   /**
-   * Process the result of an xhr call, routing it to the appropriate handler
+   * Process the result of an xhr call, routing it to the appropriate handler.
    *
    * @method _xhrResult
    * @private
@@ -185,7 +194,7 @@ class SyncManager extends Root {
    */
   _xhrResult(result, requestEvt) {
     result.request = requestEvt;
-    requestEvt.firing = false;
+    requestEvt.isFiring = false;
     if (!result.success) {
       this._xhrError(result);
     } else {
@@ -193,6 +202,15 @@ class SyncManager extends Root {
     }
   }
 
+  /**
+   * Categorize the error for handling.
+   *
+   * @method _getErrorState
+   * @private
+   * @param  {Object} result  - Response object returned by xhr call
+   * @param  {layer.SyncEvent} requestEvt - Request object
+   * @param  {boolean} isOnline - Is our app state set to online
+   */
   _getErrorState(result, requestEvt, isOnline) {
     if (!isOnline) {
       // CORS errors look identical to offline; but if our online state has transitioned from false to true repeatedly while processing this request,
@@ -203,7 +221,7 @@ class SyncManager extends Root {
         return 'offline';
       }
     } else if (result.status === 404 && result.data && result.data.code === 102) {
-        return 'notFound';
+      return 'notFound';
     } else if (result.status === 408) {
       if (requestEvt.retryCount >= SyncManager.MAX_RETRIES) {
         return 'tooManyFailuresWhileOnline';
@@ -238,7 +256,8 @@ class SyncManager extends Root {
   _xhrError(result) {
     const requestEvt = result.request;
 
-    logger.warn(`Sync Manager ${requestEvt instanceof WebsocketSyncEvent ? 'Websocket' : 'XHR'} ${requestEvt.operation} Request on target ${requestEvt.target} has Failed`, requestEvt.toObject());
+    logger.warn(`Sync Manager ${requestEvt instanceof WebsocketSyncEvent ? 'Websocket' : 'XHR'} ` +
+      `${requestEvt.operation} Request on target ${requestEvt.target} has Failed`, requestEvt.toObject());
 
     const errState = this._getErrorState(result, requestEvt, this.isOnline());
     logger.warn('Sync Manager Error State: ' + errState);
@@ -282,6 +301,8 @@ class SyncManager extends Root {
   }
 
   /**
+   * Handle a server unavailable error.
+   *
    * In the event of a 502 (Bad Gateway), 503 (service unavailable)
    * or 504 (gateway timeout) error from the server
    * assume we have an error that is self correcting on the server.
@@ -295,13 +316,15 @@ class SyncManager extends Root {
    * @param {layer.SyncEvent} request
    */
   _xhrHandleServerUnavailableError(request) {
-    const maxDelay = this.maxUnavailableRetryWait;
+    const maxDelay = SyncManager.MAX_UNAVAILABLE_RETRY_WAIT;
     const delay = Utils.getExponentialBackoffSeconds(maxDelay, Math.min(15, request.retryCount++));
     logger.warn(`Sync Manager Server Unavailable; retry count ${request.retryCount}; retrying in ${delay} seconds`);
     setTimeout(this._processNextRequest.bind(this), delay * 1000);
   }
 
   /**
+   * Handle a server error in response to firing sync event.
+   *
    * If there is a server error, its presumably non-recoverable/non-retryable error, so
    * we're going to abort this request.
    *
@@ -342,8 +365,9 @@ class SyncManager extends Root {
   }
 
   /**
-   * In the event of what appears to be a connection error,
+   * If there is a connection error, wait for retry.
    *
+   * In the event of what appears to be a connection error,
    * Wait until a 'connected' event before processing the next request (actually reprocessing the current event)
    *
    * @method _xhrHandleConnectionError
@@ -355,6 +379,8 @@ class SyncManager extends Root {
   }
 
   /**
+   * Verify that we are online and retry request.
+   *
    * This method is called when we think we're online, but
    * have determined we need to validate that assumption.
    *
@@ -373,6 +399,8 @@ class SyncManager extends Root {
   }
 
   /**
+   * If we have verified we are online, retry request.
+   *
    * We should have received a response to our /nonces call
    * which assuming the server is actually alive,
    * will tell us if the connection is working.
@@ -398,7 +426,9 @@ class SyncManager extends Root {
   }
 
   /**
-   * Any xhr request that actually succedes,
+   * The XHR request was successful.
+   *
+   * Any xhr request that actually succedes:
    *
    * 1. Remove it from the queue
    * 2. Call any callbacks
@@ -411,7 +441,8 @@ class SyncManager extends Root {
    */
   _xhrSuccess(result) {
     const requestEvt = result.request;
-    logger.debug(`Sync Manager ${requestEvt instanceof WebsocketSyncEvent ? 'Websocket' : 'XHR'} ${requestEvt.operation} Request on target ${requestEvt.target} has Succeeded`, requestEvt.toObject());
+    logger.debug(`Sync Manager ${requestEvt instanceof WebsocketSyncEvent ? 'Websocket' : 'XHR'} ` +
+      `${requestEvt.operation} Request on target ${requestEvt.target} has Succeeded`, requestEvt.toObject());
     if (result.data) logger.debug(result.data);
     requestEvt.success = true;
     this._removeRequest(requestEvt);
@@ -426,7 +457,7 @@ class SyncManager extends Root {
   }
 
   /**
-   * Remove the SyncEvent request from the queue
+   * Remove the SyncEvent request from the queue.
    *
    * @method _removeRequest
    * @private
@@ -438,6 +469,8 @@ class SyncManager extends Root {
   }
 
   /**
+   * Remove requests from queue that depend on specified resource.
+   *
    * If there is a POST request to create a new resource, and there are PATCH, DELETE, etc...
    * requests on that resource, if the POST request fails, then all PATCH, DELETE, etc
    * requests must be removed from the queue.
@@ -455,7 +488,7 @@ class SyncManager extends Root {
 
 
   /**
-   * Remove from queue all events that operate upon the deleted object
+   * Remove from queue all events that operate upon the deleted object.
    *
    * @method _purgeOnDelete
    * @private
@@ -474,18 +507,21 @@ class SyncManager extends Root {
 }
 
 /**
- * Websocket Manager for getting socket state
+ * Websocket Manager for getting socket state.
  * @type {layer.Websockets.SocketManager}
  */
 SyncManager.prototype.socketManager = null;
 
-/** Websocket Request Manager for sending requests
+/**
+ * Websocket Request Manager for sending requests.
  * @type {layer.Websockets.RequestManager}
  */
 SyncManager.prototype.requestManager = null;
 
 /**
- * Reference to the Online Manager
+ * Reference to the Online State Manager.
+ *
+ * Sync Manager uses online status to determine if it can fire sync-requests.
  * @private
  * @type {layer.OnlineStateManager}
  */
@@ -498,20 +534,38 @@ SyncManager.prototype.onlineManager = null;
 SyncManager.prototype.queue = null;
 
 /**
+ * Maximum exponential backoff wait.
+ *
  * If the server is returning 502, 503 or 504 errors, exponential backoff
  * should never wait longer than this number of seconds (15 minutes)
  * @type {Number}
+ * @static
  */
-SyncManager.prototype.maxUnavailableRetryWait = 60 * 15;
+SyncManager.MAX_UNAVAILABLE_RETRY_WAIT = 60 * 15;
 
 /**
+ * Retries before suspect CORS error.
+ *
  * How many times can we transition from offline to online state
  * with this request at the front of the queue before we conclude
  * that the reason we keep thinking we're going offline is
  * a CORS error returning a status of 0.  If that pattern
  * shows 3 times in a row, there is likely a CORS error.
+ * Note that CORS errors appear to javascript as a status=0 error,
+ * which is the same as if the client were offline.
+ * @type {number}
+ * @static
  */
 SyncManager.MAX_RETRIES_BEFORE_CORS_ERROR = 3;
+
+/**
+ * Abort request after this number of retries.
+ *
+ * @type {number}
+ * @static
+ */
+SyncManager.MAX_RETRIES = 20;
+
 
 SyncManager._supportedEvents = [
   /**
@@ -538,13 +592,13 @@ SyncManager._supportedEvents = [
   'sync:success',
 
   /**
-   * A new sync request has been added
+   * A new sync request has been added.
+   *
    * @event
    * @param {layer.SyncEvent} evt - The request object
    */
   'sync:add',
 ].concat(Root._supportedEvents);
 
-SyncManager.MAX_RETRIES = 20;
 Root.initClass(SyncManager);
 module.exports = SyncManager;

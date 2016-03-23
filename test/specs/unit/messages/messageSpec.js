@@ -1250,7 +1250,7 @@ describe("The Messages class", function() {
 
         it("Should fail if already deleting", function() {
             // Setup
-            m.delete();
+            m.delete(layer.Constants.DELETION_MODE.ALL);
 
             // Run
             expect(function() {
@@ -1264,11 +1264,11 @@ describe("The Messages class", function() {
             spyOn(m, "_xhr");
 
             // Run
-            m.delete();
+            m.delete(layer.Constants.DELETION_MODE.ALL);
 
             // Posttest
             expect(m._xhr).toHaveBeenCalledWith({
-                url: '?destroy=false',
+                url: '?destroy=true',
                 method: 'DELETE'
             }, jasmine.any(Function));
         });
@@ -1278,7 +1278,7 @@ describe("The Messages class", function() {
             spyOn(m, "trigger");
 
             // Run
-            m.delete(true);
+            m.delete(layer.Constants.DELETION_MODE.ALL);
 
             // Posttest
             expect(m.trigger).toHaveBeenCalledWith("messages:delete");
@@ -1287,7 +1287,7 @@ describe("The Messages class", function() {
         it("Should destroy the message", function() {
 
             // Run
-            m.delete();
+            m.delete(layer.Constants.DELETION_MODE.ALL);
 
             // Posttest
             expect(m.isDestroyed).toBe(true);
@@ -1302,7 +1302,7 @@ describe("The Messages class", function() {
 
 
           // Run
-          m.delete();
+          m.delete(layer.Constants.DELETION_MODE.ALL);
 
           // Posttest
           expect(m.isDestroyed).toBe(true);

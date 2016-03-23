@@ -1,16 +1,20 @@
 /**
- * The Message Class represents messages sent amongst participants
+ * The Message Class represents Messages sent amongst participants
  * of of a Conversation.
  *
  * The simplest way to create and send a message is:
  *
  *      var m = conversation.createMessage('Hello there').send();
  *
+ * For conversations that involve notifications (primarily for Android and IOS), the more common pattern is:
+ *
+ *      var m = conversation.createMessage('Hello there').send({text: "Message from Fred: Hello there"});
+ *
  * Typically, rendering would be done as follows:
  *
  *      // Create a layer.Query that loads Messages for the
  *      // specified Conversation.
- *      var query = new layer.Query({
+ *      var query = client.createQuery({
  *        model: Query.Message,
  *        predicate: 'conversation = "' + conversation.id + '"'
  *      });
@@ -18,13 +22,11 @@
  *      // Any time the Query's data changes the 'change'
  *      // event will fire.
  *      query.on('change', function(layerEvt) {
- *        if (layerEvt.type == 'insert') {
- *          renderNewMessages(layerEvt.data);
- *        }
+ *        renderNewMessages(query.data);
  *      });
  *
- *      // This will cause the above event handler to receive
- *      // a change event where `type` = 'insert'.
+ *      // This will call will cause the above event handler to receive
+ *      // a change event, and will update query.data.
  *      conversation.createMessage('Hello there').send();
  *
  * The above code will trigger the following events:
@@ -34,11 +36,12 @@
  *    * messages:sent: The message was received by the server
  *  * Query Instance fires
  *    * change: The query has received a new Message
+ *    * change:add: Same as the change event but more specific
  *
  * When creating a Message there are a number of ways to structure it.
- * All of these are valid; all of them are just shorthand for
- * accomplishing this:
+ * All of these are valid and create the same exact Message:
  *
+ *      // Full API style:
  *      var m = conversation.createMessage({
  *          parts: [new layer.MessagePart({
  *              body: 'Hello there',
@@ -46,29 +49,37 @@
  *          })]
  *      });
  *
- *      // Option 1: Pass in Objects instead of layer.MessageParts
+ *      // Option 1: Pass in an Object instead of an array of layer.MessageParts
  *      var m = conversation.createMessage({
- *          parts: new layer.MessagePart({
+ *          parts: {
  *              body: 'Hello there',
  *              mimeType: 'text/plain'
- *          })
+ *          }
  *      });
  *
- *      // Option 2: Pass in a string (automatically assumes mimeType is text/plain)
+ *      // Option 2: Pass in an array of Objects instead of an array of layer.MessageParts
+ *      var m = conversation.createMessage({
+ *          parts: [{
+ *              body: 'Hello there',
+ *              mimeType: 'text/plain'
+ *          }]
+ *      });
+ *
+ *      // Option 3: Pass in a string (automatically assumes mimeType is text/plain)
  *      // instead of an array of objects.
  *      var m = conversation.createMessage({
  *          parts: 'Hello'
  *      });
  *
- *      // Option 3: Pass in an array of strings (automatically assumes mimeType is text/plain)
+ *      // Option 4: Pass in an array of strings (automatically assumes mimeType is text/plain)
  *      var m = conversation.createMessage({
  *          parts: ['Hello']
  *      });
  *
- *      // Option 4: Pass in just a string and nothing else
+ *      // Option 5: Pass in just a string and nothing else
  *      var m = conversation.createMessage('Hello');
  *
- *      // Option 5:
+ *      // Option 6: Use addPart.
  *      var m = converseation.createMessage();
  *      m.addPart({body: "hello", mimeType: "text/plain"});
  *
@@ -76,23 +87,23 @@
  *
  * Properties:
  *
- * * `id`: this property is worth being familiar with; it identifies the
+ * * layer.Message.id: this property is worth being familiar with; it identifies the
  *   Message and can be used in `client.getMessage(id)` to retrieve it
  *   at any time.
- * * `internalId`: This property makes for a handy unique ID for use in dom nodes.
+ * * layer.Message.internalId: This property makes for a handy unique ID for use in dom nodes.
  *   It is gaurenteed not to change during this session.
- * * `isRead`: Indicates if the Message has been read yet; set `m.isRead = true`
+ * * layer.Message.isRead: Indicates if the Message has been read yet; set `m.isRead = true`
  *   to tell the client and server that the message has been read.
- * * `parts`: An array of layer.MessagePart classes representing the contents of the Message.
- * * `sentAt`: Date the message was sent
- * * `sender.userId`: Conversation participant who sent the Message. You may
+ * * layer.Message.parts: An array of layer.MessagePart classes representing the contents of the Message.
+ * * layer.Message.sentAt: Date the message was sent
+ * * layer.Message.sender's `userId` property: Conversation participant who sent the Message. You may
  *   need to do a lookup on this id in your own servers to find a
  *   displayable name for it.
  *
  * Methods:
  *
- * * `send()`: Sends the message to the server and the other participants.
- * * `on()` and `off()`; event listeners built on top of the `backbone-events-standalone` npm project
+ * * layer.Message.send(): Sends the message to the server and the other participants.
+ * * layer.Message.on() and layer.Message.off(); event listeners built on top of the `backbone-events-standalone` npm project
  *
  * Events:
  *
@@ -110,10 +121,11 @@ const LayerError = require('./layer-error');
 const Constants = require('./const');
 const Util = require('./client-utils');
 const ClientRegistry = require('./client-registry');
+const logger = require('./logger');
 
 class Message extends Syncable {
   /**
-   * See Conversation.createMessage()
+   * See layer.Conversation.createMessage()
    *
    * @method constructor
    * @return {layer.Message}
@@ -166,9 +178,9 @@ class Message extends Syncable {
   }
 
   /**
-   * Get the Client associated with this layer.Message.
+   * Get the layer.Client associated with this layer.Message.
    *
-   * Uses the clientId property.
+   * Uses the layer.Message.clientId property.
    *
    * @method getClient
    * @return {layer.Client}
@@ -178,9 +190,9 @@ class Message extends Syncable {
   }
 
   /**
-   * Get the Conversation associated with this layer.Message.
+   * Get the layer.Conversation associated with this layer.Message.
    *
-   * Uses the conversationId.
+   * Uses the layer.Message.conversationId.
    *
    * @method getConversation
    * @return {layer.Conversation}
@@ -230,12 +242,12 @@ class Message extends Syncable {
 
 
   /**
-   * Add a MessagePart to this Message.
+   * Add a layer.MessagePart to this Message.
    *
-   * Should only be done on an unsent Message.
+   * Should only be called on an unsent Message.
    *
    * @method addPart
-   * @param  {layer.MessagePart/Object} part - A layer.MessagePart instance or a {mimeType: 'text/plain', body: 'Hello'} formatted Object.
+   * @param  {layer.MessagePart/Object} part - A layer.MessagePart instance or a `{mimeType: 'text/plain', body: 'Hello'}` formatted Object.
    */
   addPart(part) {
     if (part) {
@@ -250,8 +262,9 @@ class Message extends Syncable {
   }
 
   /**
-   * Accessor called whenever the app accesses `message.recipientStatus`;
-   * insures that participants who haven't yet been sent the Message are marked as layer.Constants.RECEIPT_STATE.PENDING
+   * Accessor called whenever the app accesses `message.recipientStatus`.
+   *
+   * Insures that participants who haven't yet been sent the Message are marked as layer.Constants.RECEIPT_STATE.PENDING
    *
    * @method __getRecipientStatus
    * @param {string} pKey - The actual property key where the value is stored
@@ -267,7 +280,8 @@ class Message extends Syncable {
       if (conversation) {
         conversation.participants.forEach(participant => {
           if (!value[participant]) {
-            value[participant] = participant === userId ? Constants.RECEIPT_STATE.READ : Constants.RECEIPT_STATE.PENDING;
+            value[participant] = participant === userId ?
+              Constants.RECEIPT_STATE.READ : Constants.RECEIPT_STATE.PENDING;
           }
         });
       }
@@ -279,7 +293,7 @@ class Message extends Syncable {
    * Handle changes to the recipientStatus property.
    *
    * Any time the recipientStatus property is set,
-   * Recalculate all of the recipient related properties:
+   * Recalculate all of the receipt related properties:
    *
    * 1. isRead
    * 2. readStatus
@@ -340,11 +354,11 @@ class Message extends Syncable {
    *
    * @method _getReceiptStatus
    * @private
-   * @param  {Object} status
-   * @param  {string} userId
+   * @param  {Object} status - Object describing the delivered/read/sent value for each participant
+   * @param  {string} userId - User ID for this user; not counted when reporting on how many people have read/received.
    * @return {Object} result
-   * @returns {number} result.readCount
-   * @returns {number} result.deliveredCount
+   * @return {number} result.readCount
+   * @return {number} result.deliveredCount
    */
   _getReceiptStatus(status, userId) {
     let readCount = 0,
@@ -365,7 +379,7 @@ class Message extends Syncable {
   }
 
   /**
-   * Sets the readStatus and deliveryStatus properties
+   * Sets the layer.Message.readStatus and layer.Message.deliveryStatus properties.
    *
    * @method _setReceiptStatus
    * @private
@@ -395,7 +409,7 @@ class Message extends Syncable {
    *
    * If someone called m.isRead = true, AND
    * if it was previously false, AND
-   * if the call didn't come from updateRecipientStatus,
+   * if the call didn't come from layer.Message.__updateRecipientStatus,
    * Then notify the server that the message has been read.
    *
    *
@@ -417,7 +431,7 @@ class Message extends Syncable {
    * Send a Read or Delivery Receipt to the server.
    *
    * @method sendReceipt
-   * @param {string} [type=read] - One of layer.Constants.RECEIPT_STATE.READ or layer.Constants.RECEIPT_STATE.DELIVERY
+   * @param {string} [type=layer.Constants.RECEIPT_STATE.READ] - One of layer.Constants.RECEIPT_STATE.READ or layer.Constants.RECEIPT_STATE.DELIVERY
    * @return {layer.Message} this
    */
   sendReceipt(type = Constants.RECEIPT_STATE.READ) {
@@ -468,14 +482,13 @@ class Message extends Syncable {
   }
 
   /**
-   * Send the message to all participants of the conversation.
+   * Send the message to all participants of the Conversation.
    *
    * Message must have parts and a valid conversation to send successfully.
    *
-   * @alias save
    * @method send
-   * @param {Object} [notification] - Parameters for controling how the message is notificationed to phones,
-   *                          and how phones notifications will occur.  See IOS and Android docs for details.
+   * @param {Object} [notification] - Parameters for controling how the phones manage notifications of the new Message.
+   *                          See IOS and Android docs for details.
    * @param {string} [notification.text] - Text of your notification
    * @param {string} [notification.sound] - Name of an audio file or other sound-related hint
    * @return {layer.Message} this
@@ -546,8 +559,8 @@ class Message extends Syncable {
   /**
    * Handle the actual sending.
    *
-   * Message.send has some potentially asynchronous
-   * preprocessing to do before sending; actual sending
+   * layer.Message.send has some potentially asynchronous
+   * preprocessing to do before sending (Rich Content); actual sending
    * is done here.
    *
    * @method _send
@@ -576,7 +589,7 @@ class Message extends Syncable {
   }
 
   /**
-    * Message.send() Success Callback
+    * layer.Message.send() Success Callback.
     *
     * If successfully sending the message; triggers a 'sent' event,
     * and updates the message.id/url
@@ -589,8 +602,6 @@ class Message extends Syncable {
     if (this.isDestroyed) return;
 
     if (success) {
-      const id = this.id;
-      const client = this.getClient();
       this._populateFromServer(data);
       this._triggerAsync('messages:sent');
     } else {
@@ -633,24 +644,37 @@ class Message extends Syncable {
   }
 
   /**
-   * Delete the message from the server.
+   * Delete the Message from the server.
    *
-   * This destroys the local copy immediately, and attempts to also
-   * delete the server's copy.
+   * This call will support various deletion modes.  Calling without a deletion mode is deprecated.
+   *
+   * Deletion Modes:
+   *
+   * * layer.Constants.DELETION_MODE.ALL: This deletes the local copy immediately, and attempts to also
+   *   delete the server's copy.
    *
    * @method delete
-   * @param {boolean} destroy - if true, delete for all users, else just for this user.  False is not yet supported by the server.
+   * @param {number} deletionMode - layer.Constants.DELETION_MODE.ALL is only supported mode at this time
    */
-  delete(destroy) {
+  delete(mode) {
     if (this.isDestroyed) {
       throw new Error(LayerError.dictionary.isDestroyed);
+    }
+
+    const modeValue = 'true';
+    if (mode === true) {
+      logger.warn('Calling Message.delete without a mode is deprecated');
+      mode = Constants.DELETION_MODE.ALL;
+    }
+    if (!mode || mode !== Constants.DELETION_MODE.ALL) {
+      throw new Error(LayerError.dictionary.deletionModeUnsupported);
     }
 
     if (this.syncState !== Constants.SYNC_STATE.NEW) {
       const id = this.id;
       const client = this.getClient();
       this._xhr({
-        url: '?destroy=' + Boolean(destroy),
+        url: '?destroy=' + modeValue,
         method: 'DELETE',
       }, result => {
         if (!result.success) Message.load(id, client);
@@ -666,8 +690,9 @@ class Message extends Syncable {
   /**
    * The Message has been deleted.
    *
-   * Called from WebsocketManager and from message.delete();
-   * Put all code for cleaning up here... destroy is called separately.
+   * Called from layer.Websockets.ChangeManager and from layer.Message.delete();
+   *
+   * Destroy must be called separately, and handles most cleanup.
    *
    * @method _deleted
    * @protected
@@ -694,6 +719,8 @@ class Message extends Syncable {
 
   /**
    * Populates this instance with the description from the server.
+   *
+   * Can be used for creating or for updating the instance.
    *
    * @method _populateFromServer
    * @protected
@@ -748,7 +775,7 @@ class Message extends Syncable {
   }
 
   /**
-   * Returns the Message's part given the part's ID
+   * Returns the Message's layer.MessagePart with the specified the part ID.
    *
    * @method getPartById
    * @param {string} partId
@@ -777,9 +804,9 @@ class Message extends Syncable {
   /**
    * Any xhr method called on this message uses the message's url.
    *
-   * {@link layer.ClientAuthenticator#xhr}
+   * For more info on xhr method parameters see {@link layer.ClientAuthenticator#xhr}
    *
-   * @method xhr
+   * @method _xhr
    * @protected
    * @return {layer.Message} this
    */
@@ -854,7 +881,7 @@ class Message extends Syncable {
    * any of this object's properties change.
    *
    * @method toObject
-   * @return {Object} POJO version of this.
+   * @return {Object} POJO version of this object.
    */
   toObject() {
     if (!this._toObject) {
@@ -885,49 +912,57 @@ class Message extends Syncable {
 
   /**
    * Creates a message from the server's representation of a message.
+   *
    * Similar to _populateFromServer, however, this method takes a
-   * message description and returns a message instance using _populateFromServer
+   * message description and returns a new message instance using _populateFromServer
    * to setup the values.
    *
    * @method _createFromServer
    * @protected
    * @static
-   * @param  {Object} m - Server's representation of the message
-   * @param  {layer.Conversation} c - Conversation for the message
+   * @param  {Object} message - Server's representation of the message
+   * @param  {layer.Conversation} conversation - Conversation for the message
    * @return {layer.Message}
    */
-  static _createFromServer(messageIn, conversation) {
+  static _createFromServer(message, conversation) {
     if (!(conversation instanceof Root)) throw new Error(LayerError.dictionary.conversationMissing);
 
     const client = conversation.getClient();
-    const found = client.getMessage(messageIn.id);
-    let message;
+    const found = client.getMessage(message.id);
+    let newMessage;
     if (found) {
-      message = found;
-      message._populateFromServer(messageIn);
+      newMessage = found;
+      newMessage._populateFromServer(message);
     } else {
-      const fromWebsocket = messageIn.fromWebsocket;
-      message = new Message({
-        fromServer: messageIn,
+      const fromWebsocket = message.fromWebsocket;
+      newMessage = new Message({
+        fromServer: message,
         conversationId: conversation.id,
         clientId: client.appId,
-        _notify: fromWebsocket && messageIn.is_unread && messageIn.sender.user_id !== client.userId,
+        _notify: fromWebsocket && message.is_unread && message.sender.user_id !== client.userId,
       });
     }
 
-    const status = message.recipientStatus[client.userId];
+    const status = newMessage.recipientStatus[client.userId];
     if (status !== Constants.RECEIPT_STATE.READ && status !== Constants.RECEIPT_STATE.DELIVERED) {
-      message._sendReceipt('delivery');
+      newMessage._sendReceipt('delivery');
     }
 
     return {
-      message,
+      message: newMessage,
       new: !found,
     };
   }
 
   /**
    * Loads the specified message from the server.
+   *
+   * Typically one should call
+   *
+   *     client.getMessage(messageId, true)
+   *
+   * This will get the Message from cache or layer.Message.load it from the server if not cached.
+   * Typically you do not need to call this method directly.
    *
    * @method load
    * @static
@@ -970,8 +1005,14 @@ class Message extends Syncable {
   }
 
   /**
+   * Identifies whether a Message receiving the specified patch data should be loaded from the server.
+   *
+   * Applies only to Messages that aren't already loaded; used to indicate if a change event is
+   * significant enough to load the Message and trigger change events on that Message.
+   *
    * At this time there are no properties that are patched on Messages via websockets
    * that would justify loading the Message from the server so as to notify the app.
+   *
    * Only recipient status changes and maybe is_unread changes are sent;
    * neither of which are relevant to an app that isn't rendering that message.
    *
@@ -985,7 +1026,7 @@ class Message extends Syncable {
 }
 
 /**
- * Client that the conversation belongs to.
+ * Client that the Message belongs to.
  *
  * Actual value of this string matches the appId.
  * @type {string}
@@ -995,7 +1036,7 @@ Message.prototype.clientId = '';
 /**
  * Conversation that this Message belongs to.
  *
- * Actual value is the ID of the Conversation.
+ * Actual value is the ID of the Conversation's ID.
  *
  * @type {string}
  */
@@ -1009,19 +1050,22 @@ Message.prototype.conversationId = '';
 Message.prototype.parts = null;
 
 /**
- * Message Identifier
+ * Message Identifier.
+ *
+ * This value is shared by all participants and devices.
+ *
  * @type {String}
  */
 Message.prototype.id = '';
 
 /**
- * URL to the server endpoint for operating on the message
+ * URL to the server endpoint for operating on the message.
  * @type {String}
  */
 Message.prototype.url = '';
 
 /**
- * Time that the message was sent
+ * Time that the message was sent.
  * @type {Date}
  */
 Message.prototype.sentAt = null;
@@ -1034,14 +1078,16 @@ Message.prototype.sentAt = null;
 Message.prototype.receivedAt = null;
 
 /**
- * Who sent the Message.  Contains `userId` property which is
+ * Object representing the sender of the Message.
+ *
+ * Contains `userId` property which is
  * populated when the message was sent by a participant (or former participant)
  * in the Conversation.  Contains a `name` property which is
  * used when the Message is sent via a Named Platform API sender
  * such as "Admin", "Moderator", "Robot Jerking you Around".
  *
  *      <span class='sent-by'>
- *        {message.sender.name || getUsernameForId(message.sender.userId)}
+ *        {message.sender.name || getDisplayNameForId(message.sender.userId)}
  *      </span>
  *
  * @type {Object}
@@ -1053,7 +1099,7 @@ Message.prototype.sender = null;
  *
  * NOTES:
  *
- * 1. Deleting a message does not affect position
+ * 1. Deleting a message does not affect position of other Messages.
  * 2. A position is not gaurenteed to be unique (multiple messages sent at the same time could
  * all claim the same position)
  * 3. Each successive message within a conversation should expect a higher position.
@@ -1063,7 +1109,7 @@ Message.prototype.sender = null;
 Message.prototype.position = 0;
 
 /**
- * Hint used by layer.Client on whether to trigger a messages:notify event
+ * Hint used by layer.Client on whether to trigger a messages:notify event.
  *
  * @type {boolean}
  * @private
@@ -1076,7 +1122,11 @@ Message.prototype._notify = false;
  * Read/delivery State of all participants.
  *
  * This is an object containing keys for each participant,
- * and a value of 'sent', 'delivered' or 'read'
+ * and a value of:
+ * * layer.RECEIPT_STATE.SENT
+ * * layer.RECEIPT_STATE.DELIVERED
+ * * layer.RECEIPT_STATE.READ
+ * * layer.RECEIPT_STATE.PENDING
  *
  * @type {Object}
  */
@@ -1140,6 +1190,7 @@ Message.prototype.deliveryStatus = Constants.RECIPIENT_STATE.NONE;
 
 /**
  * A locally created Message will get a temporary ID.
+ *
  * Some may try to lookup the Message using the temporary ID even
  * though it may have later received an ID from the server.
  * Keep the temporary ID so we can correctly index and cleanup.
@@ -1156,8 +1207,9 @@ Message.prototype._tempId = '';
 Message.prototype.localCreatedAt = null;
 
 /**
- * Shortcut to determining if the Message is currently being sent, and therefore
- * has not yet been received by the server.
+ * Shortcut to determining if the Message is currently being sent.
+ *
+ * Implication is that it has not yet been received by the server.
  *
  * NOTE: There is a special case where isSending is true and syncState !== layer.Constants.SYNC_STATE.SAVING,
  * which occurs after `send()` has been called, but while waiting for Rich Content to upload prior to actually
@@ -1187,7 +1239,7 @@ Message._supportedEvents = [
   /**
    * Message has been loaded from the server.
    *
-   * Note that this is only used in response to the load() method.
+   * Note that this is only used in response to the layer.Message.load() method.
    * @event
    * @param {layer.LayerEvent} evt
    */
@@ -1196,6 +1248,7 @@ Message._supportedEvents = [
   /**
    * The load method failed to load the message from the server.
    *
+   * Note that this is only used in response to the layer.Message.load() method.
    * @event
    * @param {layer.LayerEvent} evt
    */
@@ -1204,7 +1257,7 @@ Message._supportedEvents = [
   /**
    * Message deleted from the server.
    *
-   * Caused by a call to delete() or a websocket event.
+   * Caused by a call to layer.Message.delete() or a websocket event.
    * @param {layer.LayerEvent} evt
    * @event
    */
@@ -1213,7 +1266,15 @@ Message._supportedEvents = [
   /**
    * Message is about to be sent.
    *
-   * Last chance to modify the message prior to sending.
+   * Last chance to modify or validate the message prior to sending.
+   *
+   *     message.on('messages:sending', function(evt) {
+   *        message.addPart({mimeType: 'application/location', body: JSON.stringify(getGPSLocation())});
+   *     });
+   *
+   * Typically, you would listen to this event more broadly using `client.on('messages:sending')`
+   * which would trigger before sending ANY Messages.
+   *
    * @event
    * @param {layer.LayerEvent} evt
    */
@@ -1234,6 +1295,8 @@ Message._supportedEvents = [
   /**
    * Server failed to receive the Message.
    *
+   * Message will be deleted immediately after firing this event.
+   *
    * @event
    * @param {layer.LayerEvent} evt
    * @param {layer.LayerError} evt.error
@@ -1243,10 +1306,12 @@ Message._supportedEvents = [
   /**
    * Fired when message.isRead is set to true.
    *
-   * As this will often be done
-   * by the app (rather than the layer framework), you may want to ignore this.
+   * Sometimes this event is triggered by marking the Message as read locally; sometimes its triggered
+   * by your user on a separate device/browser marking the Message as read remotely.
+   *
    * Useful if you style unread messages in bold, and need an event to tell you when
    * to unbold the message.
+   *
    * @event
    * @param {layer.LayerEvent} evt
    * @param {layer.Message[]} evt.messages - Array of messages that have just been marked as read
@@ -1257,7 +1322,7 @@ Message._supportedEvents = [
    * The recipientStatus property has changed.
    *
    * This happens in response to an update
-   * from the server... but may be caused marking the current user has having read
+   * from the server... but is also caused by marking the current user has having read
    * or received the message.
    * @event
    * @param {layer.LayerEvent} evt

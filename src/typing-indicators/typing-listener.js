@@ -8,7 +8,7 @@ const {STARTED, PAUSED, FINISHED} = require('./typing-indicators');
  *
  *      var typingListener = client.createTypingListener(document.getElementById('mytextarea'));
  *
- *  In Either form, you change what Conversation
+ *  You change what Conversation
  *  the typing indicator reports your user to be typing
  *  in by calling:
  *
@@ -30,7 +30,9 @@ const {STARTED, PAUSED, FINISHED} = require('./typing-indicators');
 class TypingListener {
 
   /**
-   * Create a TypingListener that listens for the user's typing.  The TypingListener needs
+   * Create a TypingListener that listens for the user's typing.
+   *
+   * The TypingListener needs
    * to know what Conversation the user is typing into... but it does not require that parameter during initialization.
    *
    * @method constructor
@@ -61,7 +63,8 @@ class TypingListener {
   }
 
   /**
-   * Change the input being tracked by your TypingListener, and broadcasting typing changes to other users.
+   * Change the input being tracked by your TypingListener.
+   *
    * If you are removing your input from the DOM, you can simply call
    *
    *     typingListener.setInput(null);
@@ -90,7 +93,7 @@ class TypingListener {
   }
 
   /**
-   * Cleanup and remove all links and callbacks keeping input from being garbage collected
+   * Cleanup and remove all links and callbacks keeping input from being garbage collected.
    *
    * @method _removeInput
    * @private
@@ -106,6 +109,7 @@ class TypingListener {
 
   /**
    * Change the Conversation; this should set the state of the old Conversation to "finished".
+   *
    * Use this when the user has changed Conversations and you want to report on typing to a new
    * Conversation.
    *
@@ -122,6 +126,7 @@ class TypingListener {
 
   /**
    * Whenever the key is pressed, send a "started" or "finished" event.
+   *
    * If its a "start" event, schedule a pause-test that will send
    * a "pause" event if typing stops.
    *
@@ -139,8 +144,9 @@ class TypingListener {
   }
 
   /**
-   * Some keyboard keys are not reported by keypress events
-   * so we capture them with keyDown events. The ones
+   * Handles keyboard keys not reported by on by keypress events.
+   *
+   * These keys can be detected with keyDown event handlers. The ones
    * currently handled here are backspace, delete and enter.
    * We may add more later.
    *
@@ -153,7 +159,9 @@ class TypingListener {
   }
 
   /**
-   * Send the state to the publisher.  If your application requires
+   * Send the state to the publisher.
+   *
+   * If your application requires
    * you to directly control the state, you can call this method;
    * however, as long as you use this TypingListener, keyboard
    * events will overwrite any state changes you send.

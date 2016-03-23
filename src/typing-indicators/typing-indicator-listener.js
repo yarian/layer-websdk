@@ -34,10 +34,10 @@ class TypingIndicatorListener extends Root {
     super(args);
 
     /**
-     * Stores the state of all Conversations, indicating who is
-     * typing and who is paused; people who are stopped are removed
-     * from this state.
-     * @property {Object}
+     * Stores the state of all Conversations, indicating who is typing and who is paused.
+     *
+     * People who are stopped are removed from this state.
+     * @property {Object} state
      */
     this.state = {};
     this._pollId = 0;
@@ -155,7 +155,9 @@ class TypingIndicatorListener extends Root {
 
   /**
    * Any time a state change becomes more than 6 seconds stale,
-   * assume that the user is 'finished'.  In theory, we should
+   * assume that the user is 'finished'.
+   *
+   * In theory, we should
    * receive a new event every 2.5 seconds.  If the current user
    * has gone offline, lack of this code would cause the people
    * currently flagged as typing as still typing hours from now.

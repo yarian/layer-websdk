@@ -30,7 +30,9 @@ const Utils = require('./client-utils');
 
 class OnlineStateManager extends Root {
   /**
-   * Creates a new OnlineStateManager.  An Application is expected to only have one of these.
+   * Creates a new OnlineStateManager.
+   *
+   * An Application is expected to only have one of these.
    *
    *      var onlineStateManager = new layer.OnlineStateManager({
    *          socketManager: socketManager,
@@ -134,6 +136,7 @@ class OnlineStateManager extends Root {
 
   /**
    * Respond to the browser's online/offline events.
+   *
    * Our response is not to trust them, but to use them as
    * a trigger to indicate we should immediately do our own
    * validation.
@@ -150,8 +153,10 @@ class OnlineStateManager extends Root {
   }
 
   /**
+   * Our online state has expired; we are now offline.
+   *
    * If this method gets called, it means that our connection has gone too long without any data
-   * and is now considered to be disconnected.
+   * and is now considered to be disconnected.  Start scheduling tests to see when we are back online.
    *
    * @method _onlineExpired
    * @private
@@ -163,7 +168,9 @@ class OnlineStateManager extends Root {
   }
 
   /**
-   * Get a nonce to see if we can reach the server.  We don't care about the result,
+   * Get a nonce to see if we can reach the server.
+   *
+   * We don't care about the result,
    * we just care about triggering a 'connection:success' or 'connection:error' event
    * which connectionListener will respond to.
    *
@@ -255,7 +262,7 @@ class OnlineStateManager extends Root {
 OnlineStateManager.prototype.isClientReady = false;
 
 /**
- * URL To fire when testing to see if we are online
+ * URL To fire when testing to see if we are online.
  * @type {String}
  */
 OnlineStateManager.prototype.testUrl = '';
@@ -268,13 +275,16 @@ OnlineStateManager.prototype.testUrl = '';
 OnlineStateManager.prototype.socketManager = null;
 
 /**
- * Number of testUrl requests we've been offline for.  Will stop growing
- * once the number is suitably large (10-20).
+ * Number of testUrl requests we've been offline for.
+ *
+ * Will stop growing once the number is suitably large (10-20).
  * @type {Number}
  */
 OnlineStateManager.prototype.offlineCounter = 0;
 
 /**
+ * Maximum wait during exponential backoff while offline.
+ *
  * While offline, exponential backoff is used to calculate how long to wait between checking with the server
  * to see if we are online again. This value determines the maximum wait; any higher value returned by exponential backoff
  * are ignored and this value used instead.
@@ -284,7 +294,7 @@ OnlineStateManager.prototype.offlineCounter = 0;
 OnlineStateManager.prototype.maxOfflineWait = 5 * 60;
 
 /**
- * Minimum wait between tries in ms
+ * Minimum wait between tries in ms.
  * @type {Number}
  */
 OnlineStateManager.prototype.minBackoffWait = 100;
@@ -296,7 +306,7 @@ OnlineStateManager.prototype.minBackoffWait = 100;
 OnlineStateManager.prototype.lastMessageTime = null;
 
 /**
- * For debugging, tracks the last time we checked if we are online
+ * For debugging, tracks the last time we checked if we are online.
  * @type {Date}
  */
 OnlineStateManager.prototype._lastCheckOnlineStatus = null;
@@ -308,7 +318,7 @@ OnlineStateManager.prototype._lastCheckOnlineStatus = null;
 OnlineStateManager.prototype.isOnline = false;
 
 /**
- * setTimeoutId for the next checkOnlineStatus() call
+ * setTimeoutId for the next checkOnlineStatus() call.
  * @type {Number}
  */
 OnlineStateManager.prototype.onlineCheckId = 0;
@@ -321,6 +331,7 @@ OnlineStateManager.prototype._firstStart = true;
 
 /**
  * If we are online, how often do we need to ping to verify we are still online.
+ *
  * Value is reset any time we observe any messages from the server.
  * Measured in miliseconds. NOTE: Websocket has a separate ping which mostly makes
  * this one unnecessary.  May end up removing this one... though we'd keep the

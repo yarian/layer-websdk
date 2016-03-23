@@ -36,7 +36,8 @@
  *
  * ### Accesing Rich Content
  *
- * There are two ways of accessing external content
+ * There are two ways of accessing rich content
+ *
  * 1. Access the data directly: `part.fetchContent(function(data) {myRenderData(data);})`. This approach downloads the data,
  *    writes it to the the `body` property, writes a Data URI to the part's `url` property, and then calls your callback.
  *    By downloading the data and storing it in `body`, the data does not expire.
@@ -45,13 +46,13 @@
  *    string if the url is valid, or '' if its expired and fetchStream must be called to update the url.
  *    The following pattern is recommended:
  *
- *    if (!part.url) {
- *      part.fetchStream(function(url) {myRenderUrl(url)});
- *    } else {
- *      myRenderUrl(part.url);
- *    }
+ *        if (!part.url) {
+ *          part.fetchStream(function(url) {myRenderUrl(url)});
+ *        } else {
+ *          myRenderUrl(part.url);
+ *        }
  *
- * NOTE: `part.url` should have a value when the message is first received, and will only fail `if (!part.url)` once the url has expired.
+ * NOTE: `layer.MessagePart.url` should have a value when the message is first received, and will only fail `if (!part.url)` once the url has expired.
  *
  * @class  layer.MessagePart
  * @extends layer.Root
@@ -78,6 +79,7 @@ class MessagePart extends Root {
    * @param  {Object} options - Can be an object with body and mimeType, or it can be a string, or a Blob/File
    * @param  {string} options.body - To send binary, use base64 encoded string
    * @param  {string} [options.mimeType=text/plain] - Mime type; can be anything; if your client doesn't have a renderer for it, it will be ignored.
+   * @param  {string} [options.encoding=] - Encoding for your MessagePart; use 'base64' if the body is a base64 string; else leave blank.
    * @param  {number} [options.size=0] - Size of your part. Will be calculated for you if not provided.
    *
    * @return {layer.MessagePart}
@@ -117,9 +119,9 @@ class MessagePart extends Root {
   }
 
   /**
-   * Get the Client associated with this layer.MessagePart.
+   * Get the layer.Client associated with this layer.MessagePart.
    *
-   * Uses the clientId property.
+   * Uses the layer.MessagePart.clientId property.
    *
    * @method _getClient
    * @private
@@ -130,9 +132,7 @@ class MessagePart extends Root {
   }
 
   /**
-   * Get the Message associated with this layer.MessagePart.
-   *
-   * NOTE: This only works if the MessagePart has an id (synced to server)
+   * Get the layer.Message associated with this layer.MessagePart.
    *
    * @method _getMessage
    * @private
@@ -145,7 +145,7 @@ class MessagePart extends Root {
   /**
    * Download Rich Content from cloud server.
    *
-   * For MessageParts with external content, will load the data from google's cloud storage.
+   * For MessageParts with rich content, will load the data from google's cloud storage.
    * The body property of this MessagePart is set to the result.
    *
    *      messagepart.fetchContent()
@@ -155,7 +155,7 @@ class MessagePart extends Root {
    *
    * @method fetchContent
    * @param {Function} [callback]
-   * @param {Mixed} callback.data - Either a string (mimeType=text/plain) or a Blob (all others)
+   * @param {Mixed} callback.data - Either a string (mimeType=text/plain) or a Blob (all other mimeTypes)
    */
   fetchContent(callback) {
     if (this._content && !this.isFiring) {
@@ -237,7 +237,7 @@ class MessagePart extends Root {
 
   /**
    * Preps a MessagePart for sending.  Normally that is trivial.
-   * But if there is external content, then the content must be uploaded
+   * But if there is rich content, then the content must be uploaded
    * and then we can trigger a "parts:send" event indicating that
    * the part is ready to send.
    *
@@ -306,7 +306,7 @@ class MessagePart extends Root {
   }
 
   /**
-   * Create an External Content object on the server
+   * Create an rich Content object on the server
    * and then call _processContentResponse
    *
    * @method _generateContentAndSend
@@ -330,7 +330,7 @@ class MessagePart extends Root {
   }
 
   /**
-   * Creates a Content object from the server's
+   * Creates a layer.Content object from the server's
    * Content object, and then uploads the data to google cloud storage.
    *
    * @method _processContentResponse
@@ -373,6 +373,8 @@ class MessagePart extends Root {
   /**
    * Returns the text for any text/plain part.
    *
+   * Returns '' if its not a text/plain part.
+   *
    * @method getText
    * @return {string}
    */
@@ -384,7 +386,17 @@ class MessagePart extends Root {
     }
   }
 
-  // At this time, Parts do not change on the server so no update needed
+  /**
+   * Updates the MessagePart with new data from the server.
+   *
+   * Currently, MessagePart properties do not update... however,
+   * the layer.Content object that Rich Content MessageParts contain
+   * do get updated with refreshed expiring urls.
+   *
+   * @method _populateFromServer
+   * @param  {Object} part - Server representation of a part
+   * @private
+   */
   _populateFromServer(part) {
     if (part.content && this._content) {
       this._content.downloadUrl = part.content.download_url;
@@ -416,7 +428,7 @@ class MessagePart extends Root {
 }
 
 /**
- * Client that the conversation belongs to.
+ * layer.Client that the conversation belongs to.
  *
  * Actual value of this string matches the appId.
  * @type {string}
@@ -438,9 +450,9 @@ MessagePart.prototype.id = '';
 MessagePart.prototype.body = null;
 
 /**
- * External content object.
+ * Rich content object.
  *
- * This will be automatically created for you if your body
+ * This will be automatically created for you if your layer.MessagePart.body
  * is large.
  * @type {layer.Content}
  * @private
@@ -454,12 +466,12 @@ MessagePart.prototype._content = null;
 MessagePart.prototype.hasContent = false;
 
 /**
- * URL to external content object.
+ * URL to rich content object.
  *
- * Parts with rich content will be initialized with this property set.  But it will expire.
+ * Parts with rich content will be initialized with this property set.  But its value will expire.
  *
- * Will contain an expiring url at initialization time and be refreshed with calls to `fetchStream()`.
- * Will contain a non-expiring url to a local resource if `fetchContent()` is called.
+ * Will contain an expiring url at initialization time and be refreshed with calls to `layer.MessagePart.fetchStream()`.
+ * Will contain a non-expiring url to a local resource if `layer.MessagePart.fetchContent()` is called.
  *
  * @type {layer.Content}
  */
@@ -478,7 +490,7 @@ Object.defineProperty(MessagePart.prototype, 'url', {
 });
 
 /**
- * Mime Type for the data in body.
+ * Mime Type for the data in layer.MessagePart.body.
  *
  * @type {String}
  */
@@ -487,22 +499,27 @@ MessagePart.prototype.mimeType = 'text/plain';
 /**
  * Encoding used for the body of this part.
  *
- * No value is the default encoding.
+ * No value is the default encoding.  'base64' is also a common value.
  * @type {String}
  */
 MessagePart.prototype.encoding = '';
 
 /**
- * Size of the body.
+ * Size of the layer.MessagePart.body.
  *
  * Will be set for you if not provided.
- * Only needed for use with layer.Content.
+ * Only needed for use with rich content.
  *
  * @type {number}
  */
 MessagePart.prototype.size = 0;
 
-MessagePart._supportedEvents = ['parts:send', 'content-loaded', 'url-loaded', 'content-loaded-error'].concat(Root._supportedEvents);
+MessagePart._supportedEvents = [
+  'parts:send',
+  'content-loaded',
+  'url-loaded',
+  'content-loaded-error',
+].concat(Root._supportedEvents);
 Root.initClass.apply(MessagePart, [MessagePart, 'MessagePart']);
 
 module.exports = MessagePart;

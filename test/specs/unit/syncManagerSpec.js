@@ -176,14 +176,14 @@ describe("The SyncManager Class", function() {
 
         it("Should reset firing property if disconnected", function() {
             spyOn(syncManager, "_processNextRequest");
-            syncManager.queue = [new layer.XHRSyncEvent({firing: true})];
-            expect(syncManager.queue[0].firing).toBe(true);
+            syncManager.queue = [new layer.XHRSyncEvent({isFiring: true})];
+            expect(syncManager.queue[0].isFiring).toBe(true);
 
             // Run
             client.socketManager.trigger("disconnected");
 
             // Posttest
-            expect(syncManager.queue[0].firing).toBe(false);
+            expect(syncManager.queue[0].isFiring).toBe(false);
         });
     });
 
@@ -303,13 +303,13 @@ describe("The SyncManager Class", function() {
             syncManager.queue = [new layer.WebsocketSyncEvent({
                 data: {name: "fred"}
             })];
-            expect(syncManager.queue[0].firing).toBe(false);
+            expect(syncManager.queue[0].isFiring).toBe(false);
 
             // Run
             syncManager._processNextRequest();
 
             // Posttest
-            expect(syncManager.queue[0].firing).toBe(true);
+            expect(syncManager.queue[0].isFiring).toBe(true);
         });
     });
 
@@ -325,9 +325,9 @@ describe("The SyncManager Class", function() {
         });
 
         it("Should set firing to false", function() {
-            syncManager.queue[0].firing = true;
+            syncManager.queue[0].isFiring = true;
             syncManager._xhrResult({}, syncManager.queue[0]);
-            expect(syncManager.queue[0].firing).toBe(false);
+            expect(syncManager.queue[0].isFiring).toBe(false);
         });
 
         it("Should put the request into the result", function() {

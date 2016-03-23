@@ -19,7 +19,7 @@
  *          property: 'hey'
  *      });
  *
- * results in:
+ * results in your event data being wrapped in a `changes` array:
  *
  *      obj.on('obj:change', function(layerEvent) {
  *          layerEvent.changes.forEach(function(change) {
@@ -29,7 +29,7 @@
  *          });
  *      });
  *
- * The `getChangesFor()` and `hasProperty()` methods
+ * The `layer.LayerEvent.getChangesFor()` and `layer.LayerEvent.hasProperty()` methods
  * simplify working with xxx:change events so you don't need
  * to iterate over the `changes` array.
  *
@@ -132,7 +132,7 @@ class LayerEvent {
  *
  * If the event name ends with ':change' then
  * it is treated as a change event;  such
- * events are assumed to come with `newValue`, `oldValue` and `property`.
+ * events are assumed to come with `newValue`, `oldValue` and `property` in the layer.LayerEvent.changes property.
  * @type {Boolean}
  */
 LayerEvent.prototype.isChange = false;
@@ -140,8 +140,8 @@ LayerEvent.prototype.isChange = false;
 /**
  * Array of changes (Change Events only).
  *
- * If its a Change Event, then the changes property contains an array of change
- * description which each contain:
+ * If its a Change Event, then the changes property contains an array of change objects
+ * which each contain:
  *
  * * oldValue
  * * newValue

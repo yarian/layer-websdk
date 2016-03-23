@@ -8,7 +8,7 @@
  * is either in progress or in queue.
  *
  * GET requests are typically NOT done via a SyncEvent as these are typically
- * needed to render a UI and should either fail or succede promptly.
+ * needed to render a UI and should either fail or succeed promptly.
  *
  * Applications typically do not interact with these objects.
  *
@@ -87,14 +87,14 @@ SyncEvent.prototype.operation = '';
  *
  * @property {Boolean}
  */
-Object.defineProperty(SyncEvent.prototype, 'firing', {
+Object.defineProperty(SyncEvent.prototype, 'isFiring', {
   enumerable: true,
   set: function set(value) {
-    this.__firing = value;
+    this.__isFiring = value;
     if (value) this.__firedAt = Date.now();
   },
   get: function get() {
-    return Boolean(this.__firing && Date.now() - this.__firedAt < SyncEvent.FIRING_EXPIRIATION);
+    return Boolean(this.__isFiring && Date.now() - this.__firedAt < SyncEvent.FIRING_EXPIRIATION);
   },
 });
 
@@ -110,9 +110,10 @@ SyncEvent.prototype.success = null;
 /**
  * Callback to fire on completing this sync event.
  *
- * WARNING: The nature of this callback may change soon;
+ * WARNING: The nature of this callback may change;
  * a persistence layer that persists the SyncManager's queue
  * must have serializable callbacks (object id + method name; not a function)
+ * or must accept that callbacks are not always fired.
  * @type {Function}
  */
 SyncEvent.prototype.callback = null;
@@ -161,9 +162,15 @@ SyncEvent.prototype.data = null;
  */
 SyncEvent.FIRING_EXPIRIATION = 1000 * 60 * 2;
 
+/**
+ * A layer.SyncEvent intended to be fired as an XHR request.
+ *
+ * @class layer.SyncEvent.XHRSyncEvent
+ * @extends layer.SyncEvent
+ */
 class XHRSyncEvent extends SyncEvent {
 
-    /**
+  /**
    * Fire the request associated with this instance.
    *
    * Actually it just returns the parameters needed to make the xhr call:
@@ -212,20 +219,40 @@ class XHRSyncEvent extends SyncEvent {
 
 /**
  * How long before the request times out?
- * @static
- * @type {Number} [timeout=10000]
+ * @type {Number} [timeout=15000]
  */
-XHRSyncEvent.timeout = 10000;
+XHRSyncEvent.prototype.timeout = 15000;
 
+/**
+ * URL to send the request to
+ */
 XHRSyncEvent.prototype.url = '';
 
+/**
+ * Counts number of online state changes.
+ *
+ * If this number becomes high in a short time period, its probably
+ * failing due to a CORS error.
+ */
 XHRSyncEvent.prototype.returnToOnlineCount = 0;
 
+/**
+ * Headers for the request
+ */
 XHRSyncEvent.prototype.headers = null;
 
+/**
+ * Request method.
+ */
 XHRSyncEvent.prototype.method = 'GET';
 
 
+/**
+ * A layer.SyncEvent intended to be fired as a websocket request.
+ *
+ * @class layer.SyncEvent.WebsocketSyncEvent
+ * @extends layer.SyncEvent
+ */
 class WebsocketSyncEvent extends SyncEvent {
 
   /**

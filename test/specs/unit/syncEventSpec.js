@@ -150,23 +150,23 @@ describe("The SyncEvent Classes", function() {
         var evt = new layer.XHRSyncEvent({
             url: "hey"
         });
-        expect(evt.firing).toBe(false);
+        expect(evt.isFiring).toBe(false);
         var d = new Date();
         jasmine.clock().mockDate(d);
 
 
 
         // Run
-        evt.firing = true;
-        expect(evt.firing).toBe(true);
+        evt.isFiring = true;
+        expect(evt.isFiring).toBe(true);
 
         d.setSeconds(d.getSeconds() + 119);
         jasmine.clock().mockDate(d);
-        expect(evt.firing).toBe(true);
+        expect(evt.isFiring).toBe(true);
 
         d.setSeconds(d.getSeconds() + 2);
         jasmine.clock().mockDate(d);
-        expect(evt.firing).toBe(false);
+        expect(evt.isFiring).toBe(false);
       });
     });
 });
