@@ -2,14 +2,14 @@
  * There are two ways to instantiate this class:
  *
  *      // 1. Using a Query Builder
- *      var queryBuilder = QueryBuilder.conversations();
+ *      var queryBuilder = QueryBuilder.conversations().sortBy('lastMessage');
  *      var query = client.createQuery(client, queryBuilder);
  *
  *      // 2. Passing properties directly
  *      var query = client.createQuery({
  *        client: client,
  *        model: layer.Query.Conversation,
- *        sortBy: [{'created_at': 'desc'}]
+ *        sortBy: [{'createdAt': 'desc'}]
  *      });
  *
  * You can change the data selected by your query any time you want using:
@@ -22,14 +22,20 @@
  *        predicate: 'conversation.id = "' + conv.id + "'"
  *      });
  *
+ *     // Or use the Query Builder:
+ *     queryBuilder.paginationWindow(200);
+ *     query.update(queryBuilder);
+ *
  * You can release Conversations and Messages held in memory by your queries when done with them:
  *
  *      query.destroy();
  *
- * Note that the sortBy property is only supported for Conversations at this time and only
- * supports "created_at" and "last_message.sent_at" as sort fields.
+ * #### sortBy
  *
- * #### The dataType
+ * Note that the sortBy property is only supported for Conversations at this time and only
+ * supports "createdAt" and "lastMessage.sentAt" as sort fields.
+ *
+ * #### dataType
  *
  * The layer.Query.dataType property lets you specify what type of data shows up in your results:
  *
@@ -85,6 +91,8 @@
  * });
  * ```
  *
+ * Note that `query.on('change:data', function(evt) {}` is also supported.
+ *
  * ### 2. Insert Events
  *
  * A new Conversation or Message was created. It may have been created locally by your user, or it may have been remotely created, received via websocket, and added to the Query's results.
@@ -99,6 +107,8 @@
  *    }
  *  });
  * ```
+ *
+ * Note that `query.on('change:insert', function(evt) {}` is also supported.
  *
  * ### 3. Remove Events
  *
@@ -115,6 +125,8 @@
  * });
  * ```
  *
+ * Note that `query.on('change:remove', function(evt) {}` is also supported.
+ *
  * ### 4. Reset Events
  *
  * Any time your query's model or predicate properties have been changed
@@ -127,6 +139,8 @@
  *   }
  * });
  * ```
+ *
+ * Note that `query.on('change:reset', function(evt) {}` is also supported.
  *
  * ### 5. Property Events
  *
@@ -152,6 +166,7 @@
  *   }
  * });
  *```
+ * Note that `query.on('change:property', function(evt) {}` is also supported.
  *
  * @class  layer.Query
  * @extends layer.Root
@@ -164,7 +179,8 @@ const Logger = require('./logger');
 
 const CONVERSATION = 'Conversation';
 const MESSAGE = 'Message';
-const findConvIdRegex = new RegExp(/^conversation.id\s*=\s*['"]((temp_)?layer:\/\/\/conversations\/.{8}-.{4}-.{4}-.{4}-.{12})['"]$/);
+const findConvIdRegex = new RegExp(
+  /^conversation.id\s*=\s*['"]((temp_)?layer:\/\/\/conversations\/.{8}-.{4}-.{4}-.{4}-.{12})['"]$/);
 
 class Query extends Root {
 
@@ -180,7 +196,8 @@ class Query extends Root {
       const paginationWindow = options.paginationWindow;
       options.paginationWindow = Math.min(Query.MaxPageSize, options.paginationWindow);
       if (options.paginationWindow !== paginationWindow) {
-        Logger.warn(`paginationWindow value ${paginationWindow} in Query constructor excedes Query.MaxPageSize of ${Query.MaxPageSize}`);
+        Logger.warn(`paginationWindow value ${paginationWindow} in Query constructor ` +
+          `excedes Query.MaxPageSize of ${Query.MaxPageSize}`);
       }
     }
 
@@ -198,7 +215,7 @@ class Query extends Root {
   }
 
   /**
-   * Cleanup and remove this Query, its subscriptions and data
+   * Cleanup and remove this Query, its subscriptions and data.
    *
    * @method destroy
    */
@@ -281,7 +298,7 @@ class Query extends Root {
   }
 
   /**
-   * Reset your query to its initial state and then rerun it
+   * Reset your query to its initial state and then rerun it.
    *
    * @method reset
    */
@@ -291,7 +308,9 @@ class Query extends Root {
   }
 
   /**
-   * Execute the query.  No, don't murder it, fire it.  No, don't make it unemployed,
+   * Execute the query.
+   *
+   * No, don't murder it, just fire it.  No, don't make it unemployed,
    * just connect to the server and get the results.
    *
    * @method _run
@@ -318,7 +337,7 @@ class Query extends Root {
   }
 
   /**
-   * Run a Conversations Query by hitting the `GET /conversations` endpoint
+   * Get Conversations from the server.
    *
    * @method _runConversation
    * @private
@@ -340,6 +359,17 @@ class Query extends Root {
     }, results => this._processRunResults(results, firingRequest));
   }
 
+  /**
+   * Returns the sort field for the query.
+   *
+   * Returns One of:
+   *
+   * * 'position' (Messages only)
+   * * 'last_message' (Conversations only)
+   * * 'created_at' (Conversations only)
+   * @method _getSortField
+   * @private
+   */
   _getSortField() {
     if (this.model === MESSAGE) return 'position';
     if (this.sortBy && this.sortBy[0] && this.sortBy[0]['lastMessage.sentAt']) return 'last_message';
@@ -347,7 +377,10 @@ class Query extends Root {
   }
 
   /**
-   * Extract the Conversation's UUID from the predicate... or returned the cached value
+   * Get the Conversation UUID from the predicate property.
+   *
+   * Extract the Conversation's UUID from the predicate... or returned the cached value.
+   *
    * @method _getConversationUUID
    * @private
    */
@@ -368,7 +401,7 @@ class Query extends Root {
   }
 
   /**
-   * Run a Messages Query by hitting the `GET /conversations/id/messages` endpoint
+   * Get Messages from the server.
    *
    * @method _runMessage
    * @private
@@ -432,8 +465,7 @@ class Query extends Root {
   }
 
   /**
-   * Process the results of the `_run` method; this calls append results,
-   * and determines if more requests are needed to hit the requested pagination value.
+   * Process the results of the `_run` method; calls __appendResults.
    *
    * @method _processRunResults
    * @private
@@ -453,7 +485,7 @@ class Query extends Root {
   }
 
   /**
-   * Appends new data to the results based on arrays of data returned from querying the server.
+   * Appends arrays of data to the Query results.
    *
    * @method  _appendResults
    * @private
@@ -493,7 +525,9 @@ class Query extends Root {
   }
 
   /**
-   * Returns the data represented by a single result, in the form specified by the `dataType` property.
+   * Returns a correctly formatted object representing a result.
+   *
+   * Format is specified by the `dataType` property.
    *
    * @method _getData
    * @private
@@ -508,8 +542,9 @@ class Query extends Root {
   }
 
   /**
-   * Ask the query for the item matching the ID;
-   * returns undefined if the ID is not found.
+   * Ask the query for the item matching the ID.
+   *
+   * Returns undefined if the ID is not found.
    *
    * @method _getItem
    * @private
@@ -556,6 +591,7 @@ class Query extends Root {
 
   /**
    * Handle any change event received from the layer.Client.
+   *
    * These can be caused by websocket events, as well as local
    * requests to create/delete/modify Conversations and Messages.
    *
@@ -788,6 +824,7 @@ class Query extends Root {
 
   /**
    * If the ID of the message has changed, then the position property has likely changed as well.
+   *
    * This method tests to see if changes to the position property have impacted the message's position in the
    * data array... and updates the array if it has.
    *
@@ -845,7 +882,7 @@ class Query extends Root {
       }
       this._triggerChange({
         type: 'property',
-        target: evt.target.toObject(),
+        target: this._getData(evt.target),
         query: this,
         isChange: true,
         changes: evt.changes,
@@ -962,13 +999,15 @@ Query.InstanceDataType = 'instance';
 
 /**
  * Set the maximum page size for queries.
+ *
  * @type {number}
  * @static
  */
 Query.MaxPageSize = 100;
 
 /**
- * Access the number of results currently loaded
+ * Access the number of results currently loaded.
+ *
  * @type {Number}
  */
 Object.defineProperty(Query.prototype, 'size', {
@@ -978,14 +1017,18 @@ Object.defineProperty(Query.prototype, 'size', {
   },
 });
 
-/** Access the total number of results on the server.  Will be 0 until the first query has successfully loaded results.
+/** Access the total number of results on the server.
+ *
+ * Will be 0 until the first query has successfully loaded results.
+ *
  * @type {Number}
  */
 Query.prototype.totalSize = 0;
 
 
 /**
- * Access to the client so it can listen to websocket and local events
+ * Access to the client so it can listen to websocket and local events.
+ *
  * @type {layer.Client}
  * @protected
  */
@@ -994,7 +1037,8 @@ Query.prototype.client = null;
 /**
  * Query results.
  *
- * Array of data resulting from the Query; either a layer.Root subclass
+ * Array of data resulting from the Query; either a layer.Root subclass.
+ *
  * or plain Objects
  * @type {Object[]}
  */
@@ -1003,7 +1047,10 @@ Query.prototype.data = null;
 /**
  * Specifies the type of data being queried for.
  *
- * Model is either layer.Query.Conversation' or layer.Query.Message
+ * Model is one of
+ * * layer.Query.Conversation
+ * * layer.Query.Message
+ *
  * @type {String}
  */
 Query.prototype.model = CONVERSATION;
@@ -1025,7 +1072,10 @@ Query.prototype.returnType = 'object';
 /**
  * Specify what kind of data array your application requires.
  *
- * Should the data be an array of 'instance' or 'object'?
+ * Used to specify query dataType.  One of
+ * * Query.ObjectDataType
+ * * Query.InstanceDataType
+ *
  * @type {String}
  */
 Query.prototype.dataType = Query.InstanceDataType;
@@ -1051,15 +1101,16 @@ Query.prototype.dataType = Query.InstanceDataType;
 Query.prototype.paginationWindow = 100;
 
 /**
- * Only supported for Conversations;
- * Only supports an array of one field
+ * Sorting criteria for Conversation Queries.
+ *
+ * Only supports an array of one field/element.
  * Only supports the following options:
  *
- *    [{'createdAt': 'desc'}]
- *    [{'lastMessage.sentAt': 'desc'}]
+ *     [{'createdAt': 'desc'}]
+ *     [{'lastMessage.sentAt': 'desc'}]
  *
- * Why all this? The server will be exposing a Query API at which point the above sort options will make
- * a lot more sense.
+ * Why such limitations? Why this structure?  The server will be exposing a Query API at which point the
+ * above sort options will make a lot more sense, and full sorting will be provided.
  *
  * @type {String}
  */
@@ -1067,6 +1118,7 @@ Query.prototype.sortBy = null;
 
 /**
  * This value tells us what to reset the paginationWindow to when the query is redefined.
+ *
  * @type {Number}
  * @private
  */
@@ -1084,8 +1136,9 @@ Query.prototype.predicate = null;
 /**
  * True if the Query is connecting to the server.
  *
- * It is not gaurenteed that every
- * update() will result in a call to the server; recommended pattern is:
+ * It is not gaurenteed that every update(); for example, updating a paginationWindow to be smaller,
+ * Or changing a value to the existing value would cause the request not to fire.
+ * R ecommended pattern is:
  *
  *      query.update({paginationWindow: 50});
  *      if (!query.isFiring) {
@@ -1101,7 +1154,9 @@ Query.prototype.predicate = null;
 Query.prototype.isFiring = false;
 
 /**
- * The last request fired.  If multiple requests are inflight, the response
+ * The last request fired.
+ *
+ * If multiple requests are inflight, the response
  * matching this request is the ONLY response we will process.
  * @type {String}
  * @private

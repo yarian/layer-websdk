@@ -1,5 +1,5 @@
 /**
- * The Content class represents External Content.
+ * The Content class represents Rich Content.
  *
  * Note that instances of this class will automatically be
  * generated for developers based on whether their message parts
@@ -47,7 +47,7 @@ class Content extends Root {
    *
    * Data is provided via callback.
    *
-   * Note that typically one should use MessagePart.loadContent() rather than Content.loadContent()
+   * Note that typically one should use layer.MessagePart.fetchContent() rather than layer.Content.loadContent()
    *
    * @method loadContent
    * @param {string} mimeType - Mime type for the Blob
@@ -147,7 +147,7 @@ Content.prototype.refreshUrl = '';
  * Size of the content.
  *
  * This property only has a value when in the process
- * of Creating the external content and sending the Message.
+ * of Creating the rich content and sending the Message.
  *
  * @type {number}
  */

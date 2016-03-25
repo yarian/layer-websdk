@@ -1,56 +1,55 @@
 /**
- * A conversation object represents a dialog amongst a set
+ * A Conversation object represents a dialog amongst a set
  * of participants.
  *
  * Create a Conversation using the client:
  *
- *      var conversation = myclient.createConversation({
+ *      var conversation = client.createConversation({
  *          participants: ['a','b'],
- *          distinct; true
+ *          distinct: true
  *      });
  *
  * In addition, there is a shortcut method for creating
  * a conversation, which will default to creating a Distinct
  * Conversation.
  *
- *      var conversation = myclient.createConversation(['a','b']);
+ *      var conversation = client.createConversation(['a','b']);
  *
  * NOTE:   Do not create a conversation with new layer.Conversation(...),
- *         This will fail to handle distinct and other properties.
+ *         This will fail to handle the distinct property short of going to the server for evaluation.
  *
  * NOTE:   Creating a Conversation is a local action.  A Conversation will not be
  *         sent to the server until either:
  *
- *         1. A message is sent on that Conversation
- *         2. `Conversation.send()` is called (not recommended as mobile clients
- *            expect at least one layer.Message in a Conversation)
+ * 1. A message is sent on that Conversation
+ * 2. `Conversation.send()` is called (not recommended as mobile clients
+ *    expect at least one layer.Message in a Conversation)
  *
  * Key methods, events and properties for getting started:
  *
  * Properties:
  *
- * * `id`: this property is worth being familiar with; it identifies the
+ * * layer.Conversation.id: this property is worth being familiar with; it identifies the
  *   Conversation and can be used in `client.getConversation(id)` to retrieve it.
- * * `internalId`: This property makes for a handy unique ID for use in dom nodes;
+ * * layer.Conversation.internalId: This property makes for a handy unique ID for use in dom nodes;
  *   gaurenteed not to change during this session.
- * * `lastMessage`: This property makes it easy to show info about the most recent Message
+ * * layer.Conversation.lastMessage: This property makes it easy to show info about the most recent Message
  *    when rendering a list of Conversations.
- * * `metadata`: Custom data for your Conversation; commonly used to store a 'title' property
+ * * layer.Conversation.metadata: Custom data for your Conversation; commonly used to store a 'title' property
  *    to name your Conversation.
  *
  * Methods:
  *
- * * `addParticipants` and `removeParticipants`: Change the participants of the Conversation
- * * `setMetadataProperties`: Set metadata.title to 'My Conversation with Layer Support' (uh oh)
- * * `on()` and `off()`; event listeners built on top of the `backbone-events-standalone` npm project
+ * * layer.Conversation.addParticipants and layer.Conversation.removeParticipants: Change the participants of the Conversation
+ * * layer.Conversation.setMetadataProperties: Set metadata.title to 'My Conversation with Layer Support' (uh oh)
+ * * layer.Conversation.on() and layer.Conversation.off(): event listeners built on top of the `backbone-events-standalone` npm project
  *
  * Events:
  *
  * * `conversations:change`: Useful for observing changes to participants and metadata
  *   and updating rendering of your open Conversation
  *
- * Finally, to access a list of Messages in a Conversation, see
- * layer.Query.
+ * Finally, to access a list of Messages in a Conversation, see layer.Query.
  *
  * @class  layer.Conversation
  * @extends layer.Syncable
@@ -65,7 +64,7 @@ const Constants = require('./const');
 const Root = require('./root');
 const LayerEvent = require('./layer-event');
 const ClientRegistry = require('./client-registry');
-
+const logger = require('./logger');
 
 class Conversation extends Syncable {
 
@@ -156,6 +155,12 @@ class Conversation extends Syncable {
    * an id, url and createdAt.  It may also receive metadata
    * if there was a FOUND_WITHOUT_REQUESTED_METADATA result.
    *
+   * Note that the optional Message parameter should NOT be used except
+   * by the layer.Message class itself.
+   *
+   * Note that recommended practice is to send the Conversation by sending a Message in the Conversation,
+   * and NOT by calling Conversation.send.
+   *
    *      client.createConversation({
    *          participants: ['a', 'b'],
    *          distinct: false
@@ -224,6 +229,8 @@ class Conversation extends Syncable {
   }
 
   /**
+   * Handles the case where a Distinct Create Conversation found a local match.
+   *
    * When an app calls client.createConversation([...])
    * and requests a Distinct Conversation (default setting),
    * and the Conversation already exists, what do we do to help
@@ -253,9 +260,11 @@ class Conversation extends Syncable {
 
 
   /**
-   * The syncManager needs a callback to create the Conversation as it
+   * Gets the data for a Create request.
+   *
+   * The layer.SyncManager needs a callback to create the Conversation as it
    * looks NOW, not back when `send()` was called.  This method is called
-   * by the syncManager to populate the POST data of the call.
+   * by the layer.SyncManager to populate the POST data of the call.
    *
    * @method _getPostData
    * @private
@@ -274,8 +283,9 @@ class Conversation extends Syncable {
    * Process result of send method.
    *
    * Note that we use _triggerAsync so that
-   * events reporting changes to the conversation.id can
+   * events reporting changes to the layer.Conversation.id can
    * be applied before reporting on it being sent.
+   *
    * Example: Query will now have IDs rather than TEMP_IDs
    * when this event is triggered.
    *
@@ -449,6 +459,7 @@ class Conversation extends Syncable {
    * Update the server with the new participant list.
    *
    * Executes as follows:
+   *
    * 1. Updates the participants property of the local object
    * 2. Triggers a conversations:change event
    * 3. Submits a request to be sent to the server to update the server's object
@@ -494,7 +505,8 @@ class Conversation extends Syncable {
   }
 
   /**
-   * Internally we use add: [], remove: [] instead of LayerOperations.
+   * Internally we use `{add: [], remove: []}` instead of LayerOperations.
+   *
    * So control is handed off to this method to actually apply the changes
    * to the participants array.
    *
@@ -518,30 +530,44 @@ class Conversation extends Syncable {
 
 
   /**
-   * Delete the conversation from the server.
+   * Delete the Conversation from the server.
+   *
+   * This call will support various deletion modes.  Calling without a deletion mode is deprecated.
+   *
+   * Deletion Modes:
+   *
+   * * layer.Constants.DELETION_MODE.ALL: This deletes the local copy immediately, and attempts to also
+   *   delete the server's copy.
    *
    * Executes as follows:
+   *
    * 1. Submits a request to be sent to the server to delete the server's object
    * 2. Delete's the local object
    * 3. If there is an error, no errors are fired except by layer.SyncManager, but the Conversation will be reloaded from the server,
    *    triggering a conversations:add event.
    *
-   *
    * @method delete
-   * @param {boolean} destroy - if true, delete for all users, else just for this user. (false not yet supported by server)
+   * @param {number} deletionMode - layer.Constants.DELETION_MODE.ALL is only supported mode at this time
    * @return null
    */
-  delete(destroy) {
+  delete(mode) {
     const id = this.id;
-    if (!this.isTempId()) {
-      const client = this.getClient();
-      this._xhr({
-        method: 'DELETE',
-        url: '?destroy=' + Boolean(destroy),
-      }, result => {
-        if (!result.success) Conversation.load(id, client);
-      });
+    const modeValue = 'true';
+    if (mode === true) {
+      logger.warn('Calling Message.delete without a mode is deprecated');
+      mode = Constants.DELETION_MODE.ALL;
     }
+    if (!mode || mode !== Constants.DELETION_MODE.ALL) {
+      throw new Error(LayerError.dictionary.deletionModeUnsupported);
+    }
+
+    const client = this.getClient();
+    this._xhr({
+      method: 'DELETE',
+      url: '?destroy=' + modeValue,
+    }, result => {
+      if (!result.success) Conversation.load(id, client);
+    });
 
     this._deleted();
     this.destroy();
@@ -550,8 +576,9 @@ class Conversation extends Syncable {
   /**
    * The Conversation has been deleted.
    *
-   * Called from WebsocketManager and from conv.delete();
-   * Put all code for cleaning up here... destroy is called separately.
+   * Called from WebsocketManager and from layer.Conversation.delete();
+   *
+   * Destroy must be called separately, and handles most cleanup.
    *
    * @method _deleted
    * @protected
@@ -627,7 +654,7 @@ class Conversation extends Syncable {
    * @private
    * @param  {string[]} newValue
    * @param  {string[]} oldValue
-   * @return {Object} Returns changes in the form of {add: [...], remove: [...]}
+   * @return {Object} Returns changes in the form of `{add: [...], remove: [...]}`
    */
   _getParticipantChange(newValue, oldValue) {
     const change = {};
@@ -668,15 +695,16 @@ class Conversation extends Syncable {
    *          'colors.background': 'red',
    *      });
    *
-   * Metadata is now: {colors: {background: 'red'}}
+   * Metadata is now: `{colors: {background: 'red'}}`
    *
    *      conversation.setMetadataProperties({
    *          'colors.foreground': 'black',
    *      });
    *
-   * Metadata is now: {colors: {background: 'red', foreground: 'black'}}
+   * Metadata is now: `{colors: {background: 'red', foreground: 'black'}}`
    *
    * Executes as follows:
+   *
    * 1. Updates the metadata property of the local object
    * 2. Triggers a conversations:change event
    * 3. Submits a request to be sent to the server to update the server's object
@@ -744,6 +772,7 @@ class Conversation extends Syncable {
    * Multiple properties can be deleted.
    *
    * Executes as follows:
+   *
    * 1. Updates the metadata property of the local object
    * 2. Triggers a conversations:change event
    * 3. Submits a request to be sent to the server to update the server's object
@@ -795,11 +824,11 @@ class Conversation extends Syncable {
 
 
   /**
-   * Any xhr method called on this conversation uses the conversation's url
+   * Any xhr method called on this conversation uses the conversation's url.
    *
-   * {@link layer.ClientAuthenticator#xhr}
+   * For details on parameters see {@link layer.ClientAuthenticator#xhr}
    *
-   * @method xhr
+   * @method _xhr
    * @protected
    * @return {layer.Conversation} this
    */
@@ -924,6 +953,7 @@ class Conversation extends Syncable {
 
   /**
    * __ Methods are automatically called by property setters.
+   *
    * Any change in the unreadCount property will call this method and fire a
    * change event.
    *
@@ -970,6 +1000,7 @@ class Conversation extends Syncable {
 
   /**
    * __ Methods are automatically called by property setters.
+   *
    * Any change in the lastMessage pointer will call this method and fire a
    * change event.  Changes to properties within the lastMessage object will
    * not trigger this call.
@@ -990,6 +1021,7 @@ class Conversation extends Syncable {
 
   /**
    * __ Methods are automatically called by property setters.
+   *
    * Any change in the participants property will call this method and fire a
    * change event.  Changes to the participants array that don't replace the array
    * with a new array will require directly calling this method.
@@ -1012,6 +1044,7 @@ class Conversation extends Syncable {
 
   /**
    * __ Methods are automatically called by property setters.
+   *
    * Any change in the metadata property will call this method and fire a
    * change event.  Changes to the metadata object that don't replace the object
    * with a new object will require directly calling this method.
@@ -1074,8 +1107,7 @@ class Conversation extends Syncable {
 
 
   /**
-   * _createFromServer is used to create a conversation instance
-   * from a server representation of the conversation.
+   * Create a conversation instance from a server representation of the conversation.
    *
    * If the Conversation already exists, will update the existing copy with
    * presumably newer values.
@@ -1083,38 +1115,45 @@ class Conversation extends Syncable {
    * @method _createFromServer
    * @protected
    * @static
-   * @param  {Object} c - Server representation of a Conversation
+   * @param  {Object} conversation - Server representation of a Conversation
    * @param  {layer.Client} client [description]
    * @return {layer.Conversation}        [description]
    */
-  static _createFromServer(convObj, client) {
-    let conversation;
+  static _createFromServer(conversation, client) {
+    let newConversation;
 
     // Make sure we have a client... or abort
     if (!(client instanceof Root)) throw new Error(LayerError.dictionary.clientMissing);
 
     // If the Conversation already exists in cache, update the cache
-    const found = client.getConversation(convObj.id);
+    const found = client.getConversation(conversation.id);
     if (found) {
-      conversation = found;
-      conversation._populateFromServer(convObj);
+      newConversation = found;
+      newConversation._populateFromServer(conversation);
     } else {
       // If the Conversation does not exist, create it; side effects will cache it
-      conversation = new Conversation({
+      newConversation = new Conversation({
         client,
-        fromServer: convObj,
+        fromServer: conversation,
       });
     }
 
     // Return Conversation and whether it was new/cached
     return {
-      conversation,
+      conversation: newConversation,
       new: !found,
     };
   }
 
   /**
    * Load a conversation from the server by Id.
+   *
+   * Typically one should call
+   *
+   *     client.getConversation(conversationId, true)
+   *
+   * This will get the Conversation from cache or layer.Conversation.load it from the server if not cached.
+   * Typically you do not need to call this method directly.
    *
    * @method load
    * @static
@@ -1215,8 +1254,11 @@ class Conversation extends Syncable {
   }
 
   /**
+   * Identifies whether a Conversation receiving the specified patch data should be loaded from the server.
+   *
    * Any change to a Conversation indicates that the Conversation is active and of potential interest; go ahead and load that
-   * Conversation in case the app has need of it.  In the future we may ignore changes to unread count.
+   * Conversation in case the app has need of it.  In the future we may ignore changes to unread count.  Only relevant
+   * when we get Websocket events for a Conversation that has not been loaded/cached on Client.
    *
    * @method _loadResourceForPatch
    * @static
@@ -1239,7 +1281,7 @@ class Conversation extends Syncable {
 Conversation.prototype.participants = null;
 
 /**
- * Client that the conversation belongs to.
+ * layer.Client that the conversation belongs to.
  *
  * Actual value of this string matches the appId.
  * @type {string}
@@ -1261,7 +1303,7 @@ Conversation.prototype.createdAt = null;
 Conversation.prototype.id = '';
 
 /**
- * URL to the conversation's server endpoint.
+ * URL to access the conversation on the server.
  *
  * @type {string}
  */
@@ -1302,7 +1344,7 @@ Conversation.prototype.metadata = null;
 Conversation.prototype.localCreatedAt = null;
 
 /**
- * The authenticated user in this Conversation.
+ * The authenticated user is a current participant in this Conversation.
  *
  * Set to false if the authenticated user has been removed from this conversation.
  *
@@ -1311,12 +1353,16 @@ Conversation.prototype.localCreatedAt = null;
  *
  * A removed user can no longer see the participant list.
  *
+ * Read and Delivery receipts will fail on any Message in such a Conversation.
+ *
  * @type {Boolean}
  */
 Conversation.prototype.isCurrentParticipant = true;
 
 /**
- * Shortcut for accessing the last message
+ * The last layer.Message to be sent/received for this Conversation.
+ *
+ * Value may be a Message that has been locally created but not yet received by server.
  * @type {layer.Message}
  */
 Conversation.prototype.lastMessage = null;
@@ -1329,10 +1375,12 @@ Conversation.prototype.lastMessage = null;
 Conversation.prototype._toObject = null;
 
 /**
+ * Cache's a Distinct Event.
+ *
  * On creating a Distinct Conversation that already exists,
  * when the send() method is called, we should trigger
- * specific events detailing the results.  Even though
- * we may not even go to the server to find the Conversation.
+ * specific events detailing the results.  Results
+ * may be determined locally or on the server, but same Event may be needed.
  *
  * @type {layer.LayerEvent}
  * @private
@@ -1341,6 +1389,7 @@ Conversation.prototype._sendDistinctEvent = null;
 
 /**
  * A locally created Conversation will get a temporary ID.
+ *
  * Some may try to lookup the Conversation using the temporary ID even
  * though it may have later received an ID from the server.
  * Keep the temporary ID so we can correctly index and cleanup.
@@ -1366,8 +1415,37 @@ Conversation.prefixUUID = 'layer:///conversations/';
  */
 Conversation.bubbleEventParent = 'getClient';
 
+/**
+ * The Conversation that was requested has been created.
+ *
+ * Used in 'conversations:sent' events.
+ * @type {String}
+ * @static
+ */
 Conversation.CREATED = 'Created';
+
+/**
+ * The Conversation that was requested has been found.
+ *
+ * This means that it did not need to be created.
+ *
+ * Used in 'conversations:sent' events.
+ * @type {String}
+ * @static
+ */
 Conversation.FOUND = 'Found';
+
+/**
+ * The Conversation that was requested has been found, but there was a mismatch in metadata.
+ *
+ * If the createConversation request contained metadata and it did not match the Distinct Conversation
+ * that matched the requested participants, then this value is passed to notify your app that the Conversation
+ * was returned but does not exactly match your request.
+ *
+ * Used in 'conversations:sent' events.
+ * @type {String}
+ * @static
+ */
 Conversation.FOUND_WITHOUT_REQUESTED_METADATA = 'FoundMismatch';
 
 Conversation._supportedEvents = [
@@ -1377,8 +1455,8 @@ Conversation._supportedEvents = [
   /**
    * The conversation is now on the server.
    *
-   * Called after creating the conversation
-   * from the server.  The Result property is one of:
+   * Called after successfully creating the conversation
+   * on the server.  The Result property is one of:
    *
    * * Conversation.CREATED: A new Conversation has been created
    * * Conversation.FOUND: A matching Distinct Conversation has been found
@@ -1389,7 +1467,7 @@ Conversation._supportedEvents = [
    * copied into your Conversation object.  That means your metadata property may no
    * longer be its initial value; it may be the value found on the server.
    *
-   * @event 'conversations:sent'
+   * @event
    * @param {layer.LayerEvent} event
    * @param {string} event.result
    */
@@ -1397,7 +1475,7 @@ Conversation._supportedEvents = [
 
   /**
    * An attempt to send this conversation to the server has failed.
-   * @event 'conversations:sent-error'
+   * @event
    * @param {layer.LayerEvent} event
    * @param {layer.LayerError} event.error
    */
@@ -1406,9 +1484,9 @@ Conversation._supportedEvents = [
   /**
    * The conversation is now loaded from the server.
    *
-   * Called after loading the conversation
+   * Note that this is only used in response to the layer.Conversation.load() method.
    * from the server.
-   * @event 'conversations:loaded'
+   * @event
    * @param {layer.LayerEvent} event
    */
   'conversations:loaded',
@@ -1416,7 +1494,8 @@ Conversation._supportedEvents = [
   /**
    * An attempt to load this conversation from the server has failed.
    *
-   * @event 'conversations:loaded-error'
+   * Note that this is only used in response to the layer.Conversation.load() method.
+   * @event
    * @param {layer.LayerEvent} event
    * @param {layer.LayerError} event.error
    */
@@ -1427,14 +1506,15 @@ Conversation._supportedEvents = [
    *
    * Caused by either a successful call to delete() on this instance
    * or by a remote user.
-   * @event 'conversations:delete'
+   * @event
    * @param {layer.LayerEvent} event
    */
   'conversations:delete',
 
   /**
-   * This conversation has changed
-   * @event 'conversations:change'
+   * This conversation has changed.
+   *
+   * @event
    * @param {layer.LayerEvent} event
    * @param {Object[]} event.changes - Array of changes reported by this event
    * @param {Mixed} event.changes.newValue

@@ -60,7 +60,7 @@ exports.generateUUID = getRandomValues ? cryptoUUID : mathUUID;
 /**
  * Returns the 'type' portion of a Layer ID.
  *
- *         switch(typeFromID(id)) {
+ *         switch(Utils.typeFromID(id)) {
  *             case 'conversations':
  *                 ...
  *             case 'message':
@@ -117,7 +117,7 @@ exports.sortBy = (inArray, fn, reverse) => {
  * Does not work on circular references; should not be used
  * on objects with event listeners.
  *
- *      var newObj = clone(oldObj);
+ *      var newObj = Utils.clone(oldObj);
  *
  * @method
  * @param  {Object}     Object to clone
@@ -146,13 +146,14 @@ exports.defer = (func) => setTimeout(func, 0);
  * Returns a delay in seconds needed to follow an exponential
  * backoff pattern of delays for retrying a connection.
  *
-  * Algorithm has two motivations:
-  * 1. Retry with increasingly long intervals up to some maximum interval
-  * 2. Randomize the retry interval enough so that a thousand clients
-  * all following the same algorithm at the same time will not hit the
-  * server at the exact same times.
-  *
-  * The following are results before jitter for some values of counter:
+ * Algorithm has two motivations:
+ *
+ * 1. Retry with increasingly long intervals up to some maximum interval
+ * 2. Randomize the retry interval enough so that a thousand clients
+ * all following the same algorithm at the same time will not hit the
+ * server at the exact same times.
+ *
+ * The following are results before jitter for some values of counter:
 
       0: 0.1
       1: 0.2
@@ -168,14 +169,14 @@ exports.defer = (func) => setTimeout(func, 0);
       11. 204.8
       12. 409.6
       13. 819.2
-      14 1638.4 (27 minutes)
+      14. 1638.4 (27 minutes)
 
-  * @method getExponentialBackoffSeconds
-  * @param  {number} maxSeconds - This is not the maximum seconds delay, but rather
-  * the maximum seconds delay BEFORE adding a randomized value.
-  * @param  {number} counter - Current counter to use for calculating the delay; should be incremented up to some reasonable maximum value for each use.
-  * @return {number}     Delay in seconds/fractions of a second
-  */
+ * @method getExponentialBackoffSeconds
+ * @param  {number} maxSeconds - This is not the maximum seconds delay, but rather
+ * the maximum seconds delay BEFORE adding a randomized value.
+ * @param  {number} counter - Current counter to use for calculating the delay; should be incremented up to some reasonable maximum value for each use.
+ * @return {number}     Delay in seconds/fractions of a second
+ */
 exports.getExponentialBackoffSeconds = function getExponentialBackoffSeconds(maxSeconds, counter) {
   let secondsWaitTime = Math.pow(2, counter) / 10,
     secondsOffset = Math.random(); // value between 0-1 seconds.
@@ -194,8 +195,7 @@ let parser;
  *
  * @method
  * @private
- * @param  {Object} request
- * @param {layer.Client} client
+ * @param {Object} request - see layer.ClientUtils.layerParse
  */
 function createParser(request) {
   request.client.once('destroy', () => parser = null);
@@ -226,8 +226,10 @@ function createParser(request) {
 }
 
 /**
- * Run the Layer Parser on the request.  Parameters here
- * are the parameters specied in the layer-patch, plus
+ * Run the Layer Parser on the request.
+ *
+ * Parameters here
+ * are the parameters specied in [Layer-Patch](https://github.com/layerhq/node-layer-patch), plus
  * a client object.
  *
  *      Util.layerParse({
@@ -239,10 +241,10 @@ function createParser(request) {
  *
  * @method
  * @param {Object} request - layer-patch parameters
- * @param {Object} object - Object being updated  by the operations
- * @param {string} type - Type of object being updated
- * @param {Object[]} operations - Array of change operations to perform upon the object
- * @param {layer.Client} client
+ * @param {Object} request.object - Object being updated  by the operations
+ * @param {string} request.type - Type of object being updated
+ * @param {Object[]} request.operations - Array of change operations to perform upon the object
+ * @param {layer.Client} request.client
  */
 exports.layerParse = (request) => {
   if (!parser) createParser(request);
@@ -256,7 +258,7 @@ exports.layerParse = (request) => {
  * Is able to make metadata-restricted assumptions such as that
  * all values are either plain Objects or strings.
  *
- *      if (doesObjectMatch(conv1.metadata, conv2.metadata)) {
+ *      if (Utils.doesObjectMatch(conv1.metadata, conv2.metadata)) {
  *          alert('These two metadata objects are the same');
  *      }
  *

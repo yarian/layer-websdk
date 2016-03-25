@@ -997,7 +997,7 @@ describe("The Conversation Class", function() {
             spyOn(conversation, "_deleted");
 
             // Run
-            conversation.delete();
+            conversation.delete(layer.Constants.DELETION_MODE.ALL);
 
             // Posttest
             expect(conversation._deleted).toHaveBeenCalledWith();
@@ -1008,7 +1008,7 @@ describe("The Conversation Class", function() {
             spyOn(conversation, "destroy");
 
             // Run
-            conversation.delete();
+            conversation.delete(layer.Constants.DELETION_MODE.ALL);
 
             // Posttest
             expect(conversation.destroy).toHaveBeenCalled();
@@ -1020,7 +1020,7 @@ describe("The Conversation Class", function() {
             spyOn(conversation, "_xhr");
 
             // Run
-            conversation.delete(true);
+            conversation.delete(layer.Constants.DELETION_MODE.ALL);
 
             // Posttest
             expect(conversation._xhr).toHaveBeenCalledWith({
@@ -1038,7 +1038,7 @@ describe("The Conversation Class", function() {
 
 
           // Run
-          conversation.delete();
+          conversation.delete(layer.Constants.DELETION_MODE.ALL);
 
           // Posttest
           expect(conversation.isDestroyed).toBe(true);

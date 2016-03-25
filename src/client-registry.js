@@ -4,7 +4,7 @@
  * Provides a global utility that can be required by all modules for accessing
  * the client.
  *
- * @class  ClientRegistry
+ * @class  layer.ClientRegistry
  * @private
  */
 

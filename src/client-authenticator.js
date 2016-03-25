@@ -619,6 +619,7 @@ class ClientAuthenticator extends Root {
 
   /**
    * __ Methods are automatically called by property setters.
+   *
    * Any attempt to execute `this.userAppId = 'xxx'` will cause an error to be thrown
    * if the client is already connected.
    *
@@ -632,6 +633,7 @@ class ClientAuthenticator extends Root {
 
   /**
    * __ Methods are automatically called by property setters.
+   *
    * Any attempt to execute `this.userId = 'xxx'` will cause an error to be thrown
    * if the client is already connected.
    *

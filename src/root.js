@@ -4,13 +4,10 @@ const LayerError = require('./layer-error');
 const Events = require('backbone-events-standalone/backbone-events-standalone');
 const Logger = require('./logger');
 
-/**
+/*
  * Provides a system bus that can be accessed by all components of the system.
  * Currently used to listen to messages sent via postMessage, but envisioned to
  * do far more.
- *
- * @class {layer.EventClass}
- * @private
  */
 function EventClass() { }
 EventClass.prototype = Events;
@@ -124,12 +121,13 @@ const eventSplitter = /\s+/;
  *
  *
  * @class layer.Root
+ * @abstract
  * @author Michael Kantor
  */
 class Root extends EventClass {
 
   /**
-   * Superclass constructor handles copying in properties and registering event handlers
+   * Superclass constructor handles copying in properties and registering event handlers.
    *
    * @method constructor
    * @param  {Object} options - a hash of properties and event handlers
@@ -293,12 +291,26 @@ class Root extends EventClass {
     return obj;
   }
 
+  /**
+   * Log a warning for attempts to subscribe to unsupported events.
+   *
+   * @method _warnForEvent
+   * @private
+   */
   _warnForEvent(eventName) {
     if (!Utils.includes(this.constructor._supportedEvents, eventName)) {
       throw new Error('Event ' + eventName + ' not defined for ' + this.toString());
     }
   }
 
+  /**
+   * Prepare for processing an event subscription call.
+   *
+   * If context is a Root class, add this object to the context's subscriptions.
+   *
+   * @method _prepareOn
+   * @private
+   */
   _prepareOn(name, handler, context) {
     if (context instanceof Root) {
       if (context.isDestroyed) {
@@ -319,7 +331,9 @@ class Root extends EventClass {
   }
 
   /**
-   * Subscribe to events.  Note that the context parameter serves double importance here:
+   * Subscribe to events.
+   *
+   * Note that the context parameter serves double importance here:
    *
    * 1. It determines the context in which to execute the event handler
    * 2. Create a backlink so that if either subscriber or subscribee is destroyed,
@@ -345,6 +359,11 @@ class Root extends EventClass {
     return this;
   }
 
+  /**
+   * Subscribe to the first occurance of the specified event.
+   *
+   * @method once
+   */
   once(name, handler, context) {
     this._prepareOn(name, handler, context);
     Events.once.apply(this, [name, handler, context]);
@@ -352,7 +371,7 @@ class Root extends EventClass {
   }
 
   /**
-   * Unsubscribe to events.
+   * Unsubscribe from events.
    *
    *      // Removes all event handlers for this event:
    *      obj.off('someEventName');
@@ -372,7 +391,7 @@ class Root extends EventClass {
 
 
   /**
-   * Trigger an event for any event listeners; see Root.on()
+   * Trigger an event for any event listeners.
    *
    * Events triggered this way will be blocked if _disableEvents = true
    *
@@ -387,7 +406,7 @@ class Root extends EventClass {
   }
 
   /**
-   * Triggers an event. Supports a single parameter.
+   * Triggers an event.
    *
    * @method trigger
    * @private
@@ -451,6 +470,7 @@ class Root extends EventClass {
 
   /**
    * Same as _trigger() method, but delays briefly before firing.
+   *
    * When would you want to delay an event?
    *
    * 1. There is an event rollup that may be needed for the event;
@@ -492,6 +512,8 @@ class Root extends EventClass {
   }
 
   /**
+   * Combines a set of events into a single event.
+   *
    * Given an event structure of
    *
    *      {
@@ -529,6 +551,8 @@ class Root extends EventClass {
   }
 
   /**
+   * Fold a set of Change events into a single Change event.
+   *
    * Given a set change events on this component,
    * fold all change events into a single event via
    * the layer.LayerEvent's changes array.
@@ -547,7 +571,7 @@ class Root extends EventClass {
   }
 
   /**
-   * Execute all delayed events
+   * Execute all delayed events for this compoennt.
    *
    * @method _processDelayedTriggers
    * @private
@@ -565,7 +589,7 @@ class Root extends EventClass {
 
 
   /**
-   * Returns a string representation of the class that is nicer than [Object]
+   * Returns a string representation of the class that is nicer than [Object].
    *
    * @method toString
    * @return {String}
@@ -579,7 +603,9 @@ function defineProperty(newClass, propertyName) {
   const pKey = '__' + propertyName;
   const camel = propertyName.substring(0, 1).toUpperCase() + propertyName.substring(1);
 
-  if (newClass.prototype['__adjust' + camel] || newClass.prototype['__update' + camel] || newClass.prototype['__get' + camel]) {
+  const hasDefinitions = newClass.prototype['__adjust' + camel] || newClass.prototype['__update' + camel] ||
+    newClass.prototype['__get' + camel];
+  if (hasDefinitions) {
     // set default value
     newClass.prototype[pKey] = newClass.prototype[propertyName];
 
@@ -619,17 +645,57 @@ function initClass(newClass, className) {
   // Generate a list of properties for this class; we don't include any
   // properties from layer.Root
   const keys = Object.keys(newClass.prototype).filter(key =>
-    newClass.prototype.hasOwnProperty(key) && !Root.prototype.hasOwnProperty(key) && typeof newClass.prototype[key] !== 'function');
+    newClass.prototype.hasOwnProperty(key) &&
+    !Root.prototype.hasOwnProperty(key) &&
+    typeof newClass.prototype[key] !== 'function'
+  );
 
   // Define getters/setters for any property that has __adjust or __update methods defined
   keys.forEach(name => defineProperty(newClass, name));
 }
 
+/**
+ * Set to true once destroy() has been called.
+ *
+ * A destroyed object will likely cause errors in any attempt
+ * to call methods on it, and will no longer trigger events.
+ *
+ * @type {boolean}
+ */
 Root.prototype.isDestroyed = false;
+
+/**
+ * Every instance has its own internal ID.
+ *
+ * This ID is distinct from any IDs assigned by the server.
+ * The internal ID is gaurenteed not to change within the lifetime of the Object/session;
+ * it is possible, on creating a new object, for its `id` property to change.
+ *
+ * @type {string}
+ */
 Root.prototype.internalId = '';
+
+/**
+ * True while we are in the constructor.
+ *
+ * @type {boolean}
+ */
 Root.prototype.isInitializing = true;
+
+/**
+ * Objects that this object is listening for events from.
+ *
+ * @type {layer.Root[]}
+ */
 Root.prototype._subscriptions = null;
+
+/**
+ * Disable all events triggered on this object.
+ * @type {boolean}
+ */
 Root.prototype._disableEvents = false;
+
+
 Root._supportedEvents = ['destroy', 'all'];
 Root._ignoredEvents = [];
 module.exports = Root;

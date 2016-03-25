@@ -7,7 +7,9 @@
  *
  * Layer Error is passed as part of the layer.LayerEvent's data property.
  *
- *     object.trigger('xxx-error', new LayerEvent({data: new LayerError()}));
+ *     object.trigger('xxx-error', new LayerEvent({
+ *       data: new LayerError()
+ *     }));
  *
  * @class layer.LayerError
  */
@@ -40,7 +42,7 @@ class LayerError {
    *
    * If a nonce has been returned
    * by the server as part of a session-expiration error,
-   * then a nonce will be returned.
+   * then this method will return that nonce.
    *
    * @method getNonce
    * @return {string} nonce
@@ -72,8 +74,9 @@ class LayerError {
 }
 
 /**
- * A string name for the event; these names are paired with codes, and can be
- * looked up at https://github.com/layerhq/docs/blob/web-api/specs/rest-api.md#client-errors
+ * A string name for the event; these names are paired with codes.
+ *
+ * Codes can be looked up at https://github.com/layerhq/docs/blob/web-api/specs/rest-api.md#client-errors
  * @type {String}
  */
 LayerError.prototype.errType = '';
@@ -99,7 +102,7 @@ LayerError.prototype.url = '';
 LayerError.prototype.message = '';
 
 /**
- * Http error code. No value if its a websocket response.
+ * Http error code; no value if its a websocket response.
  * @type {Number}
  */
 LayerError.prototype.httpStatus = 0;
@@ -109,7 +112,7 @@ LayerError.prototype.httpStatus = 0;
  *
  *  * url: the url to the service endpoint
  *  * data: xhr.data,
- *  * xhr: xhr object
+ *  * xhr: XMLHttpRequest object
  *
  * @type {Object}
  */
@@ -129,7 +132,7 @@ LayerError.prototype.xhr = null;
 
 /**
  * Dictionary of error messages
- * @type {Object}
+ * @property {Object} [dictionary={}]
  */
 LayerError.dictionary = {
   appIdMissing: 'Property missing: appId is required',
@@ -150,6 +153,7 @@ LayerError.dictionary = {
   alreadySent: 'Already sent or sending',
   contentRequired: 'MessagePart requires rich content for this call',
   alreadyDestroyed: 'This object has already been destroyed',
+  deletionModeUnsupported: 'Call to deletion was made with an unsupported deletion mode',
 };
 
 module.exports = LayerError;
