@@ -248,6 +248,66 @@ describe("The Messages class", function() {
         });
     });
 
+    describe("The isSaved() isNew() isSaving() isSynced() methods", function() {
+      var message;
+      beforeEach(function() {
+          message = new layer.Message({
+              parts: [{body: "Hello There", mimeType: "text/plain"}],
+              client: client
+          });
+      });
+      afterEach(function() {
+          message.destroy();
+      });
+      it("Should correctly handle new messages", function() {
+        message.syncState = layer.Constants.SYNC_STATE.NEW;
+        expect(message.isNew()).toBe(true);
+        expect(message.isSaving()).toBe(false);
+        expect(message.isSaved()).toBe(false);
+        expect(message.isSynced()).toBe(false);
+        expect(message.toObject().isNew).toBe(true);
+        expect(message.toObject().isSaving).toBe(false);
+        expect(message.toObject().isSaved).toBe(false);
+        expect(message.toObject().isSynced).toBe(false);
+      });
+
+      it("Should correctly handle sending messages", function() {
+        message.syncState = layer.Constants.SYNC_STATE.SAVING;
+        expect(message.isNew()).toBe(false);
+        expect(message.isSaving()).toBe(true);
+        expect(message.isSaved()).toBe(false);
+        expect(message.isSynced()).toBe(false);
+        expect(message.toObject().isNew).toBe(false);
+        expect(message.toObject().isSaving).toBe(true);
+        expect(message.toObject().isSaved).toBe(false);
+        expect(message.toObject().isSynced).toBe(false);
+      });
+
+      it("Should correctly handle sent messages", function() {
+        message.syncState = layer.Constants.SYNC_STATE.SYNCED;
+        expect(message.isNew()).toBe(false);
+        expect(message.isSaving()).toBe(false);
+        expect(message.isSaved()).toBe(true);
+        expect(message.isSynced()).toBe(true);
+        expect(message.toObject().isNew).toBe(false);
+        expect(message.toObject().isSaving).toBe(false);
+        expect(message.toObject().isSaved).toBe(true);
+        expect(message.toObject().isSynced).toBe(true);
+      });
+
+      it("Should correctly handle out of sync messages", function() {
+        message.syncState = layer.Constants.SYNC_STATE.SYNCING;
+        expect(message.isNew()).toBe(false);
+        expect(message.isSaving()).toBe(false);
+        expect(message.isSaved()).toBe(true);
+        expect(message.isSynced()).toBe(false);
+        expect(message.toObject().isNew).toBe(false);
+        expect(message.toObject().isSaving).toBe(false);
+        expect(message.toObject().isSaved).toBe(true);
+        expect(message.toObject().isSynced).toBe(false);
+      });
+    });
+
     describe("The getClient() method", function() {
         it("Should return the client", function() {
             var m = new layer.Message({
@@ -958,10 +1018,10 @@ describe("The Messages class", function() {
             }).toThrowError(layer.LayerError.dictionary.partsMissing);
         });
 
-        it("Should set isSending", function() {
-            expect(m.isSending).toBe(false);
+        it("Should call _setSyncing", function() {
+            spyOn(m, "_setSyncing");
             m.send();
-            expect(m.isSending).toBe(true);
+            expect(m._setSyncing).toHaveBeenCalledWith();
         });
 
         it("Should register the message if from server", function() {
@@ -1088,22 +1148,6 @@ describe("The Messages class", function() {
             m.destroy();
         });
 
-        it("Should call _setSyncing", function() {
-            // Setup
-            spyOn(m, "_setSyncing");
-            spyOn(client, "sendSocketRequest");
-
-            // Run
-            m._send({
-                parts: [{
-                    mime_type: "actor/mime",
-                    body: "I am a Mime"
-                }]
-            });
-
-            // Posttest
-            expect(m._setSyncing).toHaveBeenCalled();
-        });
 
         it("Should call sendSocketRequest", function() {
             // Setup

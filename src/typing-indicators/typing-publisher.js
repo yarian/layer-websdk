@@ -189,7 +189,7 @@ class TypingPublisher {
    * * layer.TypingIndicators.FINISHED
    */
   _send(state) {
-    if (this.conversation.isTempId()) return;
+    if (!this.conversation.isSaved()) return;
     this._lastMessageTime = Date.now();
     const ws = this._getClient().socketManager;
     ws.sendSignal({

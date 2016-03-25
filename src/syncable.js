@@ -32,6 +32,7 @@ class Syncable extends Root {
    * @private
    */
   _setSyncing() {
+    this._clearObject();
     switch (this.syncState) {
       case Constants.SYNC_STATE.SYNCED:
         this.syncState = Constants.SYNC_STATE.SYNCING;
@@ -50,6 +51,7 @@ class Syncable extends Root {
    * @private
    */
   _setSynced() {
+    this._clearObject();
     if (this._syncCounter > 0) this._syncCounter--;
 
     this.syncState = this._syncCounter === 0 ? Constants.SYNC_STATE.SYNCED :
@@ -57,6 +59,49 @@ class Syncable extends Root {
     this.isSending = false;
   }
 
+  /**
+   * Any time the instance changes, we should clear the cached toObject value
+   *
+   * @method _clearObject
+   * @private
+   */
+  _clearObject() {
+    this._toObject = null;
+  }
+
+  /**
+   * Object is new, and is not yet queued for syncing
+   *
+   * @method isNew
+   * @returns {boolean}
+   */
+  isNew() {
+    return this.syncState === Constants.SYNC_STATE.NEW;
+  }
+
+  /**
+   * Object is new, and is queued for syncing
+   *
+   * @method isSaving
+   * @returns {boolean}
+   */
+  isSaving() {
+    return this.syncState === Constants.SYNC_STATE.SAVING;
+  }
+
+  /**
+   * Object does not yet exist on server.
+   *
+   * @method isSaved
+   * @returns {boolean}
+   */
+  isSaved() {
+    return !(this.isNew() || this.isSaving());
+  }
+
+  isSynced() {
+    return this.syncState === Constants.SYNC_STATE.SYNCED;
+  }
 }
 
 
