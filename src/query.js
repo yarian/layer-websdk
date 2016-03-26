@@ -347,7 +347,9 @@ class Query extends Root {
     // This is a pagination rather than an initial request if there is already data; get the fromId
     // which is the id of the last result.
     const lastConversation = this.data[this.data.length - 1];
-    const fromId = (lastConversation && !lastConversation.isTempId() ? '&from_id=' + lastConversation.id : '');
+    const lastConversationInstance = !lastConversation ? null : this._getInstance(lastConversation);
+    const fromId = (lastConversationInstance && lastConversationInstance.isSaved() ?
+      '&from_id=' + lastConversationInstance.id : '');
     const sortBy = this._getSortField();
 
     this.isFiring = true;
@@ -411,7 +413,8 @@ class Query extends Root {
     // This is a pagination rather than an initial request if there is already data; get the fromId
     // which is the id of the last result.
     const lastMessage = this.data[this.data.length - 1];
-    let fromId = (lastMessage && !lastMessage.isTempId() ? '&from_id=' + lastMessage.id : '');
+    const lastMessageInstance = !lastMessage ? null : this._getInstance(lastMessage);
+    let fromId = (lastMessageInstance && lastMessageInstance.isSaved() ? '&from_id=' + lastMessageInstance.id : '');
     const predicateIds = this._getConversationPredicateIds();
 
     // Do nothing if we don't have a conversation to query on
@@ -539,6 +542,18 @@ class Query extends Root {
       return item.toObject();
     }
     return item;
+  }
+
+  /**
+   * Returns an instance regardless of whether the input is instance or object
+   * @method
+   * @private
+   * @param {layer.Root|Object} item - Conversation or Message object/instance
+   * @return {layer.Root}
+   */
+  _getInstance(item) {
+    if (item instanceof Root) return item;
+    return client._getObject(item.id);
   }
 
   /**

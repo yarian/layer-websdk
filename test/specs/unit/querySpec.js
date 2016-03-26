@@ -435,7 +435,7 @@ describe("The Query Class", function() {
 
         it("Should call with from_id", function() {
             query.data.push(client.createConversation(["b"]));
-            query.data[0].id = query.data[0].id.replace(/temp_/,"");
+            query.data[0].syncState = layer.Constants.SYNC_STATE.SYNCED;
             query._runConversation(34);
             expect(requests.mostRecent().url).toEqual(client.url + "/conversations?sort_by=created_at&page_size=34&from_id=" + query.data[0].id);
         });

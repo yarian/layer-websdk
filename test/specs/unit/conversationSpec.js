@@ -134,6 +134,56 @@ describe("The Conversation Class", function() {
         });
     });
 
+    describe("The isSaved() isNew() isSaving() isSynced() methods", function() {
+
+      it("Should correctly handle new conversations", function() {
+        conversation.syncState = layer.Constants.SYNC_STATE.NEW;
+        expect(conversation.isNew()).toBe(true);
+        expect(conversation.isSaving()).toBe(false);
+        expect(conversation.isSaved()).toBe(false);
+        expect(conversation.isSynced()).toBe(false);
+        expect(conversation.toObject().isNew).toBe(true);
+        expect(conversation.toObject().isSaving).toBe(false);
+        expect(conversation.toObject().isSaved).toBe(false);
+        expect(conversation.toObject().isSynced).toBe(false);
+      });
+
+      it("Should correctly handle sending conversations", function() {
+        conversation.syncState = layer.Constants.SYNC_STATE.SAVING;
+        expect(conversation.isNew()).toBe(false);
+        expect(conversation.isSaving()).toBe(true);
+        expect(conversation.isSaved()).toBe(false);
+        expect(conversation.isSynced()).toBe(false);
+        expect(conversation.toObject().isNew).toBe(false);
+        expect(conversation.toObject().isSaving).toBe(true);
+        expect(conversation.toObject().isSaved).toBe(false);
+        expect(conversation.toObject().isSynced).toBe(false);
+      });
+
+      it("Should correctly handle sent conversations", function() {
+        conversation.syncState = layer.Constants.SYNC_STATE.SYNCED;
+        expect(conversation.isNew()).toBe(false);
+        expect(conversation.isSaving()).toBe(false);
+        expect(conversation.isSaved()).toBe(true);
+        expect(conversation.isSynced()).toBe(true);
+        expect(conversation.toObject().isNew).toBe(false);
+        expect(conversation.toObject().isSaving).toBe(false);
+        expect(conversation.toObject().isSaved).toBe(true);
+        expect(conversation.toObject().isSynced).toBe(true);
+      });
+
+      it("Should correctly handle out of sync conversations", function() {
+        conversation.syncState = layer.Constants.SYNC_STATE.SYNCING;
+        expect(conversation.isNew()).toBe(false);
+        expect(conversation.isSaving()).toBe(false);
+        expect(conversation.isSaved()).toBe(true);
+        expect(conversation.isSynced()).toBe(false);
+        expect(conversation.toObject().isNew).toBe(false);
+        expect(conversation.toObject().isSaving).toBe(false);
+        expect(conversation.toObject().isSaved).toBe(true);
+        expect(conversation.toObject().isSynced).toBe(false);
+      });
+    });
 
 
     describe("The destroy() method", function() {
