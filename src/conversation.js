@@ -1080,19 +1080,12 @@ class Conversation extends Syncable {
     if (!this._toObject) {
       this._toObject = super.toObject();
       this._toObject.metadata = Util.clone(this.metadata);
+      this._toObject.isNew = this.isNew();
+      this._toObject.isSaving = this.isSaving();
+      this._toObject.isSaved = this.isSaved();
+      this._toObject.isSynced = this.isSynced();
     }
     return this._toObject;
-  }
-
-  /**
-   * Any time a change event is fired, we clear out appropriate immutable
-   * objects.
-   *
-   * @method _clearObject
-   * @private
-   */
-  _clearObject() {
-    this._toObject = null;
   }
 
   _triggerAsync(evtName, args) {

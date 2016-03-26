@@ -509,7 +509,7 @@ class Message extends Syncable {
     }
 
     this.sender.userId = client.userId;
-    this.isSending = true;
+    this._setSyncing();
     client._addMessage(this);
 
     // Make sure that the Conversation has been created on the server
@@ -571,7 +571,6 @@ class Message extends Syncable {
     const conversation = this.getConversation();
 
     this.sentAt = new Date();
-    this._setSyncing();
     client.sendSocketRequest({
       method: 'POST',
       body: () => {
@@ -887,18 +886,13 @@ class Message extends Syncable {
     if (!this._toObject) {
       this._toObject = super.toObject();
       this._toObject.recipientStatus = Util.clone(this.recipientStatus);
+      this._toObject.isNew = this.isNew();
+      this._toObject.isSaving = this.isSaving();
+      this._toObject.isSaved = this.isSaved();
+      this._toObject.isSynced = this.isSynced();
     }
     return this._toObject;
   }
-
-  /**
-   * Any time a change event is fired, we clear out appropriate immutable
-   * objects.
-   *
-   * @method _clearObject
-   * @private
-   */
-  _clearObject() { this._toObject = null;}
 
   _triggerAsync(evtName, args) {
     this._clearObject();
@@ -1205,19 +1199,6 @@ Message.prototype._tempId = '';
  * @type {Date}
  */
 Message.prototype.localCreatedAt = null;
-
-/**
- * Shortcut to determining if the Message is currently being sent.
- *
- * Implication is that it has not yet been received by the server.
- *
- * NOTE: There is a special case where isSending is true and syncState !== layer.Constants.SYNC_STATE.SAVING,
- * which occurs after `send()` has been called, but while waiting for Rich Content to upload prior to actually
- * sending this to the server.
- *
- * @type {Boolean}
- */
-Message.prototype.isSending = false;
 
 Message.prototype._toObject = null;
 

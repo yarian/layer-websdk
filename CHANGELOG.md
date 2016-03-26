@@ -6,10 +6,13 @@
 
 * layer.Conversation
   * The `delete` method now requires a layer.Constant.DELETION_MODE argument and no longer supports Boolean arguments.
+* Adds `isNew` `isSaving`, `isSynced` and `isSaved` methods; these will show up as properties when calling toObject().
 * layer.Message
   * The `recipientStatus` property now returns layer.RECEIPT_STATE.PENDING for any recipient to whom the Message has not yet been sent
   * The `getImageURLs` method has been removed.
   * The `delete` method now requires a layer.Constant.DELETION_MODE argument and no longer supports Boolean arguments.
+  * Adds `isNew` `isSaving`, `isSynced` and `isSaved` methods; these will show up as properties when calling toObject().
+  * Removes the `isSending` property; use `isSaving` instead; `isSaving` will show up as a property for immutable objects.
 * layer.MessagePart
   * The `fetchContent` method now triggers an `content-loaded-error` event if it fails to load the Content (content has expired for example, and must be refreshed)
 * layer.Query
@@ -21,8 +24,6 @@
   * Adds registerIOSPushToken() method for push notification support in hybrid apps
   * Adds registerAndroidPushToken() method for push notification support in hybrid apps
   * Adds unregisterPushToken() method
-* layer.Root
-  * Adds isTempId() method which can be used with Conversations and Messages to see if the the ID property is a temporary ID or a server generated ID.
 * layer.User
   * Flagged as a private class; it is recommended that you not use this until `v1.1` which will have Identity Management.
 
