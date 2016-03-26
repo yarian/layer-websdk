@@ -1,6 +1,6 @@
 # Javascript SDK Change Log
 
-## 0.9.2 (Unreleased)
+## 0.9.2
 
 #### Public API Changes
 
