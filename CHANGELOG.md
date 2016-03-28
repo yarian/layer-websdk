@@ -1,5 +1,9 @@
 # Javascript SDK Change Log
 
+## 0.9.3
+
+* Minor bug fix to layer.Query
+
 ## 0.9.2
 
 #### Public API Changes
