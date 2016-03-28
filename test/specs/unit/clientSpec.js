@@ -50,6 +50,7 @@ describe("The Client class", function() {
             expect(client._messagesHash).toEqual({});
             expect(client._conversationsHash).toEqual({});
             expect(client._queriesHash).toEqual({});
+            expect(client._scheduleCheckAndPurgeCacheItems).toEqual([]);
         });
 
         it("Should initialize users to empty array", function() {
@@ -310,6 +311,17 @@ describe("The Client class", function() {
             // Posttest
             expect(client.getConversation(c.id)).toBe(c);
             expect(client._triggerAsync).not.toHaveBeenCalled();
+        });
+
+        it("Should call _scheduleCheckAndPurgeCache", function() {
+            spyOn(client, "_scheduleCheckAndPurgeCache");
+
+            // Run
+            var c = new layer.Conversation({});
+            client._addConversation(c);
+
+            // Posttest
+            expect(client._scheduleCheckAndPurgeCache).toHaveBeenCalledWith(c);
         });
     });
 
@@ -573,7 +585,7 @@ describe("The Client class", function() {
 
         it("Should update conversation lastMessage if position is greater than last Position", function() {
           // Setup
-          conversation.lastMessage = {position: 5};
+          conversation.lastMessage = conversation.createMessage("Hey");
           message.position = 10;
           client._messagesHash = {};
 
@@ -596,6 +608,58 @@ describe("The Client class", function() {
           // Posttest
           expect(conversation.lastMessage).toBe(message);
        });
+
+       it("Should call _scheduleCheckAndPurgeCache if no Conversation found", function() {
+            spyOn(client, "_scheduleCheckAndPurgeCache");
+            message.conversationId = '';
+            client._messagesHash = {};
+
+            // Run
+            client._addMessage(message);
+
+            // Posttest
+            expect(client._scheduleCheckAndPurgeCache).toHaveBeenCalledWith(message);
+        });
+
+        it("Should not call _scheduleCheckAndPurgeCache if Conversation found", function() {
+            spyOn(client, "_scheduleCheckAndPurgeCache");
+            client._messagesHash = {};
+
+            // Run
+            client._addMessage(message);
+
+            // Posttest
+            expect(client._scheduleCheckAndPurgeCache).not.toHaveBeenCalled();
+        });
+
+        it("Should call _checkAndPurgeCache on prior lastMessage", function() {
+            spyOn(client, "_checkAndPurgeCache");
+            var lastMessage = conversation.lastMessage;
+            lastMessage.position = 1;
+
+            client._messagesHash = {};
+            client._messagesHash[lastMessage.id] = lastMessage;
+            var m = conversation.createMessage("Hi");
+            m.position = 2;
+
+            // Run
+            client._addMessage(m);
+
+            // Posttest
+            expect(client._checkAndPurgeCache).toHaveBeenCalledWith([lastMessage]);
+        });
+
+        it("Should not call _checkAndPurgeCache if no lastMessage", function() {
+            spyOn(client, "_checkAndPurgeCache");
+            conversation.lastMessage = null;
+            client._messagesHash = {};
+
+            // Run
+            client._addMessage(message);
+
+            // Posttest
+            expect(client._checkAndPurgeCache).not.toHaveBeenCalled();
+        });
     });
 
     describe("The _removeMessage() method", function() {
@@ -1194,7 +1258,38 @@ describe("The Client class", function() {
     });
 
     // TODO: May want to break these up, but they form a fairly simple self contained test
-    describe("The _checkCache(), _isCachedObject and _removeObject methods", function() {
+    describe("The _checkAndPurgeCache(), _isCachedObject and _removeObject methods", function() {
+        it("Should destroy Conversations if there are no Queries", function() {
+            var c1 = client.createConversation(["a"]);
+            var c2 = client.createConversation(["b"]);
+            var c3 = client.createConversation(["c"]);
+
+            // Run
+            client._checkAndPurgeCache([c1, c2, c3]);
+
+            // Posttest
+            expect(Object.keys(client._conversationsHash)).toEqual([]);
+            expect(c1.isDestroyed).toBe(true);
+            expect(c2.isDestroyed).toBe(true);
+            expect(c3.isDestroyed).toBe(true);
+        });
+
+        it("Should ignore destroyed objects", function() {
+            var c1 = client.createConversation(["a"]);
+            var c2 = client.createConversation(["b"]);
+            var c3 = client.createConversation(["c"]);
+            c2.isDestroyed = true;
+
+            // Run
+            client._checkAndPurgeCache([c1, c2, c3]);
+
+            // Posttest
+            expect(Object.keys(client._conversationsHash)).toEqual([c2.id]);
+            expect(c1.isDestroyed).toBe(true);
+            expect(c2.isDestroyed).toBe(true);
+            expect(c3.isDestroyed).toBe(true);
+        });
+
         it("Should keep Conversations if they are in a Query and remove and destroy all others", function() {
             // Setup
             var query = client.createQuery({model: layer.Query.Conversation});
@@ -1208,7 +1303,7 @@ describe("The Client class", function() {
                 .toEqual(jasmine.arrayContaining([c1.id, c2.id, c3.id]));
 
             // Run
-            client._checkCache([c1, c2, c3]);
+            client._checkAndPurgeCache([c1, c2, c3]);
 
             // Posttest
             expect(Object.keys(client._conversationsHash)).toEqual(jasmine.arrayContaining([c1.id, c3.id]));
@@ -1231,7 +1326,7 @@ describe("The Client class", function() {
                 .toEqual(jasmine.arrayContaining([c1.id, c2.id, c3.id]));
 
             // Run
-            client._checkCache([c1.toObject(), c2.toObject(), c3.toObject()]);
+            client._checkAndPurgeCache([c1.toObject(), c2.toObject(), c3.toObject()]);
 
             // Posttest
             expect(Object.keys(client._conversationsHash)).toEqual(jasmine.arrayContaining([c1.id, c3.id]));
@@ -1261,7 +1356,7 @@ describe("The Client class", function() {
             expect(Object.keys(client._messagesHash)).toEqual(jasmine.arrayContaining([m1.id, m2.id, m3.id]));
 
             // Run
-            client._checkCache([m1, m2, m3]);
+            client._checkAndPurgeCache([m1, m2, m3]);
 
             // Posttest
             expect(Object.keys(client._messagesHash)).toEqual(jasmine.arrayContaining([m1.id, m3.id]));
@@ -1269,7 +1364,102 @@ describe("The Client class", function() {
             expect(m2.isDestroyed).toBe(true);
             expect(m3.isDestroyed).toBe(false);
         });
+    });
 
+    describe("The _scheduleCheckAndPurgeCache() method", function() {
+      var conversation;
+      beforeEach(function() {
+         conversation = client.createConversation({
+            participants: ["a","z"],
+            distinct: false
+         });
+         conversation.syncState = layer.Constants.SYNC_STATE.SYNCED;
+      });
+
+      afterEach(function() {
+        conversation.destroy();
+      });
+
+      it("Should schedule call to _runScheduledCheckAndPurgeCache if unscheduled", function() {
+        client._scheduleCheckAndPurgeCacheAt = 0;
+        spyOn(client, "_runScheduledCheckAndPurgeCache");
+
+        // Run
+        client._scheduleCheckAndPurgeCache(conversation);
+        jasmine.clock().tick(layer.Client.CACHE_PURGE_INTERVAL + 1);
+
+        // Posttest
+        expect(client._runScheduledCheckAndPurgeCache).toHaveBeenCalledWith();
+      });
+
+      it("Should schedule call to _runScheduledCheckAndPurgeCache if late", function() {
+        client._scheduleCheckAndPurgeCacheAt = Date.now() - 10;
+        spyOn(client, "_runScheduledCheckAndPurgeCache");
+
+        // Run
+        client._scheduleCheckAndPurgeCache(conversation);
+        jasmine.clock().tick(layer.Client.CACHE_PURGE_INTERVAL + 1);
+
+        // Posttest
+        expect(client._runScheduledCheckAndPurgeCache).toHaveBeenCalledWith();
+      });
+
+      it("Should not schedule call to _runScheduledCheckAndPurgeCache if already scheduled", function() {
+        client._scheduleCheckAndPurgeCacheAt = Date.now() + 10;
+        spyOn(client, "_runScheduledCheckAndPurgeCache");
+
+        // Run
+        client._scheduleCheckAndPurgeCache(conversation);
+        jasmine.clock().tick(layer.Client.CACHE_PURGE_INTERVAL + 1);
+
+        // Posttest
+        expect(client._runScheduledCheckAndPurgeCache).not.toHaveBeenCalled();
+      });
+
+      it("Should add object to _scheduleCheckAndPurgeCacheItems if new schedule", function() {
+        client._scheduleCheckAndPurgeCacheAt = 0;
+        client._scheduleCheckAndPurgeCache(conversation);
+        expect(client._scheduleCheckAndPurgeCacheItems).toEqual([conversation]);
+      });
+
+      it("Should add object to _scheduleCheckAndPurgeCacheItems if no new schedule", function() {
+        client._scheduleCheckAndPurgeCacheAt = Date.now() + 10;
+        client._scheduleCheckAndPurgeCache(conversation);
+        expect(client._scheduleCheckAndPurgeCacheItems).toEqual([conversation]);
+      });
+
+      it("Should ignore unsaved objects", function() {
+        conversation.syncState = layer.Constants.SYNC_STATE.SAVING;
+        client._scheduleCheckAndPurgeCacheAt = Date.now() + 10;
+        client._scheduleCheckAndPurgeCache(conversation);
+        expect(client._scheduleCheckAndPurgeCacheItems).toEqual([]);
+      });
+    });
+
+    describe("The _runScheduledCheckAndPurgeCache() method", function() {
+       var c1, c2, c3;
+        beforeEach(function() {
+            c1 = client.createConversation(["a"]);
+            c2 = client.createConversation(["b"]);
+            c3 = client.createConversation(["c"]);
+            client._scheduleCheckAndPurgeCacheItems = [c1, c2, c3];
+            client._scheduleCheckAndPurgeCacheAt = Date.now() + 10;
+        });
+      it("Should call _checkAndPurgeCache", function() {
+        spyOn(client, "_checkAndPurgeCache");
+        client._runScheduledCheckAndPurgeCache();
+        expect(client._checkAndPurgeCache).toHaveBeenCalledWith([c1, c2, c3]);
+      });
+
+      it("Should clear the list", function() {
+        client._runScheduledCheckAndPurgeCache();
+        expect(client._scheduleCheckAndPurgeCacheItems).toEqual([]);
+      });
+
+      it("Should clear the scheduled time", function() {
+        client._runScheduledCheckAndPurgeCache();
+        expect(client._scheduleCheckAndPurgeCacheAt).toEqual(0);
+      });
     });
 
     describe("The _removeQuery() method", function() {
@@ -1282,11 +1472,11 @@ describe("The Client class", function() {
             query.data = [c1, c2, c3];
         });
 
-        it("Should call _checkCache with Conversations that are registered", function() {
-            spyOn(client, "_checkCache");
+        it("Should call _checkAndPurgeCache with Conversations that are registered", function() {
+            spyOn(client, "_checkAndPurgeCache");
             delete client._conversationsHash[c2.id];
             client._removeQuery(query);
-            expect(client._checkCache).toHaveBeenCalledWith([c1, c3]);
+            expect(client._checkAndPurgeCache).toHaveBeenCalledWith([c1, c3]);
         });
 
         it("Should remove the query from cache", function() {
