@@ -923,6 +923,29 @@ describe("The Query Class", function() {
         });
     });
 
+    describe("The _getInstance() method", function() {
+        var query;
+        beforeEach(function() {
+            query = new layer.Query({
+                client: client,
+                model: 'Conversation',
+                paginationWindow: 15
+            });
+        });
+
+        afterEach(function() {
+            query.destroy();
+        });
+
+        it("Should return itself if its an instance", function() {
+            expect(query._getInstance(conversation)).toBe(conversation);
+        });
+
+        it("Should return an instance if its an object", function() {
+            expect(query._getInstance({id:conversation.id})).toBe(conversation);
+        });
+    });
+
     describe("The _getItem() method", function() {
         var query;
         beforeEach(function() {
