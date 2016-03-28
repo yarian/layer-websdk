@@ -553,7 +553,7 @@ class Query extends Root {
    */
   _getInstance(item) {
     if (item instanceof Root) return item;
-    return client._getObject(item.id);
+    return this.client._getObject(item.id);
   }
 
   /**
