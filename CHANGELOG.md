@@ -1,5 +1,9 @@
 # Javascript SDK Change Log
 
+## 1.0.0
+
+* Updated version number and language from beta to GA
+
 ## 0.9.3
 
 * Minor bug fix to layer.Query

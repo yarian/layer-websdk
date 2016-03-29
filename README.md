@@ -4,10 +4,6 @@
 
 The Layer Web SDK is a JavaScript library for adding chat services to your web application. For detailed documentation, tutorials and guides please visit our [Web SDK documentation](https://developer.layer.com/docs/websdk).
 
-## Public Beta Disclaimer
-
-This **public beta is NOT production ready**; while we will not stop you from using it in production, your expectations of polish and support will need to account for this. There are known limitations and known concerns with the Layer Web SDK.
-
 ## Supported Browsers
 
 * IE 11 and Edge
@@ -26,8 +22,10 @@ All examples below assume your using the CDN installation method.
 Simplest approach to install the Web SDK is to add the following script tag:
 
 ```html
-<script src='//cdn.layer.com/sdk/0.9/layer-websdk.min.js'></script>
+<script src='//cdn.layer.com/sdk/1.0/layer-websdk.min.js'></script>
 ```
+
+* For stricter code control, use `//cdn.layer.com/sdk/1.0.0/layer-websdk.min.js` instead.
 
 All classes can then be accessed via the `layer` namespace:
 
