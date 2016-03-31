@@ -103,8 +103,6 @@ class Client extends ClientAuth {
     // Initialize Properties
     this._conversationsHash = {};
     this._messagesHash = {};
-    this._tempConversationsHash = {};
-    this._tempMessagesHash = {};
     this._queriesHash = {};
 
     if (!options.users) {
@@ -220,8 +218,6 @@ class Client extends ClientAuth {
     if (typeof id !== 'string') throw new Error(LayerError.dictionary.idParamRequired);
     if (this._conversationsHash[id]) {
       return this._conversationsHash[id];
-    } else if (this._tempConversationsHash[id] && this._conversationsHash[this._tempConversationsHash[id]]) {
-      return this._conversationsHash[this._tempConversationsHash[id]];
     } else if (canLoad) {
       return Conversation.load(id, this);
     }
@@ -280,7 +276,6 @@ class Client extends ClientAuth {
       delete this._conversationsHash[conversation.id];
       this._triggerAsync('conversations:remove', { conversations: [conversation] });
     }
-    delete this._tempConversationsHash[conversation._tempId];
 
     // Remove any Message associated with this Conversation
     Object.keys(this._messagesHash).forEach(id => {
@@ -304,9 +299,6 @@ class Client extends ClientAuth {
     if (this._conversationsHash[oldId]) {
       this._conversationsHash[conversation.id] = conversation;
       delete this._conversationsHash[oldId];
-
-      // Enable components that still have the old ID to still call getConversation with it
-      this._tempConversationsHash[oldId] = conversation.id;
 
       // This is a nasty way to work... but need to find and update all
       // conversationId properties of all Messages or the Query's won't
@@ -349,8 +341,6 @@ class Client extends ClientAuth {
 
     if (this._messagesHash[id]) {
       return this._messagesHash[id];
-    } else if (this._tempMessagesHash[id] && this._messagesHash[this._tempMessagesHash[id]]) {
-      return this._messagesHash[this._tempMessagesHash[id]];
     } else if (canLoad) {
       return Message.load(id, this);
     }
@@ -409,30 +399,12 @@ class Client extends ClientAuth {
     message = this._messagesHash[id];
     if (message) {
       delete this._messagesHash[id];
-      delete this._tempMessagesHash[message._tempId];
       if (!this._inCleanup) {
         this._triggerAsync('messages:remove', { messages: [message] });
         const conv = message.getConversation();
         if (conv && conv.lastMessage === message) conv.lastMessage = null;
       }
     }
-  }
-
-
-  /**
-   * If the Message ID changes, we need to reregister the message
-   *
-   * @method _updateMessageId
-   * @protected
-   * @param  {layer.Message} message - message whose ID has changed
-   * @param  {string} oldId - Previous ID
-   */
-  _updateMessageId(message, oldId) {
-    this._messagesHash[message.id] = message;
-    delete this._messagesHash[oldId];
-
-    // Enable components that still have the old ID to still call getMessage with it
-    this._tempMessagesHash[oldId] = message.id;
   }
 
   /**
@@ -1012,24 +984,6 @@ Client.prototype._conversationsHash = null;
  * @type {Object}
  */
 Client.prototype._messagesHash = null;
-
-
-/**
- * Hash mapping temporary Conversation IDs to server generated IDs.
- *
- * @private
- * @type {Object}
- */
-Client.prototype._tempConversationsHash = null;
-
-/**
- * Hash mapping temporary Message IDs to server generated IDs.
- *
- * @private
- * @type {Object}
- */
-Client.prototype._tempMessagesHash = null;
-
 
 /**
  * Hash of layer.Query objects for quick lookup by id
