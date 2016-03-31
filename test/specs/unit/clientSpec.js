@@ -664,6 +664,38 @@ describe("The Client class", function() {
         });
     });
 
+    describe("The _purgeMessagesByPosition() method", function() {
+      var m1, m2, m3, m4, conversation;
+
+      beforeEach(function() {
+            conversation = client.createConversation(["a"]);
+            var c2 = client.createConversation(["b"]);
+            m1 = conversation.createMessage("hello").send();
+            m2 = conversation.createMessage("hello").send();
+            m3 = conversation.createMessage("hello").send();
+            m4 = c2.createMessage("hello").send();
+
+            m1.position = 5;
+            m2.position = 6;
+            m3.position = 7;
+            m4.position = 1;
+            client._purgeMessagesByPosition(conversation.id, 6);
+        });
+
+      it("Should remove messages in the Conversation", function() {
+        expect(m1.isDestroyed).toBe(true);
+        expect(m2.isDestroyed).toBe(true);
+      });
+
+      it("Should leave messages not in the Conversation", function() {
+        expect(m3.isDestroyed).toBe(false);
+      });
+
+      it("Should leave messages whose position is greater than fromPosition", function() {
+        expect(m4.isDestroyed).toBe(false);
+      });
+    });
+
     describe("The _updateMessageId() method", function() {
         var conversation;
         var message;

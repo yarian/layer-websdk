@@ -1,5 +1,15 @@
 # Javascript SDK Change Log
 
+## 1.1.0
+
+* layer.Constants
+  * Adds layer.Constants.DELETION_MODE.MY_DEVICES for layer.Message.delete() and layer.Conversation.delete()
+* layer.Conversation
+  * Support for Deletion with either layer.Constants.DELETION_MODE.MY_DEVICES or .Constants.DELETION_MODE.ALL (delete for all users or just for me).  Note that deleting for just me doesn't remove me as a participant, which means that new Messages will cause the Conversation to reappear.
+  * Adds layer.Conversation.leave() to leave a Conversation and remove it from my Conversation list.  New Messages will NOT cause the Conversation to reappear.
+* layer.Message
+  * Support for Deletion with either layer.Constants.DELETION_MODE.MY_DEVICES or .Constants.DELETION_MODE.ALL (delete for all users or just for me).  Note that deleting for just me doesn't remove me as a participant, which means that new Messages will cause the Conversation to reappear.
+
 ## 0.9.2
 
 #### Public API Changes
