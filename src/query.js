@@ -254,7 +254,8 @@ class Query extends Root {
     if ('paginationWindow' in optionsBuilt && this.paginationWindow !== optionsBuilt.paginationWindow) {
       this.paginationWindow = Math.min(Query.MaxPageSize + this.size, optionsBuilt.paginationWindow);
       if (this.paginationWindow < optionsBuilt.paginationWindow) {
-        Logger.warn(`paginationWindow value ${optionsBuilt.paginationWindow} in Query.update() increases size greater than Query.MaxPageSize of ${Query.MaxPageSize}`);
+        Logger.warn(`paginationWindow value ${optionsBuilt.paginationWindow} in Query.update() ` +
+          `increases size greater than Query.MaxPageSize of ${Query.MaxPageSize}`);
       }
       needsRefresh = true;
     }
@@ -287,7 +288,7 @@ class Query extends Root {
     this.totalSize = 0;
     const data = this.data;
     this.data = [];
-    this.client._checkCache(data);
+    this.client._checkAndPurgeCache(data);
     this.isFiring = false;
     this._predicate = null;
     this.paginationWindow = this._initialPaginationWindow;
@@ -325,7 +326,7 @@ class Query extends Root {
     if (pageSize < 0) {
       const removedData = this.data.slice(this.paginationWindow);
       this.data = this.data.slice(0, this.paginationWindow);
-      this.client._checkCache(removedData);
+      this.client._checkAndPurgeCache(removedData);
       this._triggerAsync('change', { data: [] });
     } else if (pageSize === 0) {
       // No need to load 0 results.

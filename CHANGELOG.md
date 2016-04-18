@@ -1,5 +1,16 @@
 # Javascript SDK Change Log
 
+## 1.1.0
+
+* Caching Fixes
+  * Updates Caching to uncache any Messages and Conversations that aren't part of any Query's results 10 minutes (configurable) after websocket event announces their arrival.
+  * Removes Conversation.lastMessage from cache once its no longer a query result.
+  * Fixes cache cleanup on deleting a Query.
+
+## 0.9.3
+
+* Minor bug fix to layer.Query
+
 ## 0.9.2
 
 #### Public API Changes

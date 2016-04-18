@@ -106,6 +106,7 @@ class Client extends ClientAuth {
     this._tempConversationsHash = {};
     this._tempMessagesHash = {};
     this._queriesHash = {};
+    this._scheduleCheckAndPurgeCacheItems = [];
 
     if (!options.users) {
       this.users = [];
@@ -255,6 +256,8 @@ class Client extends ClientAuth {
       // Make sure the client is set so that the next event bubbles up
       if (conversation.clientId !== this.appId) conversation.clientId = this.appId;
       this._triggerAsync('conversations:add', { conversations: [conversation] });
+
+      this._scheduleCheckAndPurgeCache(conversation);
     }
     return this;
   }
@@ -313,7 +316,7 @@ class Client extends ClientAuth {
       // see these as matching the query.
       Object.keys(this._messagesHash)
             .filter(id => this._messagesHash[id].conversationId === oldId)
-            .forEach(id => this._messagesHash[id].conversationId = conversation.id);
+            .forEach(id => (this._messagesHash[id].conversationId = conversation.id));
     }
   }
 
@@ -387,8 +390,14 @@ class Client extends ClientAuth {
         message._notify = false;
       }
       const conversation = message.getConversation();
-      if (conversation && (!conversation.lastMessage || conversation.lastMessage.position < message.position)) {
-        conversation.lastMessage = message;
+      if (conversation) {
+        if (!conversation.lastMessage || conversation.lastMessage.position < message.position) {
+          const lastMessageWas = conversation.lastMessage;
+          conversation.lastMessage = message;
+          if (lastMessageWas) this._checkAndPurgeCache([lastMessageWas]);
+        }
+      } else {
+        this._scheduleCheckAndPurgeCache(message);
       }
     }
   }
@@ -803,14 +812,14 @@ class Client extends ClientAuth {
    */
   _removeQuery(query) {
     if (query) {
+      delete this._queriesHash[query.id];
       if (!this._inCleanup) {
         const data = query.data
           .map(obj => this._getObject(obj.id))
           .filter(obj => obj);
-        this._checkCache(data);
+        this._checkAndPurgeCache(data);
       }
       this.off(null, null, query);
-      delete this._queriesHash[query.id];
     }
   }
 
@@ -819,17 +828,49 @@ class Client extends ClientAuth {
    *
    * Removes from cache if an object is not part of any Query's result set.
    *
-   * @method _checkCache
+   * @method _checkAndPurgeCache
    * @private
    * @param  {layer.Root[]} objects - Array of Messages or Conversations
    */
-  _checkCache(objects) {
+  _checkAndPurgeCache(objects) {
     objects.forEach(obj => {
-      if (!this._isCachedObject(obj)) {
+      if (!obj.isDestroyed && !this._isCachedObject(obj)) {
         if (obj instanceof Root === false) obj = this._getObject(obj.id);
         obj.destroy();
       }
     });
+  }
+
+  /**
+   * Schedules _runScheduledCheckAndPurgeCache if needed, and adds this object
+   * to the list of objects it will validate for uncaching.
+   *
+   * Note that any object that does not exist on the server (!isSaved()) is an object that the
+   * app created and can only be purged by the app and not by the SDK.  Once its been
+   * saved, and can be reloaded from the server when needed, its subject to standard caching.
+   *
+   * @method _scheduleCheckAndPurgeCache
+   * @private
+   * @param {layer.Root}
+   */
+  _scheduleCheckAndPurgeCache(object) {
+    if (object.isSaved()) {
+      if (this._scheduleCheckAndPurgeCacheAt < Date.now()) {
+        this._scheduleCheckAndPurgeCacheAt = Date.now() + Client.CACHE_PURGE_INTERVAL;
+        setTimeout(() => this._runScheduledCheckAndPurgeCache(), Client.CACHE_PURGE_INTERVAL);
+      }
+      this._scheduleCheckAndPurgeCacheItems.push(object);
+    }
+  }
+
+  /**
+   * Calls _checkAndPurgeCache on accumulated objects and resets its state
+   */
+  _runScheduledCheckAndPurgeCache() {
+    const list = this._scheduleCheckAndPurgeCacheItems;
+    this._scheduleCheckAndPurgeCacheItems = [];
+    this._checkAndPurgeCache(list);
+    this._scheduleCheckAndPurgeCacheAt = 0;
   }
 
   /**
@@ -1040,6 +1081,22 @@ Client.prototype._tempMessagesHash = null;
 Client.prototype._queriesHash = null;
 
 /**
+ * Array of items to be checked to see if they can be uncached.
+ *
+ * @private
+ * @type {layer.Root[]}
+ */
+Client.prototype._scheduleCheckAndPurgeCacheItems = null;
+
+/**
+ * Time that the next call to _runCheckAndPurgeCache() is scheduled for in ms since 1970.
+ *
+ * @private
+ * @type {number}
+ */
+Client.prototype._scheduleCheckAndPurgeCacheAt = 0;
+
+/**
  * Array of layer.User objects.
  *
  * Use of this property is optional; but by storing
@@ -1052,6 +1109,19 @@ Client.prototype._queriesHash = null;
  * @type {layer.User[]}
  */
 Client.prototype.users = null;
+
+
+/**
+ * Any Conversation or Message that is part of a Query's results are kept in memory for as long as it
+ * remains in that Query.  However, when a websocket event delivers new Messages and Conversations that
+ * are NOT part of a Query, how long should they stick around in memory?  Why have them stick around?
+ * Perhaps an app wants to post a notification of a new Message or Conversation... and wants to keep
+ * the object local for a little while.  Default is 10 minutes before checking to see if
+ * the object is part of a Query or can be uncached.  Value is in miliseconds.
+ * @static
+ * @type {number}
+ */
+Client.CACHE_PURGE_INTERVAL = 10 * 60 * 1000;
 
 Client._ignoredEvents = [
   'conversations:loaded',
