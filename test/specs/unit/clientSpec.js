@@ -676,18 +676,6 @@ describe("The Client class", function() {
             // Posttest
             expect(client.trigger).not.toHaveBeenCalled();
         });
-
-        it("Should delete from _tempMessagesHash", function() {
-            // Setup
-            message._tempId = "temp";
-            client._tempMessagesHash[message._tempId] = message.id;
-
-            // Run
-            client._removeMessage(message);
-
-            // Posttest
-            expect(client._tempMessagesHash["temp"]).toBe(undefined);
-        });
     });
 
     describe("The _purgeMessagesByPosition() method", function() {
@@ -720,55 +708,6 @@ describe("The Client class", function() {
       it("Should leave messages whose position is greater than fromPosition", function() {
         expect(m4.isDestroyed).toBe(false);
       });
-    });
-
-    describe("The _updateMessageId() method", function() {
-        var conversation;
-        var message;
-        beforeEach(function() {
-            conversation = client.createConversation(["a"]);
-            message = conversation.createMessage("hello").send();
-        });
-
-        it("Should register the Message under the new id", function() {
-            // Setup
-            var id = message.id;
-
-            // Run
-            message.id = "fred";
-            client._updateMessageId(message, id);
-
-            // Posttest
-            expect(client.getMessage("fred")).toBe(message);
-        });
-
-        it("Should deregister the old id", function() {
-            // Setup
-            var id = message.id;
-
-            // Pretest
-            expect(client._messagesHash[id]).toBe(message);
-
-            // Run
-            message.id = "fred";
-            client._updateMessageId(message, id);
-
-            // Posttest
-            expect(client._messagesHash[id]).toBe(undefined);
-        });
-
-
-        it("Should enter it into _tempMessagesHash", function() {
-            // Setup
-            var mId = message.id;
-
-            // Run
-            message.id = "fred";
-            client._updateMessageId(message, mId);
-
-            // Posttest
-            expect(client._tempMessagesHash[mId]).toEqual("fred");
-        });
     });
 
     describe("The _getObject() method", function() {
