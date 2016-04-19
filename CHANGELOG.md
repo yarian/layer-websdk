@@ -6,6 +6,17 @@
   * Updates Caching to uncache any Messages and Conversations that aren't part of any Query's results 10 minutes (configurable) after websocket event announces their arrival.
   * Removes Conversation.lastMessage from cache once its no longer a query result.
   * Fixes cache cleanup on deleting a Query.
+* layer.Constants
+  * Adds layer.Constants.DELETION_MODE.MY_DEVICES for layer.Message.delete() and layer.Conversation.delete()
+* layer.Conversation
+  * Support for Deletion with either layer.Constants.DELETION_MODE.MY_DEVICES or .Constants.DELETION_MODE.ALL (delete for all users or just for me).  Note that deleting for just me doesn't remove me as a participant, which means that new Messages will cause the Conversation to reappear.
+  * Adds layer.Conversation.leave() to leave a Conversation and remove it from my Conversation list.  New Messages will NOT cause the Conversation to reappear.
+* layer.Message
+  * Support for Deletion with either layer.Constants.DELETION_MODE.MY_DEVICES or .Constants.DELETION_MODE.ALL (delete for all users or just for me).  Note that deleting for just me doesn't remove me as a participant, which means that new Messages will cause the Conversation to reappear.
+
+## 1.0.0
+
+* Updated version number and language from beta to GA
 
 ## 0.9.3
 

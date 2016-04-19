@@ -427,6 +427,26 @@ class Client extends ClientAuth {
     }
   }
 
+/**
+ * Handles delete from position event from Websocket.
+ *
+ * A WebSocket may deliver a `delete` Conversation event with a
+ * from_position field indicating that all Messages at the specified position
+ * and earlier should be deleted.
+ *
+ * @method _purgeMessagesByPosition
+ * @private
+ * @param {string} conversationId
+ * @param {number} fromPosition
+ */
+  _purgeMessagesByPosition(conversationId, fromPosition) {
+    Object.keys(this._messagesHash).forEach(mId => {
+      const message = this._messagesHash[mId];
+      if (message.conversationId === conversationId && message.position <= fromPosition) {
+        message.destroy();
+      }
+    });
+  }
 
   /**
    * If the Message ID changes, we need to reregister the message
