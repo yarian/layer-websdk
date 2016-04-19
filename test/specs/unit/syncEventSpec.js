@@ -120,7 +120,6 @@ describe("The SyncEvent Classes", function() {
                     headers: "headers",
                     method: "method"
                 });
-
             });
         });
 
@@ -141,8 +140,38 @@ describe("The SyncEvent Classes", function() {
                 evt._updateUrl();
                 expect(evt.url).toEqual("hey");
             });
-
         });
+
+        describe("The _getCreateId() method", function() {
+          it("Should get the requested ID for the new object", function() {
+            var evt = new layer.XHRSyncEvent({
+                url: function() {return "hey"},
+                operation: "POST",
+                data: {
+                  id: 'doh'
+                }
+            });
+            expect(evt._getCreateId()).toEqual('doh');
+          });
+        });
+    });
+
+    describe("The WebsocketSyncEvent Class", function() {
+      describe("The _getCreateId() method", function() {
+        it("Should get the requested ID for the new object", function() {
+          var evt = new layer.WebsocketSyncEvent({
+              url: function() {return "hey"},
+              operation: "POST",
+              data: {
+                method: "Conversation.create",
+                data: {
+                  id: 'doh'
+                }
+              }
+          });
+          expect(evt._getCreateId()).toEqual('doh');
+        });
+      });
     });
 
     describe("The firing property", function() {

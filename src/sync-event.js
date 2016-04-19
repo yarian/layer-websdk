@@ -215,6 +215,10 @@ class XHRSyncEvent extends SyncEvent {
       method: this.method,
     };
   }
+
+  _getCreateId() {
+    return this.operation === 'POST' && this.data ? this.data.id : '';
+  }
 }
 
 /**
@@ -269,6 +273,10 @@ class WebsocketSyncEvent extends SyncEvent {
 
   toObject() {
     return this.data;
+  }
+
+  _getCreateId() {
+    return this.operation === 'POST' && this.data.data ? this.data.data.id : '';
   }
 }
 

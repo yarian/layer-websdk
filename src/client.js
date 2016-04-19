@@ -103,8 +103,6 @@ class Client extends ClientAuth {
     // Initialize Properties
     this._conversationsHash = {};
     this._messagesHash = {};
-    this._tempConversationsHash = {};
-    this._tempMessagesHash = {};
     this._queriesHash = {};
     this._scheduleCheckAndPurgeCacheItems = [];
 
@@ -221,8 +219,6 @@ class Client extends ClientAuth {
     if (typeof id !== 'string') throw new Error(LayerError.dictionary.idParamRequired);
     if (this._conversationsHash[id]) {
       return this._conversationsHash[id];
-    } else if (this._tempConversationsHash[id] && this._conversationsHash[this._tempConversationsHash[id]]) {
-      return this._conversationsHash[this._tempConversationsHash[id]];
     } else if (canLoad) {
       return Conversation.load(id, this);
     }
@@ -283,7 +279,6 @@ class Client extends ClientAuth {
       delete this._conversationsHash[conversation.id];
       this._triggerAsync('conversations:remove', { conversations: [conversation] });
     }
-    delete this._tempConversationsHash[conversation._tempId];
 
     // Remove any Message associated with this Conversation
     Object.keys(this._messagesHash).forEach(id => {
@@ -307,9 +302,6 @@ class Client extends ClientAuth {
     if (this._conversationsHash[oldId]) {
       this._conversationsHash[conversation.id] = conversation;
       delete this._conversationsHash[oldId];
-
-      // Enable components that still have the old ID to still call getConversation with it
-      this._tempConversationsHash[oldId] = conversation.id;
 
       // This is a nasty way to work... but need to find and update all
       // conversationId properties of all Messages or the Query's won't
@@ -352,8 +344,6 @@ class Client extends ClientAuth {
 
     if (this._messagesHash[id]) {
       return this._messagesHash[id];
-    } else if (this._tempMessagesHash[id] && this._messagesHash[this._tempMessagesHash[id]]) {
-      return this._messagesHash[this._tempMessagesHash[id]];
     } else if (canLoad) {
       return Message.load(id, this);
     }
@@ -418,7 +408,6 @@ class Client extends ClientAuth {
     message = this._messagesHash[id];
     if (message) {
       delete this._messagesHash[id];
-      delete this._tempMessagesHash[message._tempId];
       if (!this._inCleanup) {
         this._triggerAsync('messages:remove', { messages: [message] });
         const conv = message.getConversation();
@@ -427,18 +416,18 @@ class Client extends ClientAuth {
     }
   }
 
-/**
- * Handles delete from position event from Websocket.
- *
- * A WebSocket may deliver a `delete` Conversation event with a
- * from_position field indicating that all Messages at the specified position
- * and earlier should be deleted.
- *
- * @method _purgeMessagesByPosition
- * @private
- * @param {string} conversationId
- * @param {number} fromPosition
- */
+  /**
+   * Handles delete from position event from Websocket.
+   *
+   * A WebSocket may deliver a `delete` Conversation event with a
+   * from_position field indicating that all Messages at the specified position
+   * and earlier should be deleted.
+   *
+   * @method _purgeMessagesByPosition
+   * @private
+   * @param {string} conversationId
+   * @param {number} fromPosition
+   */
   _purgeMessagesByPosition(conversationId, fromPosition) {
     Object.keys(this._messagesHash).forEach(mId => {
       const message = this._messagesHash[mId];
@@ -1073,24 +1062,6 @@ Client.prototype._conversationsHash = null;
  * @type {Object}
  */
 Client.prototype._messagesHash = null;
-
-
-/**
- * Hash mapping temporary Conversation IDs to server generated IDs.
- *
- * @private
- * @type {Object}
- */
-Client.prototype._tempConversationsHash = null;
-
-/**
- * Hash mapping temporary Message IDs to server generated IDs.
- *
- * @private
- * @type {Object}
- */
-Client.prototype._tempMessagesHash = null;
-
 
 /**
  * Hash of layer.Query objects for quick lookup by id

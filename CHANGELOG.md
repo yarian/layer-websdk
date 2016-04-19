@@ -6,6 +6,12 @@
   * Updates Caching to uncache any Messages and Conversations that aren't part of any Query's results 10 minutes (configurable) after websocket event announces their arrival.
   * Removes Conversation.lastMessage from cache once its no longer a query result.
   * Fixes cache cleanup on deleting a Query.
+* Deduplication
+  * If a response is not received to a request to create a Conversation or Message, it will be retried with deduplication support to insure that if it was created before, a duplicate is not created on retry.
+  * Message and Conversation IDs no longer change as they are created.  Note: A Conversation ID can change if creating a Distinct Conversation and a matching Conversation is found on the server -- in this case, the ID will change from the proposed ID to the ID of the matching Conversation.
+  * When a Message is created, it no longer triggers a "messages:change" with "property": "id".  However,
+    it does trigger a "messages:change" event with "property" of "position".
+  * Use of "temp_layer:///" IDs is removed.
 * layer.Constants
   * Adds layer.Constants.DELETION_MODE.MY_DEVICES for layer.Message.delete() and layer.Conversation.delete()
 * layer.Conversation
