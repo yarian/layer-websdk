@@ -99,10 +99,13 @@ class ClientAuthenticator extends Root {
     this.url = this.url.replace(/\/$/, '');
 
     // If we've been provided with a user id as a parameter, attempt to restore the session.
-    if (requestedUserId && this.isTrustedDevice) {
+    if (!this.sessionToken && requestedUserId && this.isTrustedDevice) {
       this._restoreLastSession(options, requestedUserId, cachedUserId);
     } else if (global.localStorage) {
       localStorage.removeItem(LOCALSTORAGE_KEYS.SESSIONDATA + this.appId);
+      if (this.sessionToken && requestedUserId) {
+        this.userId = requestedUserId;
+      }
     }
   }
 
