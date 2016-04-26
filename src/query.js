@@ -883,7 +883,7 @@ class Query extends Root {
     const midChanges = evt.getChangesFor('id');
 
     if (midChanges.length) {
-      index = this._getIndex(midChanges[0].oldValue);
+      if (this.dataType === Query.ObjectDataType) index = this._getIndex(midChanges[0].oldValue);
       if (this._handleMessagePositionChange(evt, index)) return;
     }
 
