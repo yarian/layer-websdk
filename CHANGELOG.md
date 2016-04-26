@@ -1,5 +1,9 @@
 # Javascript SDK Change Log
 
+## 1.0.2
+
+* Fixes support for the `sessionToken` in the constructor; broken with the introduction of the `isTrustedDevice` property. This is used as part of the [Alternate Authentication Process](https://developer.layer.com/docs/websdk#the-alternate-authentication-process).
+
 ## 1.0.1
 
 * Adds `isTrustedDevice` property to layer.Client which defaults to false.  If this is false, session tokens will NOT be written to localStorage, and will not be restored next time the page reloads.

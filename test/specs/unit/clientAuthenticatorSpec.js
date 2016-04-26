@@ -111,6 +111,72 @@ describe("The Client Authenticator Class", function() {
             }, "Fred", "Joe");
             layer.ClientAuthenticator.prototype._restoreLastSession = tmp;
         });
+
+        it("Should not call _restoreLastSession if a sessionToken is provided and not a trusted device", function() {
+          var tmp = layer.ClientAuthenticator.prototype._restoreLastSession;
+            spyOn(layer.ClientAuthenticator.prototype, "_restoreLastSession");
+            window.localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + appId] = JSON.stringify({
+                userId: "Joe",
+                sessionToken: "sessionToken"
+            });
+
+            var clientLocal = new layer.ClientAuthenticator({
+                appId: appId,
+                sessionToken: "sessionToken",
+                isTrustedDevice: false,
+                url: "https://duh.com"
+            });
+
+            expect(layer.ClientAuthenticator.prototype._restoreLastSession).not.toHaveBeenCalled();
+            layer.ClientAuthenticator.prototype._restoreLastSession = tmp;
+        });
+
+        it("Should not call _restoreLastSession if a sessionToken is provided and its a trusted device", function() {
+          var tmp = layer.ClientAuthenticator.prototype._restoreLastSession;
+            spyOn(layer.ClientAuthenticator.prototype, "_restoreLastSession");
+            window.localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + appId] = JSON.stringify({
+                userId: "Joe",
+                sessionToken: "sessionToken"
+            });
+
+            var clientLocal = new layer.ClientAuthenticator({
+                appId: appId,
+                sessionToken: "sessionToken",
+                isTrustedDevice: true,
+                url: "https://duh.com"
+            });
+
+            expect(layer.ClientAuthenticator.prototype._restoreLastSession).not.toHaveBeenCalled();
+            layer.ClientAuthenticator.prototype._restoreLastSession = tmp;
+        });
+
+        it("Should set the userId if userId and sessionToken are provided and its a trusted device", function() {
+             var clientLocal = new layer.ClientAuthenticator({
+                appId: appId,
+                userId: "Fred",
+                sessionToken: "sessionToken",
+                isTrustedDevice: true,
+                url: "https://duh.com"
+            });
+
+            // Posttest
+            expect(clientLocal.userId).toEqual("Fred");
+            expect(clientLocal.sessionToken).toEqual("sessionToken");
+        });
+
+        it("Should set the userId if userId and sessionToken are provided and its not a trusted device", function() {
+             var clientLocal = new layer.ClientAuthenticator({
+                appId: appId,
+                userId: "Fred",
+                sessionToken: "sessionToken",
+                isTrustedDevice: false,
+                url: "https://duh.com"
+            });
+
+            // Posttest
+            expect(clientLocal.userId).toEqual("Fred");
+            expect(clientLocal.sessionToken).toEqual("sessionToken");
+        });
     });
 
     describe("The _restoreUserId() method", function() {
