@@ -1,5 +1,9 @@
 # Javascript SDK Change Log
 
+## 1.0.3
+
+* Fixes support for Query.dataType == layer.Query.InstanceDataType in handling Message ID change events.
+
 ## 1.0.2
 
 * Fixes support for the `sessionToken` in the constructor; broken with the introduction of the `isTrustedDevice` property. This is used as part of the [Alternate Authentication Process](https://developer.layer.com/docs/websdk#the-alternate-authentication-process).
