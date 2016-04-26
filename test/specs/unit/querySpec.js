@@ -2121,6 +2121,33 @@ describe("The Query Class", function() {
         });
 
 
+        it("Should call _handleMessagePositionChange with original index if ID change and dataType is instance", function() {
+            // Setup
+            query.dataType = "instance";
+            var id = message.id.replace(/temp_/, "");
+            var tempId = "temp_" + id;
+            message.id = tempId;
+            message._clearObject();
+            var data = query.data = [message];
+            message._clearObject();
+            message.id = id;
+            spyOn(query, "_handleMessagePositionChange").and.returnValue(true);
+            var evt = new layer.LayerEvent({
+                property: "id",
+                oldValue: tempId,
+                newValue: id,
+                target: message
+            }, "messages:change");
+
+            // Run
+            query._handleMessageChangeEvent(evt);
+
+            // Posttest
+            expect(query.data).toBe(data);
+            expect(query._handleMessagePositionChange).toHaveBeenCalledWith(evt, 0);
+        });
+
+
         it("Should not touch data array if dataType is object but item not in the data", function() {
             var evt = new layer.LayerEvent({
                 property: "recipientStatus",
