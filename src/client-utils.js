@@ -7,6 +7,8 @@
 const LayerParser = require('layer-patch');
 /* istanbul ignore next */
 const cryptoLib = typeof window !== 'undefined' ? window.crypto || window.msCrypto : null;
+/* istanbul ignore next */
+const atob = typeof window === 'undefined' ? require('atob') : window.atob;
 
 let getRandomValues;
 /* istanbul ignore next */
@@ -141,6 +143,28 @@ exports.clone = (obj) => JSON.parse(JSON.stringify(obj));
  */
 exports.defer = (func) => setTimeout(func, 0);
 
+/**
+ * URL Decode a URL Encoded base64 string
+ *
+ * Copied from https://github.com/auth0-blog/angular-token-auth, but
+ * appears in many places on the web.
+ */
+exports.decode = (str) => {
+  let output = str.replace('-', '+').replace('_', '/');
+  switch (output.length % 4) {
+    case 0:
+      break;
+    case 2:
+      output += '==';
+      break;
+    case 3:
+      output += '=';
+      break;
+    default:
+      throw new Error('Illegal base64url string!');
+  }
+  return atob(output);
+};
 
 /**
  * Returns a delay in seconds needed to follow an exponential

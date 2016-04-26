@@ -1,5 +1,9 @@
 # Javascript SDK Change Log
 
+## 1.0.4
+
+* Fixes parsing of Identity Token to handle URL Encoded strings
+
 ## 1.0.3
 
 * Fixes support for Query.dataType == layer.Query.InstanceDataType in handling Message ID change events.
