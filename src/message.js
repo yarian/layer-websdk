@@ -420,12 +420,31 @@ class Message extends Syncable {
   __updateIsRead(value) {
     if (value) {
       this._sendReceipt(Constants.RECEIPT_STATE.READ);
-      this._triggerAsync('messages:read');
+      this._triggerMessageRead();
       const conversation = this.getConversation();
       if (conversation) conversation.unreadCount--;
     }
   }
 
+  /**
+   * Trigger events indicating changes to the isRead/isUnread properties.
+   *
+   * @method _triggerMessageRead
+   * @private
+   */
+  _triggerMessageRead() {
+    const value = this.isRead;
+    this._triggerAsync('messages:change', {
+      property: 'isRead',
+      oldValue: !value,
+      newValue: value,
+    });
+    this._triggerAsync('messages:change', {
+      property: 'isUnread',
+      oldValue: value,
+      newValue: !value,
+    });
+  }
 
   /**
    * Send a Read or Delivery Receipt to the server.
@@ -444,7 +463,7 @@ class Message extends Syncable {
         // this instance.  Which typically leads to lots of extra attempts
         // to mark the message as read.
         this.__isRead = true;
-        this._triggerAsync('messages:read');
+        this._triggerMessageRead();
         const conversation = this.getConversation();
         if (conversation) conversation.unreadCount--;
       }
@@ -1268,21 +1287,6 @@ Message._supportedEvents = [
    * @param {layer.LayerError} evt.error
    */
   'messages:sent-error',
-
-  /**
-   * Fired when message.isRead is set to true.
-   *
-   * Sometimes this event is triggered by marking the Message as read locally; sometimes its triggered
-   * by your user on a separate device/browser marking the Message as read remotely.
-   *
-   * Useful if you style unread messages in bold, and need an event to tell you when
-   * to unbold the message.
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Message[]} evt.messages - Array of messages that have just been marked as read
-   */
-  'messages:read',
 
   /**
    * The recipientStatus property has changed.

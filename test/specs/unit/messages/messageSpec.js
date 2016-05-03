@@ -782,6 +782,45 @@ describe("The Messages class", function() {
         });
     });
 
+    describe("The _triggerMessageRead() method", function() {
+        var m;
+        beforeEach(function() {
+            m = conversation.createMessage("hello");
+            m.isRead = false;
+            jasmine.clock().tick(1);
+        });
+
+        afterEach(function() {
+            m.destroy();
+        });
+
+        it("Should trigger a single change event with two changes", function() {
+          var result;
+          m.on('messages:change', function(evt) {
+            result = evt;
+          });
+          m.__isRead = true;
+
+          // Run
+          m._triggerMessageRead();
+          jasmine.clock().tick(10);
+
+          // Posttest
+          expect(result).toEqual(jasmine.objectContaining({
+            eventName: "messages:change",
+            changes: [{
+              property: 'isRead',
+              oldValue: false,
+              newValue: true
+            }, {
+             property: 'isUnread',
+              oldValue: true,
+              newValue: false
+            }]
+          }));
+        });
+    });
+
     describe("The __updateIsRead() method", function() {
         var m;
         beforeEach(function() {
@@ -805,7 +844,7 @@ describe("The Messages class", function() {
             expect(m._sendReceipt).toHaveBeenCalledWith("read");
         });
 
-        it("Should trigger messages:read if changed to true", function() {
+        it("Should trigger messages:change if changed to true", function() {
             // Setup
             spyOn(m, "_triggerAsync");
 
@@ -813,7 +852,16 @@ describe("The Messages class", function() {
             m.isRead = true;
 
             // Posttest
-            expect(m._triggerAsync).toHaveBeenCalledWith("messages:read");
+            expect(m._triggerAsync).toHaveBeenCalledWith("messages:change", {
+              property: 'isRead',
+              oldValue: false,
+              newValue: true
+            });
+            expect(m._triggerAsync).toHaveBeenCalledWith("messages:change", {
+              property: 'isUnread',
+              oldValue: true,
+              newValue: false
+            });
         });
 
         it("Should do nothing if already true", function() {
@@ -940,7 +988,7 @@ describe("The Messages class", function() {
             expect(m.isUnread).toBe(false);
         });
 
-        it("Should trigger messages:read event on sending read receipt", function() {
+        it("Should trigger messages:change event on sending read receipt", function() {
             m.isRead = false;
             spyOn(m, "_triggerAsync");
 
@@ -948,7 +996,16 @@ describe("The Messages class", function() {
             m.sendReceipt("read");
 
             // Posttest
-            expect(m._triggerAsync).toHaveBeenCalledWith("messages:read");
+            expect(m._triggerAsync).toHaveBeenCalledWith("messages:change", {
+              property: 'isRead',
+              oldValue: false,
+              newValue: true
+            });
+            expect(m._triggerAsync).toHaveBeenCalledWith("messages:change", {
+              property: 'isUnread',
+              oldValue: true,
+              newValue: false
+            });
         });
 
         it("Should do nothing if isRead is true", function() {
