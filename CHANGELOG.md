@@ -1,5 +1,10 @@
 # Javascript SDK Change Log
 
+# 1.0.5
+
+* Fixes bug in layer.Content.refreshContent where expiration is improperly set
+* Fixes bug in layer.Query when `dataType` is layer.Query.ObjectDataType which fails to update data for a `messages:read` event
+
 ## 1.0.4
 
 * Fixes parsing of Identity Token to handle URL Encoded strings

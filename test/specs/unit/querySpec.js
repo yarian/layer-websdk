@@ -1123,6 +1123,14 @@ describe("The Query Class", function() {
             expect(query._handleMessageConvIdChangeEvent).not.toHaveBeenCalled();
         });
 
+        it("Should call _handleMessageChangeEvent on messages:read", function() {
+            query._handleMessageEvents({a: "b", eventName: "messages:read"})
+            expect(query._handleMessageChangeEvent).toHaveBeenCalledWith({a: "b", eventName: "messages:read"});
+            expect(query._handleMessageAddEvent).not.toHaveBeenCalled();
+            expect(query._handleMessageRemoveEvent).not.toHaveBeenCalled();
+            expect(query._handleMessageConvIdChangeEvent).not.toHaveBeenCalled();
+        });
+
         it("Should call _handleMessageAddEvent", function() {
             query._handleMessageEvents({a: "b", eventName: "messages:add"})
             expect(query._handleMessageChangeEvent).not.toHaveBeenCalled();
