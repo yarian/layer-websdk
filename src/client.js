@@ -1361,21 +1361,6 @@ Client._supportedEvents = [
   'messages:change',
 
   /**
-   * A message has been marked as read.
-   *
-   * This is can be triggered by a local event, or by this same user on a separate device or browser.
-   *
-   *      client.on('messages:read', function(evt) {
-   *          myView.renderUnreadStatus(evt.target);
-   *      });
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Message} evt.target
-   */
-  'messages:read',
-
-  /**
    * A Conversation has been deleted from the server.
    *
    * Caused by either a successful call to layer.Conversation.delete() on the Conversation

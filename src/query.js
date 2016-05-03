@@ -57,8 +57,8 @@
  * of changes to any of the results of your query:
  *
  * ```javascript
- * query.data[0].on('messages:read', function() {
- *     alert('The first message has been read!');
+ * query.data[0].on('messages:change', function(evt) {
+ *     alert('The first message has had a property change; probably isRead or recipient_status!');
  * });
  * ```
  *
@@ -66,8 +66,8 @@
  *
  * ```javascript
  * var m = client.getMessage(query.data[0].id);
- * m.on('messages:read', function() {
- *     alert('The first message has been read!');
+ * m.on('messages:change', function(evt) {
+ *     alert('The first message has had a property change; probably isRead or recipient_status!');
  * });
  * ```
  *
