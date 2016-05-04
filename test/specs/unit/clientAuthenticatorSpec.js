@@ -52,96 +52,125 @@ describe("The Client Authenticator Class", function() {
             }).toThrowError(layer.LayerError.dictionary.appIdMissing);
             expect(layer.LayerError.dictionary.appIdMissing.length > 0).toBe(true);
         });
-
-        it("Should not end urls with slash", function() {
-            var clientLocal = new layer.ClientAuthenticator({
-                appId: appId,
-                url: "https://duh.com/"
-            });
-
-            expect(clientLocal.url).toEqual("https://duh.com");
-        });
-
-        it("Should not call _restoreLastSession if a userId is not passed", function() {
-            var tmp = layer.ClientAuthenticator.prototype._restoreLastSession;
-            spyOn(layer.ClientAuthenticator.prototype, "_restoreLastSession");
-
-            var clientLocal = new layer.ClientAuthenticator({
-                appId: appId,
-                url: "https://duh.com"
-            });
-
-            expect(layer.ClientAuthenticator.prototype._restoreLastSession).not.toHaveBeenCalled();
-            layer.ClientAuthenticator.prototype._restoreLastSession = tmp;
-        });
-
-        it("Should call _restoreLastSession if a userId is passed", function() {
-            var tmp = layer.ClientAuthenticator.prototype._restoreLastSession;
-            spyOn(layer.ClientAuthenticator.prototype, "_restoreLastSession");
-            window.localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + appId] = JSON.stringify({
-                userId: "Joe",
-                sessionToken: "sessionToken"
-            });
-
-            var clientLocal = new layer.ClientAuthenticator({
-                appId: appId,
-                userId: "Fred",
-                url: "https://duh.com"
-            });
-
-            expect(layer.ClientAuthenticator.prototype._restoreLastSession).toHaveBeenCalledWith({
-                appId: appId,
-                url: "https://duh.com"
-            }, "Fred", "Joe");
-            layer.ClientAuthenticator.prototype._restoreLastSession = tmp;
-        });
     });
 
-    describe("The _restoreUserId() method", function() {
-        var clientLocal;
-        beforeEach(function() {
-            clientLocal = new layer.ClientAuthenticator({
-                appId: appId,
-                url: "https://duh.com"
-            });
-        });
 
-        it("Should accept the requested userId if a sessionToken is also provided", function() {
-            expect(clientLocal.userId).toEqual("");
-            clientLocal._restoreLastSession({sessionToken: "a"}, "Fred", "Joe");
-            expect(clientLocal.userId).toEqual("Fred");
-        });
 
-        it("Should accept the requested userId if it matches the last userId and there is a last sessionToken", function() {
-            window.localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + appId] = JSON.stringify({
-                userId: "Joe",
-                sessionToken: "Doh"
-            });
-            expect(clientLocal.userId).toEqual("");
-            clientLocal._restoreLastSession({}, "Fred", "Fred");
-            expect(clientLocal.userId).toEqual("Fred");
+    describe("The _restoreLastSession() method", function() {
+      it("Should do nothing if persistence is disabled", function() {
+        // Setup
+        localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + client.appId] = JSON.stringify({
+          userId: 'FrodoTheDodo',
+          sessionToken: 'fred',
+          expires: Date.now() + 10000000
         });
+        spyOn(client, "_isPersistedSessionsDisabled").and.returnValue(true);
 
-        it("Should reject the requested userId if it matches the last userId and there is not a last sessionToken", function() {
-            window.localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + appId] = JSON.stringify({
-                userId: "Joe",
-                sessionToken: ""
-            });
-            expect(clientLocal.userId).toEqual("");
-            clientLocal._restoreLastSession({}, "Fred", "Fred");
-            expect(clientLocal.userId).toEqual("");
-        });
+        // Run
+        client._restoreLastSession();
 
-        it("Should reject the requested userId if it does not match the last userId", function() {
-            window.localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + appId] = JSON.stringify({
-                userId: "Joe",
-                sessionToken: "Doh"
-            });
-            expect(clientLocal.userId).toEqual("");
-            clientLocal._restoreLastSession({}, "Fred", "Joe");
-            expect(clientLocal.userId).toEqual("");
+        // Posttest
+        expect(client.sessionToken).toEqual('');
+      });
+
+      it("Should do nothing if no data", function() {
+        // Setup
+        localStorage.removeItem([layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + client.appId]);
+        spyOn(client, "_isPersistedSessionsDisabled").and.returnValue(false);
+
+        // Run
+        client._restoreLastSession();
+
+        // Posttest
+        expect(client.sessionToken).toEqual('');
+      });
+
+      it("Should set the sessionToken if present and not expired", function() {
+        // Setup
+        localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + client.appId] = JSON.stringify({
+          userId: 'FrodoTheDodo',
+          sessionToken: 'fred',
+          expires: Date.now() + 10000000
         });
+        spyOn(client, "_isPersistedSessionsDisabled").and.returnValue(false);
+        client.__userId = 'FrodoTheDodo';
+
+        // Run
+        client._restoreLastSession();
+
+        // Posttest
+        expect(client.sessionToken).toEqual('fred');
+      });
+
+      it("Should not set the sessionToken if present and expired but should delete it", function() {
+        // Setup
+        localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + client.appId] = JSON.stringify({
+          userId: 'FrodoTheDodo',
+          sessionToken: 'fred',
+          expires: Date.now() - 100
+        });
+        spyOn(client, "_isPersistedSessionsDisabled").and.returnValue(false);
+        client.__userId = 'FrodoTheDodo';
+
+        // Run
+        client._restoreLastSession();
+
+        // Posttest
+        expect(client.sessionToken).toEqual('');
+        expect(localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + client.appId]).toBe(undefined);
+      });
+
+      it("Should not set the sessionToken if present and persitence disabled", function() {
+        // Setup
+        localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + client.appId] = JSON.stringify({
+          userId: 'FrodoTheDodo',
+          sessionToken: 'fred'
+        });
+        spyOn(client, "_isPersistedSessionsDisabled").and.returnValue(true);
+        client.__userId = 'FrodoTheDodo';
+
+        // Run
+        client._restoreLastSession();
+
+        // Posttest
+        expect(client.sessionToken).toEqual('');
+      });
     });
+
+    describe("The _hasUserIdChanged() method", function() {
+      it("Should find the useId for this appId and return false if it matches the input userId", function() {
+        // Setup
+        localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + client.appId] = JSON.stringify({
+          userId: 'FrodoTheDodo',
+          sessionToken: '',
+          expires: Date.now() + 10000000
+        });
+
+        // Run
+        expect(client._hasUserIdChanged('FrodoTheDodo')).toBe(false);
+      });
+
+      it("Should return true if there is no session data", function() {
+        // Setup
+        localStorage.removeItem([layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + client.appId]);
+
+        // Run
+        expect(client._hasUserIdChanged('FrodoTheDodo')).toBe(true);
+      });
+
+      it("Should return true if there is a change in userId from the session data", function() {
+        // Setup
+        localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + client.appId] = JSON.stringify({
+          userId: 'Samwise',
+          sessionToken: '',
+          expires: Date.now() + 10000000
+        });
+
+        // Run
+        expect(client._hasUserIdChanged('FrodoTheDodo')).toBe(true);
+      });
+    });
+
 
 
     describe("The _initComponents() method", function() {
@@ -175,13 +204,6 @@ describe("The Client Authenticator Class", function() {
             client._destroyComponents();
         });
 
-        it("Should initiate the _connect process", function() {
-            spyOn(client, "_connect");
-            client._initComponents();
-            expect(client._connect).toHaveBeenCalled();
-            client._destroyComponents();
-        });
-
         it("Should setup the onlineManager", function() {
             client._initComponents();
             client.isAuthenticated = true;
@@ -193,13 +215,100 @@ describe("The Client Authenticator Class", function() {
     });
 
 
-    describe("The _connect() method", function() {
+    describe("The connect() method", function() {
+        it("Should call _clearStoredData if not a trusted device", function() {
+          // Setup
+          client.isTrustedDevice = false;
+          spyOn(client, "_clearStoredData");
+
+          // Run
+          client.connect("hey");
+
+          // Posttest
+          expect(client._clearStoredData).toHaveBeenCalledWith();
+        });
+
+        it("Should call _clearStoredData if a trusted device but no userId", function() {
+          // Setup
+          client.isTrustedDevice = true;
+          spyOn(client, "_clearStoredData");
+
+          // Run
+          client.connect();
+
+          // Posttest
+          expect(client._clearStoredData).toHaveBeenCalledWith();
+        });
+
+        it("Should call _clearStoredData if a trusted device with userId but persistedSessions disabled", function() {
+          // Setup
+          client.isTrustedDevice = true;
+          spyOn(client, "_clearStoredData");
+          spyOn(client, "_isPersistedSessionsDisabled").and.returnValue(true);
+
+          // Run
+          client.connect("hey");
+
+          // Posttest
+          expect(client._clearStoredData).toHaveBeenCalledWith();
+        });
+
+        it("Should call _clearStoredData if a trusted device with userId and persistedSessions enabled but userId has changed", function() {
+          // Setup
+          client.isTrustedDevice = true;
+          spyOn(client, "_clearStoredData");
+          spyOn(client, "_isPersistedSessionsDisabled").and.returnValue(false);
+          spyOn(client, "_hasUserIdChanged").and.returnValue(true);
+
+          // Run
+          client.connect("hey");
+
+          // Posttest
+          expect(client._clearStoredData).toHaveBeenCalledWith();
+        });
+
+        it("Should not call _clearStoredData if a trusted device with userId and persistedSessions enabled and userId has not changed", function() {
+          // Setup
+          client.isTrustedDevice = true;
+          spyOn(client, "_clearStoredData");
+          spyOn(client, "_isPersistedSessionsDisabled").and.returnValue(false);
+          spyOn(client, "_hasUserIdChanged").and.returnValue(false);
+
+          // Run
+          client.connect("hey");
+
+          // Posttest
+          expect(client._clearStoredData).not.toHaveBeenCalled();
+
+        });
+
+        it("Should call _restoreLastSession if its a trustedDevice and has a userId", function() {
+          // Setup
+          client.isTrustedDevice = true;
+          spyOn(client, "_restoreLastSession");
+
+          // Run
+          client.connect("hey");
+
+          // Posttest
+          expect(client._restoreLastSession).toHaveBeenCalledWith("hey");
+        });
+
+        it("Should set the userId", function() {
+          // Run
+          client.connect("hey");
+
+          // Posttest
+          expect(client.userId).toEqual("hey");
+
+        });
+
         it("Should request a nonce if there is no sessionToken", function() {
             // Pretest
             expect(client.sessionToken).toEqual("");
 
             // Run
-            client._connect();
+            client.connect("FrodoTheDodo");
             requests.mostRecent().response({
                 status: 200
             });
@@ -224,7 +333,7 @@ describe("The Client Authenticator Class", function() {
             expect(client.sessionToken).toEqual("");
 
             // Run
-            client._connect();
+            client.connect("FrodoTheDodo");
             requests.mostRecent().response({
                 status: 200
             });
@@ -233,49 +342,132 @@ describe("The Client Authenticator Class", function() {
             expect(client._connectionResponse).toHaveBeenCalled();
         });
 
-        it("Should fire a test request if a sessionToken is found", function() {
+        it("Should call _sessionTokenRestored if token is found", function() {
             // Setup
             client.sessionToken = "sessionToken";
             expect(client.sessionToken).toEqual("sessionToken");
+            spyOn(client, "_sessionTokenRestored");
             var tmp = client._connect;
             client._connect = function() {};
             client._initComponents();
             client._connect = tmp;
 
             // Run
-            client._connect();
-            requests.mostRecent().response({
-                status: 200
-            });
+            client.connect("FrodoTheDodo");
 
             // Posttest
-            expect(requests.mostRecent()).toEqual({
-                method: "GET",
-                url: client.url + "/messages/ffffffff-ffff-ffff-ffff-ffffffffffff",
-                headers: {
-                    authorization: 'Layer session-token="sessionToken"',
-                    "content-type": "application/json",
-                    "accept": "application/vnd.layer+json; version=1.0"
-                }
-            });
-        });
-
-        it("Should call _connectionWithSessionResponse with test results", function() {
-            // Setup
-            client.sessionToken = "sessionToken";
-            spyOn(client, "_connectionWithSessionResponse");
-
-            // Run
-            client._connect();
-            requests.mostRecent().response({
-                status: 200
-            });
-
-            // Posttest
-            expect(client._connectionWithSessionResponse).toHaveBeenCalled();
+            expect(client._sessionTokenRestored).toHaveBeenCalledWith();
         });
     });
 
+    describe("The connectWithSession() method", function() {
+      it("Should throw errors if no userId or sessionToken", function() {
+        expect(function() {
+          client.connectWithSession('', 'sessionToken');
+        }).toThrowError(layer.LayerError.dictionary.sessionAndUserRequired);
+
+        expect(function() {
+          client.connectWithSession('userId', '');
+        }).toThrowError(layer.LayerError.dictionary.sessionAndUserRequired);
+      });
+
+      it("Should set the userId", function() {
+        // Pretest
+        client._initComponents();
+        expect(client.userId).toEqual('');
+
+        // Run
+        client.connectWithSession('userId', 'sessionToken');
+
+        // Posttest
+        expect(client.userId).toEqual('userId');
+      });
+
+      it("Should start the onlineManager", function() {
+        // Setup
+        client._initComponents();
+        spyOn(client.onlineManager, "start");
+
+        // Run
+        client.connectWithSession('userId', 'sessionToken');
+
+        // Posttest
+        expect(client.onlineManager.start).toHaveBeenCalledWith();
+      });
+
+      it("Should call _clearStoredData if not a trusted device", function() {
+        // Setup
+        client._initComponents();
+        client.isTrustedDevice = false;
+        spyOn(client, "_clearStoredData");
+
+        // Run
+        client.connectWithSession("hey", "ho");
+
+        // Posttest
+        expect(client._clearStoredData).toHaveBeenCalledWith();
+      });
+
+      it("Should call _clearStoredData if a trusted device with userId but persistedSessions disabled", function() {
+        // Setup
+        client._initComponents();
+        client.isTrustedDevice = true;
+        spyOn(client, "_clearStoredData");
+        spyOn(client, "_isPersistedSessionsDisabled").and.returnValue(true);
+
+        // Run
+        client.connectWithSession('userId', 'sessionToken');
+
+        // Posttest
+        expect(client._clearStoredData).toHaveBeenCalledWith();
+      });
+
+      it("Should call _clearStoredData if a trusted device with userId and persistedSessions enabled but userId has changed", function() {
+        // Setup
+        client._initComponents();
+        client.isTrustedDevice = true;
+        spyOn(client, "_clearStoredData");
+        spyOn(client, "_isPersistedSessionsDisabled").and.returnValue(false);
+        spyOn(client, "_hasUserIdChanged").and.returnValue(true);
+
+        // Run
+        client.connectWithSession('userId', 'sessionToken');
+
+        // Posttest
+        expect(client._clearStoredData).toHaveBeenCalledWith();
+      });
+
+      it("Should not call _clearStoredData if a trusted device with userId and persistedSessions enabled and userId has not changed", function() {
+        // Setup
+        client._initComponents();
+        client.isTrustedDevice = true;
+        spyOn(client, "_clearStoredData");
+        spyOn(client, "_isPersistedSessionsDisabled").and.returnValue(false);
+        spyOn(client, "_hasUserIdChanged").and.returnValue(false);
+
+        // Run
+        client.connectWithSession('userId', 'sessionToken');
+
+        // Posttest
+        expect(client._clearStoredData).not.toHaveBeenCalled();
+
+      });
+
+
+      it("Should call _authComplete asynchronously", function() {
+        // Setup
+        client._initComponents();
+        spyOn(client, "_authComplete");
+
+        // Run
+        client.connectWithSession('userId', 'sessionToken');
+        expect(client._authComplete).not.toHaveBeenCalled();
+        jasmine.clock().tick(2);
+
+        // Posttest
+        expect(client._authComplete).toHaveBeenCalledWith({ session_token: 'sessionToken' });
+      });
+    });
 
     describe("The _connectionResponse() method", function() {
         it("Should call _connectionError if success is false", function() {
@@ -291,33 +483,6 @@ describe("The Client Authenticator Class", function() {
             spyOn(client, "_connectionComplete");
             client._connectionResponse({success: true, data: "Doh!"});
             expect(client._connectionComplete).toHaveBeenCalledWith("Doh!");
-        });
-    });
-
-    describe("The _connectionWithSessionResponse() method", function() {
-        it("Should call _sessionTokenExpired if success if false and a nonce is provided", function() {
-            var layerError = new layer.LayerError({
-                message: "Hey",
-                url: "http://hey.com",
-                data: {nonce: "Ardvark!"}
-            });
-            spyOn(client, "_sessionTokenExpired");
-            client._connectionWithSessionResponse({
-                success: false,
-                data:layerError
-            });
-            expect(client._sessionTokenExpired).toHaveBeenCalledWith("Ardvark!");
-        });
-
-
-        it("Should call _sessionTokenRestored if success is false but no nonce", function() {
-            spyOn(client, "_sessionTokenRestored");
-            var err = new layer.LayerError({message: "Doh", url: "Ray"});
-            client._connectionWithSessionResponse({
-                success: false,
-                data: err
-            });
-            expect(client._sessionTokenRestored).toHaveBeenCalledWith(err);
         });
     });
 
@@ -422,6 +587,29 @@ describe("The Client Authenticator Class", function() {
             expect(client.userId).toEqual("93c83ec4-b508-4a60-8550-099f9c42ec1a");
         });
 
+
+        it("Should accept a userId if it matches the current userId", function() {
+            // Setup
+            client.__userId = "93c83ec4-b508-4a60-8550-099f9c42ec1a";
+
+            // Run
+            client.answerAuthenticationChallenge(identityToken);
+
+            // Posttest
+            expect(client.userId).toEqual("93c83ec4-b508-4a60-8550-099f9c42ec1a");
+        });
+
+        it("Should reject a userId if it fails to match the current userId", function() {
+            // Setup
+            client.__userId = "FrodoTheDodo";
+
+            // Run
+            client.answerAuthenticationChallenge(identityToken);
+
+            // Posttest
+            expect(client.userId).toEqual("93c83ec4-b508-4a60-8550-099f9c42ec1a");
+        });
+
         it("Should set a userId with a url encoded url that is not base64", function() {
             // Pretest
             expect(client.userId).toEqual("");
@@ -502,7 +690,7 @@ describe("The Client Authenticator Class", function() {
             // Run
             client._authComplete({
                 session_token: "sessionToken"
-            }, identityToken);
+            });
 
             // Posttest
             expect(client.sessionToken).toEqual("sessionToken");
@@ -515,7 +703,7 @@ describe("The Client Authenticator Class", function() {
             // Run
             client._authComplete({
                 session_token: "sessionToken"
-            }, identityToken);
+            });
 
             // Posttest
             expect(client.isAuthenticated).toEqual(true);
@@ -529,7 +717,7 @@ describe("The Client Authenticator Class", function() {
             // Run
             client._authComplete({
                 session_token: "sessionToken"
-            }, identityToken);
+            });
 
             // Posttest
             expect(client.trigger).toHaveBeenCalledWith("authenticated");
@@ -542,10 +730,44 @@ describe("The Client Authenticator Class", function() {
             // Run
             client._authComplete({
                 session_token: "sessionToken"
-            }, identityToken);
+            });
 
             // Posttest
             expect(client._clientReady).toHaveBeenCalled();
+        });
+
+        it("Should write localStorage if _isPersistedSessionsDisabled is false", function() {
+          // Setup
+          localStorage.removeItem([layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + client.appId]);
+          spyOn(client, "_isPersistedSessionsDisabled").and.returnValue(false);
+          client.__userId = "FrodoTheDodo";
+
+          // Run
+          client._authComplete({
+              session_token: "sessionToken"
+          });
+
+          // Posttest
+          expect(JSON.parse(localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + client.appId])).toEqual({
+            sessionToken: "sessionToken",
+            userId: "FrodoTheDodo",
+            expires: jasmine.any(Number)
+          });
+        });
+
+        it("Should ignore localStorage if _isPersistedSessionsDisabled is true", function() {
+          // Setup
+          localStorage.removeItem([layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + client.appId]);
+          spyOn(client, "_isPersistedSessionsDisabled").and.returnValue(true);
+          client.__userId = "FrodoTheDodo";
+
+          // Run
+          client._authComplete({
+              session_token: "sessionToken"
+          });
+
+          // Posttest
+          expect(localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + client.appId]).toBe(undefined);
         });
     });
     describe("The _authError() method", function() {
@@ -609,20 +831,6 @@ describe("The Client Authenticator Class", function() {
         });
     });
 
-    describe("The _sessionTokenExpired() method", function() {
-        it("Should clear the sessionToken", function() {
-            client.sessionToken = "sessionToken";
-            client._sessionTokenExpired("nonce");
-            expect(client.sessionToken).toEqual("");
-        });
-
-        it("Should call _authenticate", function() {
-            spyOn(client, "_authenticate");
-            client._sessionTokenExpired("nonce");
-            expect(client._authenticate).toHaveBeenCalledWith("nonce");
-        });
-    });
-
     describe("The _clientReady() method", function() {
       beforeEach(function() {
           client._initComponents();
@@ -630,6 +838,98 @@ describe("The Client Authenticator Class", function() {
 
       afterEach(function() {
         client._destroyComponents();
+      });
+
+      it("Should initialize the dbManager", function() {
+        expect(client.dbManager).toBe(null);
+        client._clientReady();
+        expect(client.dbManager).toEqual(jasmine.any(layer.DbManager));
+      });
+
+      it("Should initialize the dbManager to all disabled if not isTrustedDevice", function() {
+        // Setup
+        client.isTrustedDevice = false;
+
+        // Run
+        client._clientReady();
+
+        // Posttest
+        expect(client.dbManager).toEqual(jasmine.any(layer.DbManager));
+        expect(client.dbManager.tables).toEqual({
+          conversations: false,
+          messages: false,
+          identity: false,
+          syncQueue: false,
+          sessionToken: false
+        });
+      });
+
+      it("Should initialize the dbManager to all disabled if not isTrustedDevice and persistenceFeatures provided", function() {
+        // Setup
+        client.isTrustedDevice = false;
+        client.persistenceFeatures = {
+          conversations: true,
+          messages: true,
+          identity: true,
+          syncQueue: true,
+          sessionToken: true
+        };
+
+        // Run
+        client._clientReady();
+
+        // Posttest
+        expect(client.dbManager).toEqual(jasmine.any(layer.DbManager));
+        expect(client.dbManager.tables).toEqual({
+          conversations: false,
+          messages: false,
+          identity: false,
+          syncQueue: false,
+          sessionToken: false
+        });
+      });
+
+      it("Should initialize the dbManager to all enabled if isTrustedDevice and no persistenceFeatures", function() {
+         // Setup
+        client.isTrustedDevice = true;
+
+        // Run
+        client._clientReady();
+
+        // Posttest
+        expect(client.dbManager).toEqual(jasmine.any(layer.DbManager));
+        expect(client.dbManager.tables).toEqual({
+          conversations: true,
+          messages: true,
+          identity: true,
+          syncQueue: true,
+          sessionToken: true
+        });
+      });
+
+      it("Should initialize the dbManager to custom values if isTrustedDevice and persistenceFeatures provided", function() {
+        // Setup
+        client.isTrustedDevice = true;
+        client.persistenceFeatures = {
+          conversations: true,
+          messages: false,
+          identity: true,
+          syncQueue: false,
+          sessionToken: true
+        };
+
+        // Run
+        client._clientReady();
+
+        // Posttest
+        expect(client.dbManager).toEqual(jasmine.any(layer.DbManager));
+        expect(client.dbManager.tables).toEqual({
+          conversations: true,
+          messages: false,
+          identity: true,
+          syncQueue: false,
+          sessionToken: true
+        });
       });
 
       it("Should trigger ready", function() {
@@ -710,7 +1010,7 @@ describe("The Client Authenticator Class", function() {
         });
 
 
-        it("Should call _resetSession if authenticated", function() {
+        it("Should call _resetSession", function() {
              // Setup
             client.isAuthenticated = true;
             spyOn(client, "_resetSession");
@@ -722,8 +1022,48 @@ describe("The Client Authenticator Class", function() {
             // Posttest
             expect(client._resetSession).toHaveBeenCalledWith();
         });
+
+        it("Should call _clearStoredData", function() {
+          // Setup
+          spyOn(client, "_clearStoredData");
+
+          // Run
+          client.logout();
+
+          // POsttest
+          expect(client._clearStoredData).toHaveBeenCalledWith();
+        });
     });
 
+    describe("The _clearStoredData() method", function() {
+      it("Should call deleteTables", function() {
+        // Setup
+        client._initComponents();
+        client._clientReady();
+        spyOn(client.dbManager, "deleteTables");
+
+        // Run
+        client._clearStoredData();
+
+        // Posttest
+        expect(client.dbManager.deleteTables).toHaveBeenCalledWith();
+      });
+
+      it("Should clear localStorage", function() {
+        // Setup
+        localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + client.appId] = JSON.stringify({
+          userId: 'FrodoTheDodo',
+          sessionToken: 'fred',
+          expires: Date.now() + 10000000
+        });
+
+        // Run
+        client._clearStoredData();
+
+        // Posttest
+        expect(localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + client.appId]).toBe(undefined);
+      });
+    });
 
     describe("The _resetSession() method", function() {
         beforeEach(function() {
@@ -869,6 +1209,18 @@ describe("The Client Authenticator Class", function() {
         client.logLevel = 100;
         expect(client.logLevel).toEqual(100);
         client.logLevel = 0;
+      });
+    });
+
+    describe("The _destroyComponents() method", function() {
+       beforeEach(function() {
+          client._initComponents();
+      });
+      it("Should destroy dbManager", function() {
+        client._clientReady();
+        var dbManager = client.dbManager;
+        client._destroyComponents();
+        expect(dbManager.isDestroyed).toBe(true);
       });
     });
 });

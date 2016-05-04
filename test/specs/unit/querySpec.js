@@ -18,7 +18,7 @@ describe("The Query Class", function() {
         });
         client.sessionToken = "sessionToken";
         client.userId = "Frodo";
-        client.isReady = true;
+        client._clientReady();
 
         conversation = client._createObject(responses.conversation1).conversation;
         conversation2 = client._createObject(responses.conversation2).conversation;
@@ -113,7 +113,20 @@ describe("The Query Class", function() {
             expect(layer.Query.prototype._run).toHaveBeenCalledWith();
 
             // Restore
-            layer.Query.prototype._run = tmp;;
+            layer.Query.prototype._run = tmp;
+        });
+
+        it("Should initialize with isReset", function() {
+            // Setup
+            client.isReady = false;
+
+            // Run
+            var query = new layer.Query({
+                client: client
+            });
+
+            // Posttest
+            expect(query.isReset).toBe(true);
         });
 
         // Integration test verifies that new Conversation in the Client
@@ -279,6 +292,12 @@ describe("The Query Class", function() {
             expect(query._predicate).toEqual(null);
         });
 
+        it("Should set isReset", function() {
+           query.isReset = false;
+           query._reset();
+           expect(query.isReset).toBe(true);
+        });
+
         it("Should trigger a reset change", function() {
             spyOn(query, "_triggerChange");
             query._reset();
@@ -408,6 +427,27 @@ describe("The Query Class", function() {
 
         afterEach(function() {
             query.destroy();
+        });
+
+        it("Should call dbManager.loadConversations if its a new query", function() {
+          query._reset();
+          spyOn(client.dbManager, "loadConversations");
+          query._runConversation();
+          expect(client.dbManager.loadConversations).toHaveBeenCalled();
+        });
+
+        it("Should skip call dbManager.loadConversations if its not a new query", function() {
+          query._reset();
+          query._runConversation();
+          spyOn(client.dbManager, "loadConversations");
+          query._runConversation();
+          expect(client.dbManager.loadConversations).not.toHaveBeenCalled();
+        });
+
+        it("Should clear isReset", function() {
+          query._reset();
+          query._runConversation();
+          expect(query.isReset).toBe(false);
         });
 
         it("Should set isFiring to true", function() {
@@ -561,6 +601,27 @@ describe("The Query Class", function() {
             expect(query._predicate).toEqual(conversation.id);
         });
 
+
+        it("Should call dbManager.loadMessages if its a new query", function() {
+          query._reset();
+          spyOn(client.dbManager, "loadMessages");
+          query._runMessage(140);
+          expect(client.dbManager.loadMessages).toHaveBeenCalled();
+        });
+
+        it("Should clear isReset", function() {
+          query._reset();
+          query._runMessage(141);
+          expect(query.isReset).toBe(false);
+        });
+
+        it("Should skip call dbManager.loadMessages if its not a new query", function() {
+          query._reset();
+          query._runConversation();
+          spyOn(client.dbManager, "loadMessages");
+          query._runMessage(142);
+          expect(client.dbManager.loadMessages).not.toHaveBeenCalled();
+        });
 
         it("Should call without from_id", function() {
             query._runMessage(41);
@@ -1186,6 +1247,27 @@ describe("The Query Class", function() {
                 expect(query.data).not.toBe(data);
                 expect(query.data[1].id).toEqual(id);
                 expect(data[1].id).toEqual(tempId);
+            });
+
+            it("Should update the array object and the conversation object for unreadCount change", function() {
+                // Setup
+                var data = query.data;
+                var originalObject = data[1];
+                originalObject.unreadCount = 1;
+                conversation._clearObject();
+                var evt = new layer.LayerEvent({
+                    property: "unreadCount",
+                    oldValue: 1,
+                    newValue: 2,
+                    target: conversation
+                }, "conversations:change");
+
+                // Run
+                query._handleConversationChangeEvent(evt);
+
+                // Posttest
+                expect(query.data).not.toBe(data);
+                expect(query.data[1]).not.toEqual(originalObject);
             });
 
             it("Should update the array object but not reorder for lastMessage events", function() {

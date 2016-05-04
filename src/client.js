@@ -170,6 +170,7 @@ class Client extends ClientAuth {
   }
 
   destroy() {
+
     // Cleanup all plugins
     Object.keys(Client.plugins).forEach(propertyName => {
       if (this[propertyName]) {
@@ -379,13 +380,12 @@ class Client extends ClientAuth {
         this._triggerAsync('messages:notify', { message });
         message._notify = false;
       }
-      const conversation = message.getConversation();
-      if (conversation) {
-        if (!conversation.lastMessage || conversation.lastMessage.position < message.position) {
-          const lastMessageWas = conversation.lastMessage;
-          conversation.lastMessage = message;
-          if (lastMessageWas) this._checkAndPurgeCache([lastMessageWas]);
-        }
+
+      const conversation = message.getConversation(false);
+      if (conversation && (!conversation.lastMessage || conversation.lastMessage.position < message.position)) {
+        const lastMessageWas = conversation.lastMessage;
+        conversation.lastMessage = message;
+        if (lastMessageWas) this._scheduleCheckAndPurgeCache(lastMessageWas);
       } else {
         this._scheduleCheckAndPurgeCache(message);
       }
@@ -410,7 +410,7 @@ class Client extends ClientAuth {
       delete this._messagesHash[id];
       if (!this._inCleanup) {
         this._triggerAsync('messages:remove', { messages: [message] });
-        const conv = message.getConversation();
+        const conv = message.getConversation(false);
         if (conv && conv.lastMessage === message) conv.lastMessage = null;
       }
     }
@@ -490,8 +490,7 @@ class Client extends ClientAuth {
   _createObject(obj) {
     switch (Util.typeFromID(obj.id)) {
       case 'messages': {
-        const conversation = this.getConversation(obj.conversation.id, true);
-        return Message._createFromServer(obj, conversation);
+        return Message._createFromServer(obj, obj.conversation.id, this);
       }
 
       case 'conversations': {

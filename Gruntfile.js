@@ -122,6 +122,7 @@ module.exports = function (grunt) {
           "lib/query-builder.js": "src/query-builder.js",
           "lib/sync-manager.js": "src/sync-manager.js",
           "lib/sync-event.js": "src/sync-event.js",
+          "lib/db-manager.js": "src/db-manager.js",
           "lib/online-state-manager.js": "src/online-state-manager.js",
           "lib/websockets/socket-manager.js": "src/websockets/socket-manager.js",
           "lib/websockets/request-manager.js": "src/websockets/request-manager.js",
@@ -302,7 +303,7 @@ module.exports = function (grunt) {
   grunt.loadNpmTasks('grunt-remove');
   grunt.registerTask('debug', ['browserify:debug']);
   grunt.registerTask('buildmin', ['browserify:build', 'uglify', 'remove:build']);
-  grunt.registerTask('build', ['debug', 'buildmin']);
+  grunt.registerTask('build', ['debug', 'buildmin', 'babel:dist']);
   grunt.registerTask('prepublish', ['babel:dist']);
 
   // Documentation

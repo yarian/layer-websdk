@@ -292,6 +292,7 @@ class Query extends Root {
     this.isFiring = false;
     this._predicate = null;
     this.paginationWindow = this._initialPaginationWindow;
+    this.isReset = true;
     this._triggerChange({
       data: [],
       type: 'reset',
@@ -345,6 +346,12 @@ class Query extends Root {
    * @param  {number} pageSize - Number of new results to request
    */
   _runConversation(pageSize) {
+    // If no data, retrieve data from db cache in parallel with loading data from server
+    if (this.isReset) {
+      this.client.dbManager.loadConversations(conversations => this._appendResults({ data: conversations }));
+    }
+    this.isReset = false;
+
     // This is a pagination rather than an initial request if there is already data; get the fromId
     // which is the id of the last result.
     const lastConversation = this.data[this.data.length - 1];
@@ -424,6 +431,12 @@ class Query extends Root {
       if (!this._predicate) this._predicate = predicateIds.id;
       const conversation = this.client.getConversation(conversationId);
 
+      // If no data, retrieve data from db cache in parallel with loading data from server
+      if (this.isReset) {
+        this.client.dbManager.loadMessages(conversationId, messages => this._appendResults({ data: messages }));
+      }
+      this.isReset = false;
+
       // If the only Message is the Conversation's lastMessage, then we probably got this
       // result from `GET /conversations`, and not from `GET /messages`.  Get ALL Messages,
       // not just messages after the `lastMessage` if we've never received any messages from
@@ -497,7 +510,10 @@ class Query extends Root {
   _appendResults(results) {
     // For all results, register them with the client
     // If already registered with the client, properties will be updated as needed
-    results.data.forEach(item => this.client._createObject(item));
+    results.data.forEach(item => {
+      if (item instanceof Root) return item;
+      return this.client._createObject(item);
+    });
 
     // Filter results to just the new results
     const newResults = results.data.filter(item => this._getIndex(item.id) === -1);
@@ -522,7 +538,7 @@ class Query extends Root {
     // Trigger the change event
     this._triggerChange({
       type: 'data',
-      data: results.data.map(item => this._getData(this.client._getObject(item.id))),
+      data: newResults.map(item => this._getData(this.client._getObject(item.id))),
       query: this,
       target: this.client,
     });
@@ -681,20 +697,21 @@ class Query extends Root {
             ...this.data.slice(index + 1),
           ];
         } else {
-          // Move the changed Conversation to the top of the list
+          const newIndex = this._getInsertConversationIndex(evt.target, this.data);
           this.data.splice(index, 1);
-          this.data = [
-            evt.target.toObject(),
-            ...this.data,
-          ];
+          this.data.splice(newIndex, 0, this._getData(evt.target));
+          this.data = this.data.concat([]);
         }
       }
 
       // Else dataType is instance not object
       else {
         if (reorder) {
-          this.data.splice(index, 1);
-          this.data.unshift(evt.target);
+          const newIndex = this._getInsertConversationIndex(evt.target, this.data);
+          if (newIndex !== index) {
+            this.data.splice(index, 1);
+            this.data.splice(newIndex, 0, evt.target);
+          }
         }
       }
 
@@ -889,7 +906,7 @@ class Query extends Root {
   }
 
   _handleMessageChangeEvent(evt) {
-    const index = this._getIndex(evt.target.id);
+    let index = this._getIndex(evt.target.id);
     const positionChanges = evt.getChangesFor('position');
 
     // If there are position changes, handle them.  If all the changes are position changes,
@@ -897,6 +914,7 @@ class Query extends Root {
     if (positionChanges.length) {
       if (this._handleMessagePositionChange(evt, index)) {
         if (positionChanges.length === evt.changes.length) return;
+        index = this._getIndex(evt.target.id); // Get the updated position
       }
     }
 
@@ -1160,6 +1178,8 @@ Query.prototype._initialPaginationWindow = 100;
  * @type {string}
  */
 Query.prototype.predicate = null;
+
+Query.prototype.isReset = true;
 
 /**
  * True if the Query is connecting to the server.

@@ -285,7 +285,41 @@ describe("The Conversation Class", function() {
           conversation.send(m);
 
           // Posttest
-          expect(conversation.lastMessage.position).toBe(6);
+          expect(conversation.lastMessage.position > mOld.position).toBe(true);
+        });
+
+        it("Should update the lastMessage position property to higher position the more time has passed", function(done) {
+          jasmine.clock().uninstall();
+
+          mOld = new layer.Message({
+            client: client,
+            parts: [{body: "hey", mimeType: "text/plain"}]
+          });
+          mOld.position = 5;
+          conversation.lastMessage = mOld;
+          m = new layer.Message({
+            client: client,
+            parts: [{body: "hey", mimeType: "text/plain"}]
+          });
+
+          m2 = new layer.Message({
+            client: client,
+            parts: [{body: "ho", mimeType: "text/plain"}]
+          });
+
+          // Run
+          conversation.send(m);
+          var position1 = m.position;
+
+          // Reset
+          conversation.lastMessage = mOld;
+
+          // Retest on m2
+          setTimeout(function() {
+            conversation.send(m2);
+            expect(m2.position > position1).toBe(true, (m2.position + " | " + position1));
+            done();
+          }, 100);
         });
 
         it("Should set the lastMessage position property to 0 if no prior message", function() {
@@ -395,13 +429,48 @@ describe("The Conversation Class", function() {
             // Posttest
             expect(client.sendSocketRequest).toHaveBeenCalledWith({
                 method: 'POST',
-                body: jasmine.any(Function),
+                body: {},
                 sync: {
                   depends: conversation.id,
                   target: conversation.id
                 }
               }, jasmine.any(Function));
         });
+    });
+
+    describe("The _getSendData() method", function() {
+      it("Should return the current state of the data in a create format", function() {
+        var conversation = new layer.Conversation({
+          participants: ["a", client.userId],
+          client: client,
+          metadata: {hey: "ho"}
+        });
+        expect(conversation._getSendData()).toEqual({
+          method: 'Conversation.create',
+          data: {
+            participants: ["a", client.userId],
+            distinct: true,
+            metadata: {hey: "ho"},
+            id: conversation.id
+          }
+        });
+      });
+
+      it("Should return null if no metadata", function() {
+        var conversation = new layer.Conversation({
+          participants: ["a", client.userId],
+          client: client
+        });
+        expect(conversation._getSendData()).toEqual({
+          method: 'Conversation.create',
+          data: {
+            id: conversation.id,
+            participants: ["a", client.userId],
+            distinct: true,
+            metadata: null
+          }
+        });
+      });
     });
 
     describe("The _handleLocalDistinctConversation() method", function() {
@@ -432,35 +501,6 @@ describe("The Conversation Class", function() {
 
             // Posttest
             expect(called).toBe(false);
-        });
-    });
-
-    describe("The _getPostData() method", function() {
-        it("Should return participants", function() {
-            conversation.participants = ["a", "b", "c"];
-            expect(conversation._getPostData().participants).toEqual(["a","b","c"]);
-        });
-
-        it("Should return distinct", function() {
-            conversation.distinct = true;
-            expect(conversation._getPostData().distinct).toEqual(true);
-
-            conversation.distinct = false;
-            expect(conversation._getPostData().distinct).toEqual(false);
-        });
-
-        it("Should return null if no metadata", function() {
-            conversation.metadata = {};
-            expect(conversation._getPostData().metadata).toEqual(null);
-        });
-
-        it("Should return  metadata", function() {
-            conversation.metadata = {a: "b", c: "d"};
-            expect(conversation._getPostData().metadata).toEqual({a: "b", c: "d"});
-        });
-
-        it("Should return the Conversation ID", function() {
-          expect(conversation._getPostData().id).toEqual(conversation.id);
         });
     });
 
@@ -1501,6 +1541,7 @@ describe("The Conversation Class", function() {
 
 
     describe("The xhr() method", function() {
+
         it("Should throw an error if destroyed", function() {
             // Setup
             conversation.destroy();
@@ -1533,7 +1574,7 @@ describe("The Conversation Class", function() {
             expect(layer.LayerError.dictionary.urlRequired).toEqual(jasmine.any(String));
         });
 
-        it("Should do nothing if its not a POST request on a NEW Conversation", function() {
+        it("Should do nothing if its NEW and not a POST request on a NEW Conversation", function() {
             // Setup
             conversation.syncState = layer.Constants.SYNC_STATE.NEW;
             spyOn(client, "xhr");
@@ -1562,20 +1603,20 @@ describe("The Conversation Class", function() {
             expect(conversation._setSyncing).toHaveBeenCalledWith();
         });
 
-        it("Should call client.xhr", function() {
+        it("Should call client.xhr with function relative url if sync", function() {
             // Setup
             spyOn(client, "xhr");
             conversation.url = "hey";
 
             // Run
             conversation._xhr({
-                url: "",
+                url: "/ho",
                 method: "POST"
             });
 
             // Posttest
             expect(client.xhr).toHaveBeenCalledWith(jasmine.objectContaining({
-                url: "hey",
+                url: "/ho",
                 sync: {
                     target: conversation.id
                 },
@@ -1583,23 +1624,22 @@ describe("The Conversation Class", function() {
             }), jasmine.any(Function));
         });
 
-        it("Should call client.xhr with function getUrl", function() {
+        it("Should call client.xhr with function full url if no sync", function() {
             // Setup
             spyOn(client, "xhr");
-            conversation.url = "";
+            conversation.url = "hey";
 
             // Run
             conversation._xhr({
-                url: "",
-                method: "POST"
+                url: "/ho",
+                method: "POST",
+                sync: false
             });
 
             // Posttest
             expect(client.xhr).toHaveBeenCalledWith(jasmine.objectContaining({
-                url: jasmine.any(Function),
-                sync: {
-                    target: conversation.id
-                },
+                url: "hey/ho",
+                sync: false,
                 method: "POST"
             }), jasmine.any(Function));
         });
@@ -1677,15 +1717,17 @@ describe("The Conversation Class", function() {
             expect(conversation.destroy).toHaveBeenCalledWith();
         });
 
-        it("Should call _populateFromServer on success", function() {
+        it("Should call _populateFromServer on success with events disabled", function() {
             // Setup
             spyOn(conversation, "_populateFromServer");
+            spyOn(conversation, '_triggerAsync');
 
             // Run
             conversation._loadResult({success: true, data: "Argh"});
 
             // Posttest
             expect(conversation._populateFromServer).toHaveBeenCalledWith("Argh");
+            expect(conversation._triggerAsync).not.toHaveBeenCalled();
         });
 
         it("Should call _addConversation if success", function() {
