@@ -395,6 +395,7 @@ describe("The Client Authenticator Class", function() {
         expect(client.onlineManager.start).toHaveBeenCalledWith();
       });
 
+
       it("Should call _clearStoredData if not a trusted device", function() {
         // Setup
         client._initComponents();
@@ -587,7 +588,6 @@ describe("The Client Authenticator Class", function() {
             expect(client.userId).toEqual("93c83ec4-b508-4a60-8550-099f9c42ec1a");
         });
 
-
         it("Should accept a userId if it matches the current userId", function() {
             // Setup
             client.__userId = "93c83ec4-b508-4a60-8550-099f9c42ec1a";
@@ -609,6 +609,7 @@ describe("The Client Authenticator Class", function() {
             // Posttest
             expect(client.userId).toEqual("93c83ec4-b508-4a60-8550-099f9c42ec1a");
         });
+
 
         it("Should set a userId with a url encoded url that is not base64", function() {
             // Pretest

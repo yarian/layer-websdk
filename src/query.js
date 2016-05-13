@@ -179,6 +179,7 @@ const Logger = require('./logger');
 
 const CONVERSATION = 'Conversation';
 const MESSAGE = 'Message';
+const ANNOUNCEMENT = 'Announcement';
 const findConvIdRegex = new RegExp(
   /^conversation.id\s*=\s*['"](layer:\/\/\/conversations\/.{8}-.{4}-.{4}-.{4}-.{12})['"]$/);
 
@@ -335,6 +336,8 @@ class Query extends Root {
       this._runConversation(pageSize);
     } else if (this.model === MESSAGE && this.predicate) {
       this._runMessage(pageSize);
+    } else if (this.model === ANNOUNCEMENT) {
+      this._runAnnouncement(pageSize);
     }
   }
 
@@ -381,7 +384,7 @@ class Query extends Root {
    * @private
    */
   _getSortField() {
-    if (this.model === MESSAGE) return 'position';
+    if (this.model === MESSAGE || this.model === ANNOUNCEMENT) return 'position';
     if (this.sortBy && this.sortBy[0] && this.sortBy[0]['lastMessage.sentAt']) return 'last_message';
     return 'created_at';
   }
@@ -482,6 +485,40 @@ class Query extends Root {
   }
 
   /**
+   * Get Announcements from the server.
+   *
+   * @method _runAnnouncement
+   * @private
+   * @param  {number} pageSize - Number of new results to request
+   */
+  _runAnnouncement(pageSize) {
+    // If no data, retrieve data from db cache in parallel with loading data from server
+    if (this.isReset) {
+      this.client.dbManager.loadAnnouncements(messages => this._appendResults({ data: messages }));
+    }
+    this.isReset = false;
+
+    // This is a pagination rather than an initial request if there is already data; get the fromId
+    // which is the id of the last result.
+    const lastMessage = this.data[this.data.length - 1];
+    const lastMessageInstance = !lastMessage ? null : this._getInstance(lastMessage);
+    const fromId = (lastMessageInstance && lastMessageInstance.isSaved() ? '&from_id=' + lastMessageInstance.id : '');
+    const newRequest = `announcements?page_size=${pageSize}${fromId}`;
+
+    // Don't repeat still firing queries
+    if (newRequest !== this._firingRequest) {
+      this.isFiring = true;
+      this._firingRequest = newRequest;
+      this.client.xhr({
+        url: newRequest,
+        method: 'GET',
+        sync: false,
+      }, results => this._processRunResults(results, newRequest));
+    }
+  }
+
+
+  /**
    * Process the results of the `_run` method; calls __appendResults.
    *
    * @method _processRunResults
@@ -526,7 +563,7 @@ class Query extends Root {
     newResults.forEach(itemIn => {
       let index;
       const item = this.client._getObject(itemIn.id);
-      if (this.model === MESSAGE) {
+      if (this.model === MESSAGE || this.model === ANNOUNCEMENT) {
         index = this._getInsertMessageIndex(item, data);
       } else {
         index = this._getInsertConversationIndex(item, data);
@@ -585,6 +622,12 @@ class Query extends Root {
    */
   _getItem(id) {
     switch (Util.typeFromID(id)) {
+      case 'announcements':
+        if (this.model === ANNOUNCEMENT) {
+          const index = this._getIndex(id);
+          return index === -1 ? null : this.data[index];
+        }
+        break;
       case 'messages':
         if (this.model === MESSAGE) {
           const index = this._getIndex(id);
@@ -638,7 +681,7 @@ class Query extends Root {
   _handleChangeEvents(eventName, evt) {
     if (this.model === CONVERSATION) {
       this._handleConversationEvents(evt);
-    } else {
+    } else if (this.model === MESSAGE || this.model === ANNOUNCEMENT) {
       this._handleMessageEvents(evt);
     }
   }
@@ -821,12 +864,13 @@ class Query extends Root {
 
       // If a Conversation's ID has changed, check our predicate, and update it automatically if needed.
       case 'conversations:change':
-        this._handleMessageConvIdChangeEvent(evt);
+        if (this.model === MESSAGE) this._handleMessageConvIdChangeEvent(evt);
         break;
 
       // If a Message has changed and its in our result set, replace
       // it with a new immutable object
       case 'messages:change':
+      case 'messages:read':
         this._handleMessageChangeEvent(evt);
         break;
 
@@ -918,7 +962,7 @@ class Query extends Root {
       }
     }
 
-    if (evt.target.conversationId === this._predicate && index !== -1) {
+    if (index !== -1) {
       if (this.dataType === Query.ObjectDataType) {
         this.data = [
           ...this.data.slice(0, index),
@@ -940,9 +984,20 @@ class Query extends Root {
     // Only use added messages that are part of this Conversation
     // and not already in our result set
     const list = evt.messages
-                  .filter(message => message.conversationId === this._predicate)
-                  .filter(message => this._getIndex(message.id) === -1)
-                  .map(message => this._getData(message));
+      // Filter so that we only see Messages if doing a Messages query or Announcements if doing an Announcements Query.
+      .filter(message => {
+        const type = Util.typeFromID(message.id);
+        return type === 'messages' && this.model === MESSAGE ||
+                type === 'announcements' && this.model === ANNOUNCEMENT;
+      })
+      // Filter out Messages that aren't part of this Conversation
+      .filter(message => {
+        const type = Util.typeFromID(message.id);
+        return type === 'announcements' || message.conversationId === this._predicate;
+      })
+      // Filter out Messages that are already in our data set
+      .filter(message => this._getIndex(message.id) === -1)
+      .map(message => this._getData(message));
 
     // Add them to our result set and trigger an event for each one
     if (list.length) {
@@ -1024,6 +1079,15 @@ Query.Conversation = CONVERSATION;
  * @static
  */
 Query.Message = MESSAGE;
+
+/**
+ * Query for Announcements.
+ *
+ * Use this value in the model property.
+ * @type {string}
+ * @static
+ */
+Query.Announcement = ANNOUNCEMENT;
 
 /**
  * Get data as POJOs/immutable objects.

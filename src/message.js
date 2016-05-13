@@ -121,7 +121,6 @@ const LayerError = require('./layer-error');
 const Constants = require('./const');
 const Util = require('./client-utils');
 const ClientRegistry = require('./client-registry');
-const logger = require('./logger');
 
 class Message extends Syncable {
   /**
@@ -174,6 +173,10 @@ class Message extends Syncable {
     this.isInitializing = false;
     if (options && options.fromServer) {
       client._addMessage(this);
+      const status = this.recipientStatus[client.userId];
+      if (status !== Constants.RECEIPT_STATE.READ && status !== Constants.RECEIPT_STATE.DELIVERED) {
+        this._sendReceipt('delivery');
+      }
     }
   }
 
@@ -466,8 +469,11 @@ class Message extends Syncable {
    * @param {string} [type=read] - One of layer.Constants.RECEIPT_STATE.READ or layer.Constants.RECEIPT_STATE.DELIVERY
    */
   _sendReceipt(type) {
+    // This little test exists so that we don't send receipts on Conversations we are no longer
+    // participants in (participants = [] if we are not a participant)
     const conversation = this.getConversation(false);
-    if (!conversation || conversation.participants.length === 0) return;
+    if (conversation && conversation.participants.length === 0) return;
+
     this._setSyncing();
     this._xhr({
       url: '/receipts',
@@ -920,86 +926,23 @@ class Message extends Syncable {
    * @protected
    * @static
    * @param  {Object} message - Server's representation of the message
-   * @param  {string} conversationId - Conversation for the message
    * @param  {layer.Client} client
    * @return {layer.Message}
    */
-  static _createFromServer(message, conversationId, client) {
-    const found = client.getMessage(message.id);
-    let newMessage;
-    if (found) {
-      newMessage = found;
-      newMessage._populateFromServer(message);
-    } else {
-      const fromWebsocket = message.fromWebsocket;
-      newMessage = new Message({
-        conversationId,
-        fromServer: message,
-        clientId: client.appId,
-        _fromDB: message._fromDB,
-        _notify: fromWebsocket && message.is_unread && message.sender.user_id !== client.userId,
-      });
-    }
-
-    const status = newMessage.recipientStatus[client.userId];
-    if (status !== Constants.RECEIPT_STATE.READ && status !== Constants.RECEIPT_STATE.DELIVERED) {
-      newMessage._sendReceipt('delivery');
-    }
-
-    return {
-      message: newMessage,
-      new: !found,
-    };
-  }
-
-  /**
-   * Loads the specified message from the server.
-   *
-   * Typically one should call
-   *
-   *     client.getMessage(messageId, true)
-   *
-   * This will get the Message from cache or layer.Message.load it from the server if not cached.
-   * Typically you do not need to call this method directly.
-   *
-   * @method load
-   * @static
-   * @param  {string} id - Message identifier
-   * @param  {layer.Client} client - Client whose conversations should contain the new message
-   * @return {layer.Message}
-   */
-  static load(id, client) {
-    if (!client || !(client instanceof Root)) throw new Error(LayerError.dictionary.clientMissing);
-    if (id.indexOf('layer:///messages/') !== 0) throw new Error(LayerError.dictionary.invalidId);
-
-    const message = new Message({
-      id,
-      url: client.url + id.substring(8),
+  static _createFromServer(message, client) {
+    const fromWebsocket = message.fromWebsocket;
+    return new Message({
+      conversationId: message.conversation.id,
+      fromServer: message,
       clientId: client.appId,
+      _fromDB: message._fromDB,
+      _notify: fromWebsocket && message.is_unread && message.sender.user_id !== client.userId,
     });
-    message.syncState = Constants.SYNC_STATE.LOADING;
-    client.xhr({
-      url: message.url,
-      method: 'GET',
-      sync: false,
-    }, (result) => this._loadResult(message, client, result));
-    return message;
   }
 
-  static _loadResult(message, client, result) {
-    if (!result.success) {
-      message.syncState = Constants.SYNC_STATE.NEW;
-      message._triggerAsync('messages:loaded-error', { error: result.data });
-      setTimeout(() => message.destroy(), 100); // Insure destroyed AFTER loaded-error event has triggered
-    } else {
-      this._loadSuccess(message, client, result.data);
-    }
-  }
-
-  static _loadSuccess(message, client, response) {
-    message._populateFromServer(response);
-    message.conversationId = response.conversation.id;
-    message._triggerAsync('messages:loaded');
+  _loaded(data) {
+    this.conversationId = data.conversation.id;
+    this.getClient()._addMessage(this);
   }
 
   /**
@@ -1195,6 +1138,8 @@ Message.prototype._toObject = null;
 
 Message.prototype._fromDB = false;
 
+Message.eventPrefix = 'messages';
+
 Message.prefixUUID = 'layer:///messages/';
 
 Message.inObjectIgnore = Syncable.inObjectIgnore;
@@ -1307,4 +1252,5 @@ Message._supportedEvents = [
 ].concat(Syncable._supportedEvents);
 
 Root.initClass.apply(Message, [Message, 'Message']);
+Syncable.subclasses.push(Message);
 module.exports = Message;

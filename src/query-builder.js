@@ -99,7 +99,16 @@ class MessagesQuery {
 
     return this._query;
   }
+}
 
+class AnnouncementQuery extends MessagesQuery {
+  constructor(options) {
+    super(options);
+    this._query.model = Query.Announcement;
+  }
+  build() {
+    return this._query;
+  }
 }
 
 /**
@@ -225,6 +234,10 @@ const QueryBuilder = {
     return new MessagesQuery();
   },
 
+  announcements() {
+    return new AnnouncementQuery();
+  },
+
   /**
    * Create a new layer.ConversationsQuery instance.
    *
@@ -251,6 +264,8 @@ const QueryBuilder = {
     switch (obj.model) {
       case Query.Message:
         return new MessagesQuery(obj);
+      case Query.Announcement:
+        return new AnnouncementQuery(obj);
       case Query.Conversation:
         return new ConversationsQuery(obj);
       default:

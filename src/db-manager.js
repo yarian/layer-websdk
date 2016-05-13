@@ -6,8 +6,6 @@
  *
  * TODO:
  * 0. Redesign this so that knowledge of the data is not hard-coded in
- * 1. JSDuck this class
- * 2. Update documentation repo
  * @class layer.db-manager
  * @protected
  */
@@ -58,8 +56,6 @@ class DbManager extends Root {
 
     this.client.syncManager.on('sync:add', evt => this.writeSyncEvents([evt.request], false));
     this.client.syncManager.on('sync:abort sync:error', evt => this.deleteObjects('syncQueue', [evt.request]));
-
-
 
     // Sync Queue only really works properly if we have the Messages and Conversations written to the DB; turn it off
     // if that won't be the case.
@@ -260,7 +256,7 @@ class DbManager extends Root {
       recipient_status: message.recipientStatus,
       sent_at: getDate(message.sentAt),
       received_at: getDate(message.receivedAt),
-      conversation: message.conversationId,
+      conversation: message.constructor.prefixUUID === 'layer:///announcements/' ? 'announcement' : message.conversationId,
       sync_state: message.syncState,
     }));
   }
@@ -436,7 +432,20 @@ class DbManager extends Root {
    * @param {layer.Message[]} callback.result
    */
   loadMessages(conversationId, callback) {
-    this._loadByIndex('messages', 'conversation', conversationId, (data) => {
+    this._loadByIndex('messages', 'conversation', conversationId, data => {
+      this._loadMessagesResult(data, callback);
+    });
+  }
+
+  /**
+   * Load all Announcements from the database.
+   *
+   * @method loadAnnouncements
+   * @param {Function} callback
+   * @param {layer.Announcement[]} callback.result
+   */
+  loadAnnouncements(callback) {
+    this._loadByIndex('messages', 'conversation', 'announcement', data => {
       this._loadMessagesResult(data, callback);
     });
   }
@@ -488,10 +497,10 @@ class DbManager extends Root {
       conversation._fromDB = true;
       const lastMessage = conversation.last_message;
       conversation.last_message = '';
-      const result = this.client._createObject(conversation);
-      result.conversation.syncState = conversation.sync_state;
-      result.conversation.lastMessage = this.client.getMessage(lastMessage) || null;
-      return result.conversation;
+      const newConversation = this.client._createObject(conversation);
+      newConversation.syncState = conversation.sync_state;
+      newConversation.lastMessage = this.client.getMessage(lastMessage) || null;
+      return newConversation;
     }
   }
 
@@ -509,9 +518,9 @@ class DbManager extends Root {
     if (!this.client.getMessage(message.id)) {
       message._fromDB = true;
       message.conversation = { id: message.conversation };
-      const result = this.client._createObject(message);
-      result.message.syncState = message.sync_state;
-      return result.message;
+      const newMessage = this.client._createObject(message);
+      newMessage.syncState = message.sync_state;
+      return newMessage;
     }
   }
 
@@ -574,7 +583,10 @@ class DbManager extends Root {
     // If the target is present in the sync event, but does not exist in the system,
     // do NOT attempt to instantiate this event... unless its a DELETE operation.
     const newData = syncEvents
-    .filter(syncEvent => !syncEvent.target || syncEvent.operation === 'DELETE' || this.client._getObject(syncEvent.target))
+    .filter((syncEvent) => {
+      const hasTarget = Boolean(syncEvent.target && this.client._getObject(syncEvent.target));
+      return syncEvent.operation === 'DELETE' || hasTarget;
+    })
     .map((syncEvent) => {
       if (syncEvent.isWebsocket) {
         return new SyncEvent.WebsocketSyncEvent({
@@ -775,7 +787,6 @@ class DbManager extends Root {
         TABLES.forEach(tableName => transaction.objectStore(tableName).clear());
         transaction.oncomplete = callback;
       } catch (e) {
-        // Noop
         logger.error('Failed to delete table', e);
       }
     });
