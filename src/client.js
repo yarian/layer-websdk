@@ -1360,6 +1360,7 @@ Client._supportedEvents = [
    */
   'messages:change',
 
+
   /**
    * A call to layer.Message.load has completed successfully
    *
