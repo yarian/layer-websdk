@@ -6,6 +6,7 @@ describe("The Query Class", function() {
         conversation2,
         announcement,
         message,
+        identity,
         client,
         requests;
 
@@ -19,8 +20,35 @@ describe("The Query Class", function() {
         });
         client.sessionToken = "sessionToken";
         client.userId = "Frodo";
-        client._clientReady();
+              client.user = new layer.UserIdentity({
+          clientId: client.appId,
+          userId: client.userId,
+          id: "layer:///identities/" + client.userId,
+          firstName: "first",
+          lastName: "last",
+          phoneNumber: "phone",
+          emailAddress: "email",
+          metadata: {},
+          publicKey: "public",
+          avatarUrl: "avatar",
+          displayName: "display",
+          syncState: layer.Constants.SYNC_STATE.SYNCED,
+          isFullIdentity: true,
+          sessionOwner: true
+        });
 
+
+        client._clientAuthenticated();
+        getObjectsResult = [];
+        spyOn(client.dbManager, "getObjects").and.callFake(function(tableName, ids, callback) {
+            setTimeout(function() {
+                callback(getObjectsResult);
+            }, 10);
+        });
+        client._clientReady();
+        client.onlineManager.isOnline = true;
+
+        identity = client._createObject(responses.useridentity);
         conversation = client._createObject(responses.conversation1);
         announcement = client._createObject(responses.announcement);
         conversation2 = client._createObject(responses.conversation2);
@@ -116,19 +144,6 @@ describe("The Query Class", function() {
 
             // Restore
             layer.Query.prototype._run = tmp;
-        });
-
-        it("Should initialize with isReset", function() {
-            // Setup
-            client.isReady = false;
-
-            // Run
-            var query = new layer.Query({
-                client: client
-            });
-
-            // Posttest
-            expect(query.isReset).toBe(true);
         });
 
         // Integration test verifies that new Conversation in the Client
@@ -288,16 +303,19 @@ describe("The Query Class", function() {
             expect(query.paginationWindow).toEqual(15);
         });
 
+
+        it("Should reset pagination properties", function() {
+           query._nextServerFromId = "hey";
+           query._nextDBFromId = "ho";
+           query._reset();
+           expect(query._nextServerFromId).toEqual('');
+           expect(query._nextDBFromId).toEqual('');
+        });
+
         it("Should reset _predicate", function() {
             query._predicate = "hey";
             query._reset();
             expect(query._predicate).toEqual(null);
-        });
-
-        it("Should set isReset", function() {
-           query.isReset = false;
-           query._reset();
-           expect(query.isReset).toBe(true);
         });
 
         it("Should trigger a reset change", function() {
@@ -373,6 +391,8 @@ describe("The Query Class", function() {
             spyOn(query, "_runConversation");
             spyOn(query, "_runMessage");
             spyOn(query, "_runAnnouncement");
+            spyOn(query, "_runIdentity");
+
             spyOn(client, "_checkAndPurgeCache");
             spyOn(query, "trigger");
             query.data = [conversation];
@@ -385,6 +405,7 @@ describe("The Query Class", function() {
             expect(query._runConversation).toHaveBeenCalledWith(14);
             expect(query._runMessage).not.toHaveBeenCalled();
             expect(query._runAnnouncement).not.toHaveBeenCalled();
+            expect(query._runIdentity).not.toHaveBeenCalled();
             expect(query.trigger).not.toHaveBeenCalled();
         });
 
@@ -394,6 +415,7 @@ describe("The Query Class", function() {
             spyOn(query, "_runConversation");
             spyOn(query, "_runMessage");
             spyOn(query, "_runAnnouncement");
+            spyOn(query, "_runIdentity");
             spyOn(client, "_checkAndPurgeCache");
             spyOn(query, "trigger");
             query.data = [message];
@@ -406,6 +428,7 @@ describe("The Query Class", function() {
             expect(query._runMessage).toHaveBeenCalledWith(14);
             expect(query._runAnnouncement).not.toHaveBeenCalled();
             expect(query._runConversation).not.toHaveBeenCalled();
+            expect(query._runIdentity).not.toHaveBeenCalled();
             expect(query.trigger).not.toHaveBeenCalled();
         });
 
@@ -414,6 +437,7 @@ describe("The Query Class", function() {
             spyOn(query, "_runConversation");
             spyOn(query, "_runMessage");
             spyOn(query, "_runAnnouncement");
+            spyOn(query, "_runIdentity");
             spyOn(client, "_checkAndPurgeCache");
             spyOn(query, "trigger");
             query.data = [announcement];
@@ -426,6 +450,29 @@ describe("The Query Class", function() {
             expect(query._runMessage).not.toHaveBeenCalled()
             expect(query._runAnnouncement).toHaveBeenCalledWith(14);
             expect(query._runConversation).not.toHaveBeenCalled();
+            expect(query._runIdentity).not.toHaveBeenCalled();
+            expect(query.trigger).not.toHaveBeenCalled();
+        });
+
+        it("Should call _runIdentity if the model is Identity", function() {
+            query.model = layer.Query.Identity;
+            spyOn(query, "_runConversation");
+            spyOn(query, "_runMessage");
+            spyOn(query, "_runAnnouncement");
+            spyOn(query, "_runIdentity");
+            spyOn(client, "_checkAndPurgeCache");
+            spyOn(query, "trigger");
+            query.data = [identity];
+
+            // Run
+            query._run();
+
+            // Posttest
+            expect(client._checkAndPurgeCache).not.toHaveBeenCalled();
+            expect(query._runMessage).not.toHaveBeenCalled()
+            expect(query._runAnnouncement).not.toHaveBeenCalled();
+            expect(query._runConversation).not.toHaveBeenCalled();
+            expect(query._runIdentity).toHaveBeenCalledWith(14);
             expect(query.trigger).not.toHaveBeenCalled();
         });
 
@@ -456,36 +503,41 @@ describe("The Query Class", function() {
             query.destroy();
         });
 
-        it("Should call dbManager.loadConversations if its a new query", function() {
-          query._reset();
-          spyOn(client.dbManager, "loadConversations");
-          query._runConversation();
-          expect(client.dbManager.loadConversations).toHaveBeenCalled();
-        });
-
-        it("Should skip call dbManager.loadConversations if its not a new query", function() {
-          query._reset();
-          query._runConversation();
-          spyOn(client.dbManager, "loadConversations");
-          query._runConversation();
-          expect(client.dbManager.loadConversations).not.toHaveBeenCalled();
-        });
-
-        it("Should clear isReset", function() {
-          query._reset();
-          query._runConversation();
-          expect(query.isReset).toBe(false);
-        });
-
         it("Should set isFiring to true", function() {
             query.isFiring = false;
             query._runConversation();
             expect(query.isFiring).toBe(true);
         });
 
-        it("Should call without from_id", function() {
+        it("Should call server with _nextServerFromId", function() {
+            // Test 1
             query._runConversation(32);
             expect(requests.mostRecent().url).toEqual(client.url + "/conversations?sort_by=created_at&page_size=32");
+
+            // Test 2
+            query._nextServerFromId = 'howdy';
+            query._runConversation(32);
+            expect(requests.mostRecent().url).toEqual(client.url + "/conversations?sort_by=created_at&page_size=32&from_id=howdy");
+        });
+
+        it("Should call DB with _nextDBFromId", function() {
+          spyOn(client.dbManager, "loadConversations");
+
+          // Test 1
+          query._runConversation(17);
+          expect(client.dbManager.loadConversations).toHaveBeenCalledWith('created_at', '', 17, jasmine.any(Function));
+
+          // Test 2
+          query._nextDBFromId = 'howdy';
+          query._runConversation(17);
+          expect(client.dbManager.loadConversations).toHaveBeenCalledWith('created_at', 'howdy', 17, jasmine.any(Function));
+        });
+
+        it("Should refuse to call if already firing with same url", function() {
+            requests.reset();
+            query._runConversation(45);
+            query._runConversation(45);
+            expect(requests.count()).toEqual(1);
         });
 
         it("Should call with last_message sorting", function() {
@@ -493,20 +545,6 @@ describe("The Query Class", function() {
             query._runConversation(32);
             expect(requests.mostRecent().url).toEqual(client.url + "/conversations?sort_by=last_message&page_size=32");
         });
-
-        it("Should call without from_id if last Conversation has temp id", function() {
-            query.data.push(client.createConversation(["b"]));
-            query._runConversation(33);
-            expect(requests.mostRecent().url).toEqual(client.url + "/conversations?sort_by=created_at&page_size=33");
-        });
-
-        it("Should call with from_id", function() {
-            query.data.push(client.createConversation(["b"]));
-            query.data[0].syncState = layer.Constants.SYNC_STATE.SYNCED;
-            query._runConversation(34);
-            expect(requests.mostRecent().url).toEqual(client.url + "/conversations?sort_by=created_at&page_size=34&from_id=" + query.data[0].id);
-        });
-
 
         it("Should call _processRunResults", function() {
             spyOn(query, "_processRunResults");
@@ -599,36 +637,28 @@ describe("The Query Class", function() {
             expect(query.isFiring).toBe(true);
         });
 
-        it("Should call dbManager.loadAnnouncements if its a new query", function() {
-          query._reset();
-          spyOn(client.dbManager, "loadAnnouncements");
-          query._runAnnouncement(140);
-          expect(client.dbManager.loadAnnouncements).toHaveBeenCalled();
+        it("Should call server with _nextServerFromId", function() {
+            // Test 1
+            query._runAnnouncement(140);
+            expect(requests.mostRecent().url).toEqual(client.url + "/announcements?page_size=140");
+
+            // Test 2
+            query._nextServerFromId = "howdy";
+            query._runAnnouncement(140);
+            expect(requests.mostRecent().url).toEqual(client.url + "/announcements?page_size=140&from_id=howdy");
         });
 
-        it("Should clear isReset", function() {
-          query._reset();
+        it("Should call DB with _nextDBFromId", function() {
+          spyOn(client.dbManager, "loadAnnouncements");
+
+          // Test 1
           query._runAnnouncement(141);
-          expect(query.isReset).toBe(false);
-        });
+          expect(client.dbManager.loadAnnouncements).toHaveBeenCalledWith('', 141, jasmine.any(Function));
 
-        it("Should skip call dbManager.loadAnnouncements if its not a new query", function() {
-          query._reset();
-          query._runAnnouncement(100);
-          spyOn(client.dbManager, "loadAnnouncements");
-          query._runAnnouncement(142);
-          expect(client.dbManager.loadAnnouncements).not.toHaveBeenCalled();
-        });
-
-        it("Should call without from_id", function() {
-            query._runAnnouncement(41);
-            expect(requests.mostRecent().url).toEqual(client.url  + "/announcements?page_size=41");
-        });
-
-        it("Should call with from_id", function() {
-            query.data = [announcement];
-            query._runAnnouncement(44);
-            expect(requests.mostRecent().url).toEqual(client.url  + "/announcements?page_size=44&from_id=" + announcement.id);
+          // Test 2
+          query._nextDBFromId = 'howdy';
+          query._runAnnouncement(141);
+          expect(client.dbManager.loadAnnouncements).toHaveBeenCalledWith('howdy', 141, jasmine.any(Function));
         });
 
         it("Should refuse to call if already firing with same url", function() {
@@ -706,68 +736,30 @@ describe("The Query Class", function() {
         });
 
 
-        it("Should call dbManager.loadMessages if its a new query", function() {
-          query._reset();
-          spyOn(client.dbManager, "loadMessages");
-          query._runMessage(140);
-          expect(client.dbManager.loadMessages).toHaveBeenCalled();
+        it("Should call server with _nextServerFromId", function() {
+            // Test 1
+            query._runMessage(140);
+            expect(requests.mostRecent().url).toEqual(client.url + conversation.id.replace(/layer\:\/\//, "") + "/messages?page_size=140");
+
+            // Test 2
+            query._nextServerFromId = 'howdy';
+            query._runMessage(140);
+            expect(requests.mostRecent().url).toEqual(client.url + conversation.id.replace(/layer\:\/\//, "") + "/messages?page_size=140&from_id=howdy");
         });
 
-        it("Should clear isReset", function() {
-          query._reset();
+        it("Should call DB with _nextDBFromId", function() {
+          spyOn(client.dbManager, "loadMessages");
+
+          // Test 1
           query._runMessage(141);
-          expect(query.isReset).toBe(false);
+          expect(client.dbManager.loadMessages).toHaveBeenCalledWith(conversation.id, '', 141, jasmine.any(Function));
+
+          // Test 2
+          query._nextDBFromId = 'howdy';
+          query._runMessage(141);
+          expect(client.dbManager.loadMessages).toHaveBeenCalledWith(conversation.id, 'howdy', 141, jasmine.any(Function));
         });
 
-        it("Should skip call dbManager.loadMessages if its not a new query", function() {
-          query._reset();
-          query._runMessage(100);
-
-          spyOn(client.dbManager, "loadMessages");
-          query._runMessage(100);
-          expect(client.dbManager.loadMessages).not.toHaveBeenCalled();
-        });
-
-        it("Should call without from_id", function() {
-            query._runMessage(41);
-            expect(requests.mostRecent().url).toEqual(client.url + conversation.id.replace(/layer\:\/\//, "") + "/messages?page_size=41");
-        });
-
-        it("Should call without from_id if last Message has temp id", function() {
-            query.data.push(conversation.createMessage("hey"));
-            query._runMessage(42);
-            expect(requests.mostRecent().url).toEqual(client.url + conversation.id.replace(/layer\:\/\//, "") + "/messages?page_size=42");
-        });
-
-        it("Should call without from_id if last Message in data is conversation.lastMessage", function() {
-            var m = new layer.Message({
-                client: client,
-                fromServer: responses.message1,
-            });
-            requests.reset();
-
-            conversation.lastMessage = m;
-            query.data = [m];
-            query._runMessage(43);
-            expect(requests.mostRecent().url).toEqual(client.url + conversation.id.replace(/layer\:\/\//, "") + "/messages?page_size=43");
-        });
-
-        it("Should call with from_id", function() {
-            var m1 = new layer.Message({
-                client: client,
-                fromServer: responses.message1,
-            });
-            var m2 = new layer.Message({
-                client: client,
-                fromServer: responses.message2,
-            });
-            requests.reset();
-
-            conversation.lastMessage = conversation.createMessage("hi");
-            query.data = [m1, m2];
-            query._runMessage(44);
-            expect(requests.mostRecent().url).toEqual(client.url + conversation.id.replace(/layer\:\/\//, "") + "/messages?page_size=44&from_id=" + query.data[1].id);
-        });
 
         it("Should refuse to call if already firing with same url", function() {
             var m1 = new layer.Message({
@@ -837,6 +829,75 @@ describe("The Query Class", function() {
         });
     });
 
+    describe("The _runIdentity() method", function() {
+        var query;
+        beforeEach(function() {
+            var tmp = layer.Query.prototype._run;
+            layer.Query.prototype._run = function() {}
+            query = new layer.Query({
+                client: client,
+                model: layer.Query.Identity,
+                paginationWindow: 15
+            });
+            layer.Query.prototype._run = tmp;
+        });
+
+        afterEach(function() {
+            query.destroy();
+        });
+
+        it("Should set isFiring to true", function() {
+            query.isFiring = false;
+            query._runIdentity(37);
+            expect(query.isFiring).toBe(true);
+        });
+
+        it("Should call database unless there is a _nextDBFromId", function() {
+          spyOn(client.dbManager, "loadIdentities");
+
+          // Test 1
+          query._runIdentity(140);
+          expect(client.dbManager.loadIdentities).toHaveBeenCalledWith(jasmine.any(Function));
+
+          // Test 2
+          query._nextDBFromId = 'howdy';
+          query._runIdentity(141);
+          expect(client.dbManager.loadIdentities.calls.count()).toEqual(1);
+        });
+
+        it("Should call server with _nextServerFromId", function() {
+            // Test 1
+            query._runIdentity(141);
+            expect(requests.mostRecent().url).toEqual(client.url + "/identities?page_size=141");
+
+            // Test 2
+            query._nextServerFromId = 'howdy';
+            query._runIdentity(140);
+            expect(requests.mostRecent().url).toEqual(client.url + "/identities?page_size=140&from_id=howdy");
+        });
+
+        it("Should refuse to call if already firing with same url", function() {
+            query.data = [];
+            query._runIdentity(45);
+            query._runIdentity(45);
+            expect(requests.count()).toEqual(1);
+        });
+
+
+        it("Should call _processRunResults", function() {
+            spyOn(query, "_processRunResults");
+            query._runIdentity(47);
+            requests.mostRecent().response({
+                status: 200,
+                responseText: JSON.stringify([{id: "a"}, {id: "b"}])
+            });
+            expect(query._processRunResults).toHaveBeenCalledWith(jasmine.objectContaining({
+                success: true,
+                data: [{id: "a"}, {id: "b"}]
+            }), "identities?page_size=47");
+        });
+    });
+
     describe("The _processRunResults() method", function() {
         var query, requestUrl;
         beforeEach(function() {
@@ -891,7 +952,7 @@ describe("The Query Class", function() {
                 success: true,
                 data: [{id: "a"}],
                 xhr: jasmine.any(Object)
-            });
+            }, false);
         });
 
         it("Should not call _run if reached the end of the server's results", function() {
@@ -981,6 +1042,25 @@ describe("The Query Class", function() {
             expect(client._createObject).toHaveBeenCalledWith(responses.conversation2);
         });
 
+        it("Should update _nextDBFromId if there is data from DB", function() {
+            query._appendResults({data: [JSON.parse(JSON.stringify(responses.conversation2))]}, true);
+            expect(query._nextDBFromId).toEqual(responses.conversation2.id);
+            expect(query._nextServerFromId).toEqual('');
+        });
+
+        it("Should update _nextServerFromId if there is data from Server", function() {
+            query._appendResults({data: [JSON.parse(JSON.stringify(responses.conversation2))]}, false);
+            expect(query._nextServerFromId).toEqual(responses.conversation2.id);
+            expect(query._nextDBFromId).toEqual('');
+        });
+
+        it("Should not update _nextXXXFromId if there is no data", function() {
+            query._appendResults({data: []}, false);
+            query._appendResults({data: []}, true);
+            expect(query._nextServerFromId).toEqual('');
+            expect(query._nextDBFromId).toEqual('');
+        });
+
         it("Should replace the data if dataType is object", function() {
             query.dataType = "object";
             var oldData = query.data = [conversation];
@@ -1064,7 +1144,34 @@ describe("The Query Class", function() {
           // Posttest
           expect(query._getInsertMessageIndex).toHaveBeenCalled();
           expect(query.data).toEqual([m1.toObject(), client.getMessage(m3.id).toObject(), m2.toObject()]);
+        });
 
+        it("Should use last index to position result", function() {
+          var i1 = client._createObject({
+            id: "layer:///identities/1",
+            user_id: "1",
+            display_name: "1"
+          });
+          var i2 = client._createObject({
+            id: "layer:///identities/2",
+            user_id: "2",
+            display_name: "2"
+          });
+          var i3 = client._createObject({
+            id: "layer:///identities/3",
+            user_id: "3",
+            display_name: "3"
+          });
+
+          query.data = [i1.toObject(), i2.toObject()];
+          query.dataType = "object";
+          query.model = layer.Query.Identity;
+
+          // Run
+          query._appendResults({data: [i3]});
+
+          // Posttest
+          expect(query.data).toEqual([i1.toObject(), i2.toObject(), i3.toObject()]);
         });
     });
 
@@ -1170,6 +1277,38 @@ describe("The Query Class", function() {
             conversation.lastMessage = m;
             expect(query._getItem(m.id + "1")).toBe(null);
         });
+
+        it("Should return an Announcement if Model is Announcement and Announcement is found", function() {
+            // Setup
+            query.data = [announcement];
+            query.model = "Announcement";
+
+            expect(query._getItem(announcement.id)).toBe(announcement);
+        });
+
+        it("Should return null if Model is Announcement and Announcement is not found", function() {
+            // Setup
+            query.data = [announcement];
+            query.model = "Announcement";
+
+            expect(query._getItem(announcement.id + "1")).toBe(null);
+        });
+
+        it("Should return an Identity if Model is Identity and Identity is found", function() {
+            // Setup
+            query.data = [identity];
+            query.model = "Identity";
+
+            expect(query._getItem(identity.id)).toBe(identity);
+        });
+
+        it("Should return null if Model is Identity and Identity is not found", function() {
+            // Setup
+            query.data = [identity];
+            query.model = "Identity";
+
+            expect(query._getItem(identity.id + "1")).toBe(null);
+        });
     });
 
     describe("The _getIndex() method", function() {
@@ -1207,6 +1346,7 @@ describe("The Query Class", function() {
             query.data = [conversation];
             spyOn(query, "_handleConversationEvents");
             spyOn(query, "_handleMessageEvents");
+            spyOn(query, "_handleIdentityEvents");
         });
 
         afterEach(function() {
@@ -1218,6 +1358,7 @@ describe("The Query Class", function() {
             query._handleChangeEvents("evtName", {a: "b"});
             expect(query._handleConversationEvents).toHaveBeenCalledWith({a: "b"});
             expect(query._handleMessageEvents).not.toHaveBeenCalled();
+            expect(query._handleIdentityEvents).not.toHaveBeenCalled();
         });
 
         it("Should call _handleMessageEvents", function() {
@@ -1225,6 +1366,55 @@ describe("The Query Class", function() {
             query._handleChangeEvents("evtName", {a: "b"});
             expect(query._handleMessageEvents).toHaveBeenCalledWith({a: "b"});
             expect(query._handleConversationEvents).not.toHaveBeenCalled();
+            expect(query._handleIdentityEvents).not.toHaveBeenCalled();
+        });
+
+        it("Should call _handleIdentityEvents", function() {
+            query.model = "Identity";
+            query._handleChangeEvents("evtName", {a: "b"});
+            expect(query._handleMessageEvents).not.toHaveBeenCalled();
+            expect(query._handleConversationEvents).not.toHaveBeenCalled();
+            expect(query._handleIdentityEvents).toHaveBeenCalledWith({a: "b"});
+        });
+    });
+
+    describe("The _handleIdentityEvents() method", function() {
+        var query;
+        beforeEach(function() {
+            query = new layer.Query({
+                client: client,
+                model: 'Identity',
+                paginationWindow: 15
+            });
+            query.data = [identity];
+            spyOn(query, "_handleIdentityChangeEvent");
+            spyOn(query, "_handleIdentityAddEvent");
+            spyOn(query, "_handleIdentityRemoveEvent");
+        });
+
+        afterEach(function() {
+            query.destroy();
+        });
+
+        it("Should call _handleIdentityChangeEvent", function() {
+            query._handleIdentityEvents({a: "b", eventName: "identities:change"})
+            expect(query._handleIdentityChangeEvent).toHaveBeenCalledWith({a: "b", eventName: "identities:change"});
+            expect(query._handleIdentityAddEvent).not.toHaveBeenCalled();
+            expect(query._handleIdentityRemoveEvent).not.toHaveBeenCalled();
+        });
+
+        it("Should call _handleIdentityAddEvent", function() {
+            query._handleIdentityEvents({a: "b", eventName: "identities:add"})
+            expect(query._handleIdentityChangeEvent).not.toHaveBeenCalled();
+            expect(query._handleIdentityAddEvent).toHaveBeenCalledWith({a: "b", eventName: "identities:add"});
+            expect(query._handleIdentityRemoveEvent).not.toHaveBeenCalled();
+        });
+
+        it("Should call _handleIdentityRemoveEvent", function() {
+            query._handleIdentityEvents({a: "b", eventName: "identities:remove"})
+            expect(query._handleIdentityChangeEvent).not.toHaveBeenCalled();
+            expect(query._handleIdentityAddEvent).not.toHaveBeenCalled();
+            expect(query._handleIdentityRemoveEvent).toHaveBeenCalledWith({a: "b", eventName: "identities:remove"});
         });
     });
 
@@ -2007,6 +2197,21 @@ describe("The Query Class", function() {
             query.destroy();
         });
 
+        it("Should call _updateNextFromId for db and server indexes", function() {
+            spyOn(query, "_updateNextFromId").and.returnValue("heyho");
+            query._nextDBFromId = conversation.id;
+            query._nextServerFromId = conversation2.id;
+
+            // Run
+            query._handleConversationRemoveEvent({
+                conversations: [conversation, conversation2]
+            });
+
+            // Posttest
+            expect(query._nextDBFromId).toEqual('heyho');
+            expect(query._nextServerFromId).toEqual('heyho');
+        });
+
         it("Should replace data with a new array removes conversations if dataType is object", function() {
 
             var data = query.data;
@@ -2522,6 +2727,21 @@ describe("The Query Class", function() {
             expect(query.data).toEqual([]);
         });
 
+        it("Should call _updateNextFromId for db and server indexes", function() {
+            spyOn(query, "_updateNextFromId").and.returnValue("heyho");
+            query._nextDBFromId = message1.id;
+            query._nextServerFromId = message2.id;
+
+            // Run
+            query._handleMessageRemoveEvent({
+                messages: [message1, message2]
+            });
+
+            // Posttest
+            expect(query._nextDBFromId).toEqual('heyho');
+            expect(query._nextServerFromId).toEqual('heyho');
+        });
+
         it("Should remove data from results if dataType is instance", function() {
             query.dataType = "instance";
             var data = query.data;
@@ -2592,6 +2812,362 @@ describe("The Query Class", function() {
           // Run
           query._handleMessageRemoveEvent({
               messages: [message1, message2]
+          });
+
+          // Posttest
+          expect(query.totalSize).toEqual(1);
+        });
+    });
+
+
+
+
+    describe("The _handleIdentityChangeEvent() method", function() {
+        var query, identity2;
+        beforeEach(function() {
+            query = new layer.Query({
+                client: client,
+                model: 'Identity',
+                paginationWindow: 15,
+                dataType: "object"
+            });
+            identity2 = client._createObject(responses.useridentity);
+            query.data = [identity];
+        });
+
+        afterEach(function() {
+            query.destroy();
+        });
+
+        it("Should not touch data array if dataType is object but item not in the data", function() {
+            var evt = new layer.LayerEvent({
+                property: "displayName",
+                oldValue: 'Frodo',
+                newValue: 'FrodoTheDodo',
+                target: identity
+            }, "identities:change");
+            var data = query.data = [identity.toObject()];
+            data[0].id += "1"; // prevent data from being found
+
+            // Run
+            query._handleIdentityChangeEvent(evt);
+
+            // Posttest
+            expect(query.data).toBe(data);
+        });
+
+        it("Should not change the data array if dataType is instance", function() {
+            // Setup
+            query.dataType = "instance";
+            var data = query.data = [identity];
+            var evt = new layer.LayerEvent({
+                property: "displayName",
+                oldValue: 'Frodo',
+                newValue: 'FrodoTheDodo',
+                target: identity
+            }, "identities:change");
+
+            // Run
+            query._handleIdentityChangeEvent(evt);
+
+            // Posttest
+            expect(query.data).toBe(data);
+        });
+
+        it("Should change data array if dataType is object and item is in the data", function() {
+            var evt = new layer.LayerEvent({
+                property: "displayName",
+                oldValue: 'Frodo',
+                newValue: 'FrodoTheDodo',
+                target: identity
+            }, "identities:change");
+            var data = query.data = [identity.toObject()];
+
+            // Run
+            query._handleIdentityChangeEvent(evt);
+
+            // Posttest
+            expect(query.data).not.toBe(data);
+        });
+
+        it("Should trigger change event if the Identity is in the data", function() {
+            var data = query.data = [identity.toObject()];
+            var evt = new layer.LayerEvent({
+                property: "displayName",
+                oldValue: 'Frodo',
+                newValue: 'FrodoTheDodo',
+                target: identity
+            }, "identities:change");
+            spyOn(query, "_triggerChange");
+
+            // Run
+            query._handleIdentityChangeEvent(evt);
+
+            // Posttest
+            expect(query._triggerChange).toHaveBeenCalledWith({
+                type: "property",
+                target: identity.toObject(),
+                query: query,
+                isChange: true,
+                changes: [{
+                    property: "displayName",
+                    oldValue: 'Frodo',
+                    newValue: 'FrodoTheDodo',
+                }]
+            });
+        });
+
+        it("Should not trigger change event if Identity is NOT in the data", function() {
+            var data = query.data = [identity.toObject()];
+            var evt = new layer.LayerEvent({
+                property: "displayName",
+                    oldValue: 'Frodo',
+                    newValue: 'FrodoTheDodo',
+                target: {id: identity.id + "1"}
+            }, "identities:change");
+            spyOn(query, "trigger");
+
+            // Run
+            query._handleIdentityChangeEvent(evt);
+
+            // Posttest
+            expect(query.trigger).not.toHaveBeenCalled();
+        });
+    });
+
+
+    describe("The _handleIdentityAddEvent() method", function() {
+        var query, identity2;
+        beforeEach(function() {
+            identity2 = client._createObject({
+                id: "layer:///identities/2",
+                user_id: "2",
+                display_name: "2"
+            });
+            query = new layer.Query({
+                client: client,
+                model: 'Identity',
+                paginationWindow: 15,
+                dataType: "object",
+            });
+            query.data = [];
+        });
+
+        afterEach(function() {
+            query.destroy();
+        });
+
+        it("Should replace data with a new array containing new results if dataType is object", function() {
+            var data = query.data = [];
+
+            // Run
+            query._handleIdentityAddEvent({
+                identities: [identity, identity2]
+            });
+
+            // Posttest
+            expect(query.data).not.toBe(data);
+            expect(query.data).toEqual([identity.toObject(), identity2.toObject()]);
+        });
+
+        it("Should insert new data into results if dataType is instance", function() {
+            query.dataType = "instance";
+            var data = query.data = [];
+
+            // Run
+            query._handleIdentityAddEvent({
+                identities: [identity, identity2]
+            });
+
+            // Posttest
+            expect(query.data).toBe(data);
+            expect(query.data).toEqual([identity, identity2]);
+        });
+
+        it("Should only operate on new values", function() {
+            var data = query.data = [identity.toObject()];
+
+            // Run
+            query._handleIdentityAddEvent({
+                identities: [identity, identity2]
+            });
+
+            // Posttest
+            expect(query.data).toEqual([identity.toObject(), identity2.toObject()]);
+
+        });
+
+
+        it("Should trigger change event if new values", function() {
+            var data = query.data = [];
+            spyOn(query, "_triggerChange");
+
+            // Run
+            query._handleIdentityAddEvent({
+                identities: [identity, identity2]
+            });
+
+            // Posttest
+            expect(query._triggerChange).toHaveBeenCalledWith({
+                type: 'insert',
+                index: 0,
+                target: identity.toObject(),
+                query: query
+            });
+            expect(query._triggerChange).toHaveBeenCalledWith({
+                type: 'insert',
+                index: 1,
+                target: identity2.toObject(),
+                query: query
+            });
+        });
+
+        it("Should not trigger change event if no new values", function() {
+            spyOn(query, "trigger");
+            query.data = [identity, identity2];
+
+            // Run
+            query._handleIdentityAddEvent({
+                identities: [identity, identity2]
+            });
+
+            // Posttest
+            expect(query.trigger).not.toHaveBeenCalled();
+        });
+
+        it("Should increase the totalCount property", function() {
+          expect(query.totalSize).toEqual(0);
+
+          // Run
+          query._handleIdentityAddEvent({
+              identities: [identity, identity2]
+          });
+
+          // Posttest
+          expect(query.totalSize).toEqual(2);
+        });
+    });
+
+
+    describe("The _handleIdentityRemoveEvent() method", function() {
+        var query, identity2;
+        beforeEach(function() {
+            identity2 = client._createObject({
+                id: "layer:///identities/2",
+                user_id: "2",
+                display_name: "2"
+            });
+            query = new layer.Query({
+                client: client,
+                model: 'Identity',
+                paginationWindow: 15,
+                dataType: "object",
+            });
+            query.data = [identity.toObject(), identity2.toObject()];
+        });
+
+        afterEach(function() {
+            query.destroy();
+        });
+
+        it("Should replace data with a new array without Identity if dataType is object", function() {
+            var data = query.data;
+
+            // Run
+            query._handleIdentityRemoveEvent({
+                identities: [identity, identity2]
+            });
+
+            // Posttest
+            expect(query.data).not.toBe(data);
+            expect(query.data).toEqual([]);
+        });
+
+        it("Should call _updateNextFromId for server indexes", function() {
+            spyOn(query, "_updateNextFromId").and.returnValue("heyho");
+            query._nextServerFromId = identity2.id;
+
+            // Run
+            query._handleIdentityRemoveEvent({
+                identities: [identity, identity2]
+            });
+
+            // Posttest
+            expect(query._nextDBFromId).toEqual('');
+            expect(query._nextServerFromId).toEqual('heyho');
+        });
+
+        it("Should remove data from results if dataType is instance", function() {
+            query.dataType = "instance";
+            var data = query.data;
+
+            // Run
+            query._handleIdentityRemoveEvent({
+                identities: [identity, identity2]
+            });
+
+            // Posttest
+            expect(query.data).toBe(data);
+            expect(query.data).toEqual([]);
+        });
+
+        it("Should only operate on existing values", function() {
+            var identity3 = client._createObject(responses.useridentity);
+            query.data = [identity2.toObject()];
+
+            // Run
+            query._handleIdentityRemoveEvent({
+                identities: [identity, identity3]
+            });
+
+            // Posttest
+            expect(query.data).toEqual([identity2.toObject()]);
+
+        });
+
+        it("Should trigger change event for each removal", function() {
+            spyOn(query, "_triggerChange");
+
+            // Run
+            query._handleIdentityRemoveEvent({
+                identities: [identity, identity2]
+            });
+
+            // Posttest
+            expect(query._triggerChange).toHaveBeenCalledWith({
+                type: 'remove',
+                index: 0,
+                target: identity.toObject(),
+                query: query
+            });
+            expect(query._triggerChange).toHaveBeenCalledWith({
+                type: 'remove',
+                index: 0,
+                target: identity2.toObject(),
+                query: query
+            });
+        });
+
+        it("Should not trigger change event if no values affected", function() {
+            spyOn(query, "trigger");
+            query.data = [identity2.toObject()];
+
+            // Run
+            query._handleIdentityRemoveEvent({
+                identities: [identity]
+            });
+
+            // Posttest
+            expect(query.trigger).not.toHaveBeenCalled();
+        });
+
+        it("Should decrease the totalCount property", function() {
+          query.data = [identity, identity2];
+          query.totalSize = 2;
+
+          // Run
+          query._handleIdentityRemoveEvent({
+              identities: [identity]
           });
 
           // Posttest
