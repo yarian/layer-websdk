@@ -480,8 +480,34 @@ class Query extends Root {
     this.isFiring = false;
     this._firingRequest = '';
     if (results.success) {
-      this._appendResults(results);
-      this.totalSize = results.xhr.getResponseHeader('Layer-Count');
+
+      // If there are results, use them
+      if (results.data.length) {
+        this._retryCount = 0;
+        this._appendResults(results);
+        this.totalSize = results.xhr.getResponseHeader('Layer-Count');
+      }
+
+      // If there are no results, and we have no results, there may be data still syncing to the server; so poll for a bit
+      else if (this.size === 0) {
+        if (this._retryCount < Query.MaxRetryCount) {
+          setTimeout(() => {
+            this._retryCount++;
+            this._run();
+          }, 1500);
+        }
+
+        // We've polled for a bit.  No data.  Presume there is in fact no data
+        else {
+          this._retryCount = 0;
+          this._triggerChange({
+            type: 'data',
+            data: [],
+            query: this,
+            target: this.client,
+          });
+        }
+      }
     } else {
       this.trigger('error', { error: results.data });
     }
@@ -1178,6 +1204,10 @@ Query.prototype.isFiring = false;
  * @private
  */
 Query.prototype._firingRequest = '';
+
+Query.prototype._retryCount = 0;
+
+Query.MaxRetryCount = 20;
 
 Query._supportedEvents = [
   /**
