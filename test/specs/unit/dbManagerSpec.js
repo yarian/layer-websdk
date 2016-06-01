@@ -175,12 +175,10 @@ describe("The DbManager Class", function() {
             syncQueue: true
           }
         });
-        expect(dbManager.tables).toEqual({
-          conversations: true,
-          messages: true,
-          identities: false,
-          syncQueue: true
-        });
+        expect(dbManager._permission_conversations).toBe(true);
+        expect(dbManager._permission_messages).toBe(true);
+        expect(dbManager._permission_identities).toBe(false);
+        expect(dbManager._permission_syncQueue).toBe(true);
       });
 
       it("Should set syncQueue to false if either conversations or messages are false", function() {
@@ -193,24 +191,25 @@ describe("The DbManager Class", function() {
             syncQueue: true
           }
         });
-        expect(dbManager.tables).toEqual({
-          conversations: true,
-          messages: false,
-          identities: false,
-          syncQueue: false
-        });
+        expect(dbManager._permission_conversations).toBe(true);
+        expect(dbManager._permission_messages).toBe(false);
+        expect(dbManager._permission_identities).toBe(false);
+        expect(dbManager._permission_syncQueue).toBe(false);
 
       });
     });
 
     describe("The _open() method", function() {
       it("Should callback immediately if no tables enabled", function() {
-        dbManager.tables = {
-          conversations: false,
-          messages: false,
-          identities: false,
-          syncQueue: false
-        };
+        var dbManager = new layer.DbManager({
+          client: client,
+          tables: {
+            conversations: false,
+            messages: false,
+            identities: false,
+            syncQueue: false
+          }
+        });
         var done = false;
         dbManager.onOpen(function() {
           done = true;
@@ -1275,7 +1274,10 @@ describe("The DbManager Class", function() {
       });
 
       it("Should load nothing if table is", function(done) {
-        dbManager.tables.messages = false;
+        var dbManager = new layer.DbManager({
+          client: client,
+          tables: {conversations: true}
+        });
         dbManager._loadAll('messages', function(result) {
           expect(result).toEqual([]);
           done();
@@ -1331,7 +1333,10 @@ describe("The DbManager Class", function() {
 
 
       it("Should get nothing if disabled", function(done) {
-        dbManager.tables.messages = false;
+        var dbManager = new layer.DbManager({
+          client: client,
+          tables: {messages: false}
+         });
         const query = window.IDBKeyRange.bound([conversation.id, 0], [conversation.id, MAX_SAFE_INTEGER]);
         dbManager._loadByIndex('messages', 'conversation', query, false, null, function(result) {
           expect(result).toEqual([]);

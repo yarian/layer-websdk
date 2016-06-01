@@ -812,13 +812,10 @@ describe("The Client Authenticator Class", function() {
 
                 // Posttest
                 expect(client.dbManager).toEqual(jasmine.any(layer.DbManager));
-                expect(client.dbManager.tables).toEqual({
-                    conversations: false,
-                    messages: false,
-                    identities: false,
-                    syncQueue: false,
-                    sessionToken: false
-                });
+                expect(client.dbManager._permission_conversations).toBe(false);
+                expect(client.dbManager._permission_messages).toBe(false);
+                expect(client.dbManager._permission_identities).toBe(false);
+                expect(client.dbManager._permission_syncQueue).toBe(false);
             });
 
             it("Should initialize the dbManager to all disabled if not isTrustedDevice and persistenceFeatures provided", function () {
@@ -837,13 +834,10 @@ describe("The Client Authenticator Class", function() {
 
                 // Posttest
                 expect(client.dbManager).toEqual(jasmine.any(layer.DbManager));
-                expect(client.dbManager.tables).toEqual({
-                    conversations: false,
-                    messages: false,
-                    identities: false,
-                    syncQueue: false,
-                    sessionToken: false
-                });
+                expect(client.dbManager._permission_conversations).toBe(false);
+                expect(client.dbManager._permission_messages).toBe(false);
+                expect(client.dbManager._permission_identities).toBe(false);
+                expect(client.dbManager._permission_syncQueue).toBe(false);
             });
 
             it("Should initialize the dbManager to all enabled if isTrustedDevice and no persistenceFeatures", function () {
@@ -855,13 +849,10 @@ describe("The Client Authenticator Class", function() {
 
                 // Posttest
                 expect(client.dbManager).toEqual(jasmine.any(layer.DbManager));
-                expect(client.dbManager.tables).toEqual({
-                    conversations: true,
-                    messages: true,
-                    identities: true,
-                    syncQueue: true,
-                    sessionToken: true
-                });
+                expect(client.dbManager._permission_conversations).toBe(true);
+                expect(client.dbManager._permission_messages).toBe(true);
+                expect(client.dbManager._permission_identities).toBe(true);
+                expect(client.dbManager._permission_syncQueue).toBe(true);
             });
 
             it("Should initialize the dbManager to custom values if isTrustedDevice and persistenceFeatures provided", function () {
@@ -880,13 +871,10 @@ describe("The Client Authenticator Class", function() {
 
                 // Posttest
                 expect(client.dbManager).toEqual(jasmine.any(layer.DbManager));
-                expect(client.dbManager.tables).toEqual({
-                    conversations: true,
-                    messages: false,
-                    identities: true,
-                    syncQueue: false,
-                    sessionToken: true
-                });
+                expect(client.dbManager._permission_conversations).toBe(true);
+                expect(client.dbManager._permission_messages).toBe(false);
+                expect(client.dbManager._permission_identities).toBe(true);
+                expect(client.dbManager._permission_syncQueue).toBe(false);
             });
 
         });

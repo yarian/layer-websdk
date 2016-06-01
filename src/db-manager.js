@@ -63,7 +63,7 @@ class DbManager extends Root {
 
     // If no indexedDB, treat everything as disabled.
     if (!window.indexedDB) {
-      this.tables = DbManager.DisabledState;
+      options.tables = {};
     }
 
     // If Client is a layer.ClientAuthenticator, it won't support these events; this affects Unit Tests
@@ -86,9 +86,13 @@ class DbManager extends Root {
 
     // Sync Queue only really works properly if we have the Messages and Conversations written to the DB; turn it off
     // if that won't be the case.
-    if (!this.tables.conversations || !this.tables.messages) {
-      this.tables.syncQueue = false;
+    if (!options.tables.conversations || !options.tables.messages) {
+      options.tables.syncQueue = false;
     }
+
+    TABLES.forEach((tableDef) => {
+      this['_permission_' + tableDef.name] = Boolean(options.tables[tableDef.name]);
+    });
     this._open();
   }
 
@@ -102,14 +106,22 @@ class DbManager extends Root {
    */
   _open() {
     // Abort if all tables are disabled
-    if (Object.keys(this.tables).filter(key => this.tables[key]).length === 0) return;
+    const enabledTables = TABLES.filter((tableDef) => {
+      return this['_permission_' + tableDef.name];
+    });
+    if (enabledTables.length === 0) {
+      this._isOpenError = true;
+      this.trigger('error', { error: 'Persistence is disabled by application' });
+      return;
+    }
 
     // Open the database
     const request = window.indexedDB.open('LayerWebSDK_' + this.client.appId + '_' + this.client.userId, DB_VERSION);
 
     request.onerror = (evt) => {
+      this._isOpenError = true;
       logger.error('Database Unable to Open: ', evt.target.error);
-      this.tables = DbManager.DisabledState;
+      this.trigger('error', { error: evt });
     };
 
     request.onupgradeneeded = (evt) => this._onUpgradeNeeded(evt);
@@ -138,8 +150,8 @@ class DbManager extends Root {
    * @param {Function} callback
    */
   onOpen(callback) {
-    if (this.isOpen) callback();
-    else this.once('open', callback);
+    if (this.isOpen || this._isOpenError) callback();
+    else this.once('open error', callback);
   }
 
   /**
@@ -172,7 +184,8 @@ class DbManager extends Root {
       }
       try {
         const store = db.createObjectStore(tableDef.name, { keyPath: 'id' });
-        Object.keys(tableDef.indexes).forEach(indexName => store.createIndex(indexName, tableDef.indexes[indexName], { unique: false }));
+        Object.keys(tableDef.indexes)
+          .forEach(indexName => store.createIndex(indexName, tableDef.indexes[indexName], { unique: false }));
         store.transaction.oncomplete = onComplete;
       } catch (e) {
         // Noop
@@ -420,6 +433,8 @@ class DbManager extends Root {
    * @protected
    */
   _writeObjects(tableName, data, isUpdate, callback) {
+    if (!this['_permission_' + tableName] || this._isOpenError) return callback ? callback() : null;
+
     // Just quit if no data to write
     if (!data.length) {
       if (callback) callback();
@@ -801,7 +816,7 @@ class DbManager extends Root {
    * @param {Object[]} callback.result
    */
   _loadAll(tableName, callback) {
-    if (!this.tables[tableName]) return callback([]);
+    if (!this['_permission_' + tableName] || this._isOpenError) return callback([]);
     this.onOpen(() => {
       const data = [];
       this.db.transaction([tableName], 'readonly').objectStore(tableName).openCursor().onsuccess = (evt) => {
@@ -832,7 +847,7 @@ class DbManager extends Root {
    * @param {Object[]} callback.result
    */
   _loadByIndex(tableName, indexName, range, isFromId, pageSize, callback) {
-    if (!this.tables[tableName]) return callback([]);
+    if (!this['_permission_' + tableName] || this._isOpenError) return callback([]);
     let shouldSkipNext = isFromId;
     this.onOpen(() => {
       const data = [];
@@ -872,7 +887,7 @@ class DbManager extends Root {
    * @param {Function} [callback]
    */
   deleteObjects(tableName, data, callback) {
-    if (!this.tables[tableName]) return callback ? callback() : null;
+    if (!this['_permission_' + tableName] || this._isOpenError) return callback ? callback() : null;
     this.onOpen(() => {
       const transaction = this.db.transaction([tableName], 'readwrite');
       const store = transaction.objectStore(tableName);
@@ -895,7 +910,7 @@ class DbManager extends Root {
    * @param {Object[]} callback.result
    */
   getObjects(tableName, ids, callback) {
-    if (!this.tables[tableName]) return callback([]);
+    if (!this['_permission_' + tableName] || this._isOpenError) return callback([]);
     const data = [];
 
     // Gather, sort, and filter replica IDs
@@ -947,7 +962,7 @@ class DbManager extends Root {
    * @param {Boolean} callback.result
    */
   claimSyncEvent(syncEvent, callback) {
-    if (!this.tables.syncQueue) return callback(true);
+    if (!this._permission_syncQueue || this._isOpenError) return callback(true);
     this.onOpen(() => {
       const transaction = this.db.transaction(['syncQueue'], 'readwrite');
       const store = transaction.objectStore('syncQueue');
@@ -989,27 +1004,37 @@ DbManager.prototype.client = null;
 DbManager.prototype.isOpen = false;
 
 /**
- * @type {Object} A list of tables that are enabled.
- *
- * Disabled tables are omitted or false.
- * sync-events can only be enabled IF conversations and messages are enabled
+ * @type {boolean} is the db connection will not open
  */
-DbManager.prototype.tables = null;
+DbManager.prototype._isOpenError = false;
+
+/**
+ * @type {boolean} Is reading/writing messages allowed?
+ */
+DbManager.prototype._permission_messages = false;
+
+/**
+ * @type {boolean} Is reading/writing conversations allowed?
+ */
+DbManager.prototype._permission_conversations = false;
+
+/**
+ * @type {boolean} Is reading/writing identities allowed?
+ */
+DbManager.prototype._permission_identities = false;
+
+/**
+ * @type {boolean} Is reading/writing unsent server requests allowed?
+ */
+DbManager.prototype._permission_syncQueue = false;
 
 /**
  * @type IDBDatabase
  */
 DbManager.prototype.db = null;
 
-DbManager.DisabledState = {
-  identities: false,
-  conversations: false,
-  messages: false,
-  syncQueue: false,
-};
-
 DbManager._supportedEvents = [
-  'open',
+  'open', 'error',
 ];
 
 Root.initClass.apply(DbManager, [DbManager, 'DbManager']);
