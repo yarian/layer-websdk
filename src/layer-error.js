@@ -150,11 +150,13 @@ LayerError.dictionary = {
   wrongClass: 'Parameter class error; should be: ',
   inProgress: 'Operation already in progress',
   cantChangeIfConnected: 'You can not change value after connecting',
+  cantChangeUserId: 'You can not change the userId property',
   alreadySent: 'Already sent or sending',
   contentRequired: 'MessagePart requires rich content for this call',
   alreadyDestroyed: 'This object has already been destroyed',
   deletionModeUnsupported: 'Call to deletion was made with an unsupported deletion mode',
   sessionAndUserRequired: 'connectWithSession requires both a userId and a sessionToken',
+  invalidUserIdChange: 'The prn field in the Identity Token must match the requested UserID',
 };
 
 module.exports = LayerError;

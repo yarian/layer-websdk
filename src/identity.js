@@ -118,7 +118,7 @@ Root.initClass.apply(Identity, [Identity, 'Identity']);
 class UserIdentity extends Identity {
   constructor(options) {
     super(options);
-    if (!this.url) this.url = `${this.getClient().url}/identities/${this.userId}`;
+    if (!this.url && this.userId) this.url = `${this.getClient().url}/identities/${this.userId}`;
   }
 
   /**
@@ -139,7 +139,7 @@ class UserIdentity extends Identity {
 
     this._setSynced();
 
-    this.userId = identity.user_id;
+    this.__userId = identity.user_id;
 
     this._updateValue('avatarUrl', identity.avatar_url);
     this._updateValue('displayName', identity.display_name);
@@ -171,6 +171,43 @@ class UserIdentity extends Identity {
       client.dbManager.getObjects('identities', [this.id], (result) => {
         if (result.length) this._populateFromServer(result[0]);
       });
+    }
+  }
+
+/**
+ * Update the UserID.
+ *
+ * This will not only update the User ID, but also the ID,
+ * URL, and reregister it with the Client.
+ *
+ * @method _setUserId
+ * @private
+ * @param {string} userId
+ */
+  _setUserId(userId) {
+    const client = this.getClient();
+    if (!client) throw new Error(LayerError.dictionary.clientMissing);
+    client._removeIdentity(this);
+    this.__userId = userId;
+    const encoded = encodeURIComponent(userId);
+    this.id = UserIdentity.prefixUUID + encoded;
+    this.url = `${this.getClient().url}/identities/${encoded}`;
+    client._addIdentity(this);
+  }
+
+  /**
+  * __ Methods are automatically called by property setters.
+  *
+  * Any attempt to execute `this.userId = 'xxx'` will cause an error to be thrown.
+  * These are not intended to be writable properties
+  *
+  * @private
+  * @method __adjustUserId
+  * @param {string} value - New appId value
+  */
+  __adjustUserId(userId) {
+    if (this.__userId) {
+      throw new Error(LayerError.dictionary.cantChangeUserId);
     }
   }
 
@@ -254,7 +291,8 @@ class UserIdentity extends Identity {
   // Turn a Full Identity into a Basic Identity and delete the Full Identity from the database
   _handleWebsocketDelete(data) {
     this.getClient().dbManager.deleteObjects('identities', [this]);
-    ['firstName', 'lastName', 'emailAddress', 'phoneNumber', 'metadata', 'publicKey', 'isFullIdentity'].forEach(key => delete this[key]);
+    ['firstName', 'lastName', 'emailAddress', 'phoneNumber', 'metadata', 'publicKey', 'isFullIdentity']
+      .forEach(key => delete this[key]);
     this._triggerAsync('identities:unfollow');
   }
 

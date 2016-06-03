@@ -400,10 +400,58 @@ describe("The Identity Class", function() {
         });
       });
 
-      describe("The _createFromServer method", function() {
+      describe("The _createFromServer() method", function() {
         it("Should return a new UserIdentity", function() {
           expect(layer.UserIdentity._createFromServer(responses.useridentity, client)).toEqual(jasmine.any(layer.UserIdentity));
           expect(layer.UserIdentity._createFromServer(responses.useridentity, client).userId).toEqual(responses.useridentity.user_id);
+        });
+      });
+
+      describe("The _setUserId() method", function() {
+        it("Should fail if no client", function() {
+          spyOn(client.user, "getClient").and.returnValue(null);
+          expect(function() {
+            client.user._setUserId('Frodo the Dodo');
+          }).toThrowError(layer.LayerError.dictionary.clientMissing);
+          expect(layer.LayerError.dictionary.clientMissing.length > 0).toBe(true);
+        });
+
+        it("Should update userId", function() {
+          // Run
+          client.user._setUserId('Frodo the Dodo');
+
+          // Posttest
+          expect(client.user.userId).toEqual('Frodo the Dodo');
+        });
+
+        it("Should update id", function() {
+          // Run
+          client.user._setUserId('Frodo the Dodo');
+
+          // Posttest
+          expect(client.user.id).toEqual('layer:///identities/Frodo%20the%20Dodo');
+        });
+
+        it("Should update url", function() {
+          // Run
+          client.user._setUserId('Frodo the Dodo');
+
+          // Posttest
+          expect(client.user.url).toEqual(client.url + '/identities/Frodo%20the%20Dodo');
+        });
+
+        it("Should update client._identitiesHash", function() {
+          // Setup
+          client._identitiesHash = {};
+          client._identitiesHash[client.user.id] = client.user;
+
+          // Run
+          client.user._setUserId('Frodo the Dodo');
+
+          // Posttest
+          expect(client._identitiesHash).toEqual({
+            'layer:///identities/Frodo%20the%20Dodo': client.user
+          });
         });
       });
 

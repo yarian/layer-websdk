@@ -129,29 +129,6 @@ class Client extends ClientAuth {
     });
   }
 
-  /*
-   * @method _clientReady
-   * @private
-   * @fires ready
-   *
-   * WARNING: There is not at this time a recovery or reasonable way to bypass loading this user's
-   * Identity.  It will continue to retry until a value is found and THEN the client will complete authentication.
-   */
-  _clientReady() {
-    if (!this.user) {
-      const user = UserIdentity.load('layer:///identities/' + encodeURIComponent(this.userId), this);
-      user.sessionOwner = true;
-      user.on('identities:loaded', () => {
-        this.user = user;
-        this._clientReady();
-      });
-      user.on('identities:loaded-error', () => setTimeout(() => this._clientReady(), 2000));
-      this.user = user;
-    } else if (this.user.isSynced()) {
-      super._clientReady();
-    }
-  }
-
   /**
    * Cleanup all resources (Conversations, Messages, etc...) prior to destroy or reauthentication.
    *
@@ -1226,14 +1203,6 @@ Client.prototype._scheduleCheckAndPurgeCacheItems = null;
  * @type {number}
  */
 Client.prototype._scheduleCheckAndPurgeCacheAt = 0;
-
-
-/**
- * The layer.UserIdentity for the authenticated user for this Client's session.
- *
- * @type {layer.UserIdentity}
- */
-Client.prototype.user = null;
 
 
 /**

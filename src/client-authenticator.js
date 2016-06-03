@@ -37,6 +37,7 @@ const LayerError = require('./layer-error');
 const OnlineManager = require('./online-state-manager');
 const SyncManager = require('./sync-manager');
 const DbManager = require('./db-manager');
+const { UserIdentity } = require('./identity');
 const { XHRSyncEvent, WebsocketSyncEvent } = require('./sync-event');
 const { ACCEPT, LOCALSTORAGE_KEYS } = require('./const');
 const logger = require('./logger');
@@ -177,6 +178,27 @@ class ClientAuthenticator extends Root {
     }
   }
 
+/**
+   * Restore the UserIdentity for the session owner from localStorage.
+   *
+   * @method _restoreLastSession
+   * @private
+   * @return {layer.UserIdentity}
+   */
+  _restoreLastUser() {
+    try {
+      const sessionData = global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId];
+      if (!sessionData) return null;
+      const userObj = JSON.parse(sessionData).user;
+      return new UserIdentity({
+        clientId: this.appId,
+        fromServer: userObj,
+      });
+    } catch (error) {
+      return null;
+    }
+  }
+
   /**
    * Has the userID changed since the last login?
    *
@@ -189,7 +211,7 @@ class ClientAuthenticator extends Root {
     try {
       const sessionData = global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId];
       if (!sessionData) return true;
-      return JSON.parse(sessionData).userId !== userId;
+      return JSON.parse(sessionData).user.user_id !== userId;
     } catch (error) {
       return true;
     }
@@ -207,17 +229,32 @@ class ClientAuthenticator extends Root {
    * @param {string} userId - User ID of the user you are logging in as
    * @returns {layer.ClientAuthenticator} this
    */
-  connect(userId) {
+  connect(userId = '') {
+    let user;
     this.isConnected = false;
+    this.user = null;
     this.onlineManager.start();
     if (!this.isTrustedDevice || !userId || this._isPersistedSessionsDisabled() || this._hasUserIdChanged(userId)) {
       this._clearStoredData();
     }
+
+
     if (this.isTrustedDevice && userId) {
       this._restoreLastSession(userId);
+      user = this._restoreLastUser();
+      if (user) this.user = user;
     }
-    this.userId = userId;
-    if (this.sessionToken) {
+
+    if (!this.user) {
+      this.user = new UserIdentity({
+        userId,
+        sessionOwner: true,
+        clientId: this.appId,
+        id: userId ? UserIdentity.prefixUUID + encodeURIComponent(userId) : '',
+      });
+    }
+
+    if (this.sessionToken && this.user.userId) {
       this._sessionTokenRestored();
     } else {
       this.xhr({
@@ -247,15 +284,30 @@ class ClientAuthenticator extends Root {
    * @returns {layer.ClientAuthenticator} this
    */
   connectWithSession(userId, sessionToken) {
+    let user;
+    this.user = null;
     if (!userId || !sessionToken) throw new Error(LayerError.dictionary.sessionAndUserRequired);
     if (!this.isTrustedDevice || this._isPersistedSessionsDisabled() || this._hasUserIdChanged(userId)) {
       this._clearStoredData();
     }
+    if (this.isTrustedDevice) {
+      user = this._restoreLastUser();
+      if (user) this.user = user;
+    }
 
     this.onlineManager.start();
-    this.userId = userId;
+
+    if (!this.user) {
+      this.user = new UserIdentity({
+        userId,
+        sessionOwner: true,
+        clientId: this.appId,
+        id: UserIdentity.prefixUUID + encodeURIComponent(userId),
+      });
+    }
+
     this.isConnected = true;
-    setTimeout(() => this._authComplete({ session_token: sessionToken }), 1);
+    setTimeout(() => this._authComplete({ session_token: sessionToken }, false), 1);
   }
 
   /**
@@ -355,7 +407,15 @@ class ClientAuthenticator extends Root {
       throw new Error(LayerError.dictionary.identityTokenMissing);
     } else {
       const userData = Util.decode(identityToken.split('.')[1]);
-      this.userId = JSON.parse(userData).prn;
+      const identityObj = JSON.parse(userData);
+
+      if (this.user.userId && this.user.userId !== identityObj.prn) throw new Error(LayerError.dictionary.invalidUserIdChange);
+
+      this.user._setUserId(identityObj.prn);
+
+      if (identityObj.display_name) this.user.displayName = identityObj.display_name;
+      if (identityObj.avatar_url) this.user.avatarUrl = identityObj.avatar_url;
+
       this.xhr({
         url: '/sessions',
         method: 'POST',
@@ -380,7 +440,7 @@ class ClientAuthenticator extends Root {
     if (!result.success) {
       this._authError(result.data, identityToken);
     } else {
-      this._authComplete(result.data);
+      this._authComplete(result.data, false);
     }
   }
 
@@ -391,24 +451,24 @@ class ClientAuthenticator extends Root {
    * @method _authComplete
    * @private
    * @param  {Object} result
+   * @param  {Boolean} fromPersistence
    * @param  {string} result.session_token - Session token received from the server
    *
    * @fires authenticated
    */
-  _authComplete(result) {
+  _authComplete(result, fromPersistence) {
     if (!result || !result.session_token) {
       throw new Error(LayerError.dictionary.sessionTokenMissing);
     }
     this.sessionToken = result.session_token;
 
-    // NOTE: We store both items of data in a single key because someone listening for storage
-    // events is listening for an asynchronous change, and we need to gaurentee that both
-    // userId and session are available.
-    if (!this._isPersistedSessionsDisabled()) {
+    // If _authComplete was called because we accepted an auth loaded from storage
+    // we don't need to update storage.
+    if (!this._isPersistedSessionsDisabled() && !fromPersistence) {
       try {
         global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId] = JSON.stringify({
           sessionToken: this.sessionToken || '',
-          userId: this.userId || '',
+          user: DbManager.prototype._getIdentityData([this.user])[0],
           expires: Date.now() + 30 * 60 * 60 * 24 * 1000,
         });
       } catch (e) {
@@ -450,10 +510,20 @@ class ClientAuthenticator extends Root {
     this._clientAuthenticated();
   }
 
+  /**
+   * The client is now authenticated, and doing some setup
+   * before calling _clientReady.
+   *
+   * @method _clientAuthenticated
+   * @private
+   */
   _clientAuthenticated() {
+    // Update state and trigger the event
     this.isAuthenticated = true;
     this.trigger('authenticated');
 
+    // If no persistenceFeatures are specified, set them all
+    // to true or false to match isTrustedDevice.
     if (!this.persistenceFeatures || !this.isTrustedDevice) {
       this.persistenceFeatures = {
         identities: this.isTrustedDevice,
@@ -463,6 +533,8 @@ class ClientAuthenticator extends Root {
         sessionToken: this.isTrustedDevice,
       };
     }
+
+    // Setup the Database Manager
     if (!this.dbManager) {
       this.dbManager = new DbManager({
         client: this,
@@ -470,10 +542,46 @@ class ClientAuthenticator extends Root {
       });
     }
 
+    // Before calling _clientReady, load the session owner's full Identity.
     if (this.isTrustedDevice) {
-      this.dbManager.onOpen(() => this._clientReady());
+      this.dbManager.onOpen(() => this._loadUser());
     } else {
+      this._loadUser();
+    }
+  }
+
+  /**
+   * Load the session owner's full identity.
+   *
+   * Note that failure to load the identity will not prevent
+   * _clientReady, but is certainly not a desired outcome.
+   *
+   * @method _loadUser
+   */
+  _loadUser() {
+    // We're done if we got the full identity from localStorage.
+    if (this.user.isFullIdentity) {
       this._clientReady();
+    } else {
+      // load the user's full Identity and update localStorage
+      this.user._load();
+      this.user.once('identities:loaded', () => {
+        if (!this._isPersistedSessionsDisabled()) {
+          try {
+            // Update the session data in localStorage with our full Identity.
+            const sessionData = JSON.parse(global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId]);
+            sessionData.user = DbManager.prototype._getIdentityData([this.user])[0];
+            global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId] = JSON.stringify(sessionData);
+          } catch (e) {
+            // no-op
+          }
+        }
+        this._clientReady();
+      })
+      .once('identities:loaded-error', () => {
+        if (!this.user.displayName) this.user.displayName = this.defaultOwnerDisplayName;
+        this._clientReady();
+      });
     }
   }
 
@@ -642,21 +750,26 @@ class ClientAuthenticator extends Root {
     if (this.isConnected) throw new Error(LayerError.dictionary.cantChangeIfConnected);
   }
 
-  /**
-   * __ Methods are automatically called by property setters.
-   *
-   * Any attempt to execute `this.userId = 'xxx'` will cause an error to be thrown
-   * if the client is already connected... unless setting it from scratch, or to the same value.
-   *
-   * @private
-   * @method __adjustUserId
-   * @param {string} value - New appId value
-   */
-  __adjustUserId(userId) {
-    if (this.isConnected && this.userId && this.userId !== userId || this.isAuthenticated) {
+ /**
+  * __ Methods are automatically called by property setters.
+  *
+  * Any attempt to execute `this.user = userIdentity` will cause an error to be thrown
+  * if the client is already connected.
+  *
+  * @private
+  * @method __adjustUser
+  * @param {string} user - new Identity object
+  */
+  __adjustUser(user) {
+    if (this.isConnected) {
       throw new Error(LayerError.dictionary.cantChangeIfConnected);
     }
   }
+
+  // Virtual methods
+  _addIdentity(identity) {}
+  _removeIdentity(identity) {}
+
 
   /* ACCESSOR METHODS END */
 
@@ -925,11 +1038,10 @@ ClientAuthenticator.prototype.appId = '';
 
 /**
  * You can use this to find the userId you are logged in as.
- * You can set this in the constructor to verify that the client
- * will only restore a session if that session belonged to that same userId.
- * @type {String}
+ *
+ * @type {layer.UserIdentity}
  */
-ClientAuthenticator.prototype.userId = '';
+ClientAuthenticator.prototype.user = null;
 
 /**
  * Your current session token that authenticates your requests.
@@ -1021,6 +1133,13 @@ ClientAuthenticator.prototype.dbManager = null;
 ClientAuthenticator.prototype.id = '';
 
 /**
+ * If a display name is not loaded for the session owner, use this name.
+ *
+ * @type {string}
+ */
+ClientAuthenticator.prototype.defaultOwnerDisplayName = 'You';
+
+/**
  * Is true if the client is authenticated and connected to the server;
  *
  * Typically used to determine if there is a connection to the server.
@@ -1051,6 +1170,21 @@ Object.defineProperty(ClientAuthenticator.prototype, 'logLevel', {
   enumerable: false,
   get: function get() { return logger.level; },
   set: function set(value) { logger.level = value; },
+});
+
+/**
+ * Short hand for getting the userId of the authenticated user.
+ *
+ * Could also just use client.user.userId
+ *
+ * @type {string} userId
+ */
+Object.defineProperty(ClientAuthenticator.prototype, 'userId', {
+  enumerable: true,
+  get: function get() {
+    return this.user ? this.user.userId : '';
+  },
+  set: function set() {},
 });
 
 /**
