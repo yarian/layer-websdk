@@ -1,5 +1,10 @@
 # Javascript SDK Change Log
 
+# NEXT VERSION GOES HERE
+
+* Improves logic around reconnecting websockets to validate that the session is still valid.
+* Removes tests for Message `ffffffff....` which were used to validate the session is still valid.
+
 # 1.0.6
 
 * Query will retry when no data is detected in case the server has not yet received data for this user.
