@@ -230,7 +230,7 @@ var query = client.createQuery(builder);
 query.update(builder.forConversation(conversationTwo.id));
 ```
 
-The QueryBuilder may suit some developer styles better, and makes specifying a predicateis simpler than concatenating strings when specifying a predicate.
+The QueryBuilder may suit some developer styles better, and makes specifying a predicate simpler than concatenating strings when specifying a predicate.
 
 #### Query Results
 
@@ -242,15 +242,15 @@ query.on('change', function(evt) {
 });
 ```
 
-To get more granular details about the different types of `change` events and how to access just the data within the results that have changed, see the [Query API](http://static.layer.com/sdk/docs/#!/api/layer.Query)
+To get more granular details about the different types of `change` events and how to access just the data within the results that have changed, see the [Query API](http://static.layer.com/sdk/docs/#!/api/layer.Query).
 
 ## Authentication
 
 Authentication requires that:
 
-* you have setup an Identity Service
+* you have set up an Identity Service
 * your client sends a request to your identity service to get an Identity Token
-* your client provides that identity token to the Layer Web SDK.
+* your client provides that identity token to the Layer Web SDK
 
 Some of these concepts are explained in more detail in the [Authentication Guide](https://developer.layer.com/docs/websdk/guides#authentication); concepts specific to the Layer Web SDK are described here.
 
@@ -306,7 +306,7 @@ var client = new layer.Client({
 });
 ```
 
-* If there is no session cached for Frodo_the_Dodo, then your `challenge` event handler will be called.
+* If there is no session cached for `Frodo_the_Dodo`, then your `challenge` event handler will be called.
 * If there is a session but its expired, then your `challenge` event handler will be called.
 * If there is a session and its valid, then your `ready` event handler will be called.
 
