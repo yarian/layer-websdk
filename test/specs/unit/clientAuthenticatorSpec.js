@@ -333,7 +333,7 @@ describe("The Client Authenticator Class", function() {
             // Posttest
             expect(requests.mostRecent()).toEqual({
                 method: "GET",
-                url: client.url + "/messages/ffffffff-ffff-ffff-ffff-ffffffffffff",
+                url: client.url + "/",
                 headers: {
                     authorization: 'Layer session-token="sessionToken"',
                     "content-type": "application/json",

@@ -485,7 +485,7 @@ class Query extends Root {
       if (results.data.length) {
         this._retryCount = 0;
         this._appendResults(results);
-        this.totalSize = results.xhr.getResponseHeader('Layer-Count');
+        this.totalSize = Number(results.xhr.getResponseHeader('Layer-Count') || 0);
       }
 
       // If there are no results, and we have no results, there may be data still syncing to the server; so poll for a bit

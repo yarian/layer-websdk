@@ -219,7 +219,7 @@ class ClientAuthenticator extends Root {
     if (this.sessionToken) {
       // This will return an error with a nonce if the token is not valid.
       this.xhr({
-        url: '/messages/ffffffff-ffff-ffff-ffff-ffffffffffff',
+        url: '/',
         method: 'GET',
         sync: false,
         headers: {
