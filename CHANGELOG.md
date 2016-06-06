@@ -1,6 +1,6 @@
 # Javascript SDK Change Log
 
-# NEXT VERSION GOES HERE
+# 1.0.7
 
 * Improves logic around reconnecting websockets to validate that the session is still valid.
 * Removes tests for Message `ffffffff....` which were used to validate the session is still valid.
