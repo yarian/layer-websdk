@@ -1,15 +1,15 @@
 # Javascript SDK Change Log
 
-# 1.0.7
+## 1.0.7
 
-* Improves logic around reconnecting websockets to validate that the session is still valid.
+* Improves logic around reconnecting websockets to validate that the session is still valid. (WEB-1055)
 * Removes tests for Message `ffffffff....` which were used to validate the session is still valid.
 
-# 1.0.6
+## 1.0.6
 
 * Query will retry when no data is detected in case the server has not yet received data for this user.
 
-# 1.0.5
+## 1.0.5
 
 * Fixes bug in layer.Content.refreshContent where expiration is improperly set
 * Fixes bug in layer.Query when `dataType` is layer.Query.ObjectDataType which fails to update data for a `messages:read` event
