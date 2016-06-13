@@ -192,6 +192,7 @@ class ClientAuthenticator extends Root {
       const userObj = JSON.parse(sessionData).user;
       return new UserIdentity({
         clientId: this.appId,
+        sessionOwner: true,
         fromServer: userObj,
       });
     } catch (error) {

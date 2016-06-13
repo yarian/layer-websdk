@@ -152,6 +152,7 @@ describe("The Client Authenticator Class", function() {
                expect(result.userId).toEqual('FrodoTheDodo');
                expect(result.displayName).toEqual('Frodo is a Dodo');
                expect(result.avatarUrl).toEqual('https://frodo-the-dodo.com');
+               expect(result.sessionOwner).toBe(true);
            });
         });
 
