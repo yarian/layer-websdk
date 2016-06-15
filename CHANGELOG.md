@@ -1,5 +1,9 @@
 # Javascript SDK Change Log
 
+## 1.0.8
+
+* Disable Query Retry by default
+
 ## 1.0.7
 
 * Improves logic around reconnecting websockets to validate that the session is still valid. (WEB-1055)
