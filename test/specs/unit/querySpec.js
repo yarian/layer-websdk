@@ -787,7 +787,8 @@ describe("The Query Class", function() {
             expect(query.totalSize).toEqual(6);
         });
 
-        it("Should retry up to ten times and then trigger a data event if no data", function() {
+        it("Should retry up to MaxRetryCount=10 times and then trigger a data event if no data", function() {
+            layer.Query.MaxRetryCount = 10;
             query.data = [];
             spyOn(query, "_triggerChange");
             spyOn(query, "_run").and.callFake(function() {
@@ -810,7 +811,35 @@ describe("The Query Class", function() {
                 }
             }, requestUrl);
             jasmine.clock().tick(1600);
-            expect(query._run.calls.count()).toEqual(20);
+            expect(query._run.calls.count()).toEqual(10);
+            expect(query._triggerChange).toHaveBeenCalled();
+            layer.Query.MaxRetryCount = 0;
+        });
+
+        it("Should retry up to MaxRetryCount=DEFAULT=0 times and then trigger a data event if no data", function() {
+            query.data = [];
+            spyOn(query, "_triggerChange");
+            spyOn(query, "_run").and.callFake(function() {
+               query._firingRequest = requestUrl;
+               query._processRunResults({
+                 success: true,
+                    data: [],
+                    xhr: {
+                        getResponseHeader: function() {return 0;},
+                    }
+                }, requestUrl);
+                jasmine.clock().tick(1600);
+            });
+
+            query._processRunResults({
+                success: true,
+                data: [],
+                xhr: {
+                    getResponseHeader: function() {return 0;},
+                }
+            }, requestUrl);
+            jasmine.clock().tick(1600);
+            expect(query._run.calls.count()).toEqual(0);
             expect(query._triggerChange).toHaveBeenCalled();
         });
     });

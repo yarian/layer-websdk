@@ -1207,7 +1207,23 @@ Query.prototype._firingRequest = '';
 
 Query.prototype._retryCount = 0;
 
-Query.MaxRetryCount = 20;
+/**
+ * In the event that a new Query gets no data, retry the query a few times.
+ *
+ * Why use this?  Lets say a user has been added to a long running Conversation.
+ * The conversation arrives, but the server is still syncing Messages for this user,
+ * and it may take a few tries before the server has finished populating the Messages of the new Conversation.
+ * How many retries is up to each developer; but 10 is a good number to start with.
+ * After 10 retries, if no data shows up, then the query will assume that there is no data,
+ * and trigger its `change` event with `data: []`.
+ *
+ * Why not use this? Because it delays the completion event, and is not a common occurance
+ * for most applications.
+ *
+ * @type {Number}
+ * @static
+ */
+Query.MaxRetryCount = 0;
 
 Query._supportedEvents = [
   /**
