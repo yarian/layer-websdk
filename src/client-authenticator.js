@@ -309,6 +309,7 @@ class ClientAuthenticator extends Root {
 
     this.isConnected = true;
     setTimeout(() => this._authComplete({ session_token: sessionToken }, false), 1);
+    return this;
   }
 
   /**

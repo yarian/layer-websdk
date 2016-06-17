@@ -644,6 +644,10 @@ describe("The Client Authenticator Class", function() {
                 // Posttest
                 expect(client._authComplete).toHaveBeenCalledWith({ session_token: 'sessionToken' }, false);
             });
+
+            it("Should chain", function () {
+                expect(client.connectWithSession('userId', 'sessionToken')).toBe(client);
+            });
         });
 
         describe("The _connectionResponse() method", function () {
