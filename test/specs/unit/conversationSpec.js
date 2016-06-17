@@ -44,9 +44,10 @@ describe("The Conversation Class", function() {
         client.onlineManager.isOnline = true;
 
         conversation = client._createObject(responses.conversation1);
+        jasmine.clock().tick(1);
         requests.reset();
         client.syncManager.queue = [];
-        jasmine.clock().tick(1);
+
     });
 
     afterEach(function() {

@@ -110,16 +110,14 @@ class SyncManager extends Root {
     // If its a PATCH request on an object that isn't yet created,
     // do not add it to the queue.
     if (requestEvt.operation !== 'PATCH' || !this._findUnfiredCreate(requestEvt)) {
-      logger.info(`Sync Manager Request ${requestEvt.operation} on target ${requestEvt.target}`);
-      logger.debug(requestEvt.toObject());
+      logger.info(`Sync Manager Request ${requestEvt.operation} on target ${requestEvt.target}`, requestEvt.toObject());
       this.queue.push(requestEvt);
       this.trigger('sync:add', {
         request: requestEvt,
         target: requestEvt.target,
       });
     } else {
-      logger.info(`Sync Manager Request PATCH ${requestEvt.target} request ignored; create request still enqueued`);
-      logger.debug(requestEvt.toObject());
+      logger.info(`Sync Manager Request PATCH ${requestEvt.target} request ignored; create request still enqueued`, requestEvt.toObject());
     }
 
     // If its a DELETE request, purge all other requests on that target.
@@ -310,17 +308,18 @@ class SyncManager extends Root {
     logger.warn(`Sync Manager ${requestEvt instanceof WebsocketSyncEvent ? 'Websocket' : 'XHR'} ` +
       `${requestEvt.operation} Request on target ${requestEvt.target} has Failed`, requestEvt.toObject());
 
+
     const errState = this._getErrorState(result, requestEvt, this.isOnline());
     logger.warn('Sync Manager Error State: ' + errState);
     switch (errState) {
       case 'tooManyFailuresWhileOnline':
-        this._xhrHandleServerError(result, 'Sync Manager Server Unavailable Too Long; removing request');
+        this._xhrHandleServerError(result, 'Sync Manager Server Unavailable Too Long; removing request', false);
         break;
       case 'notFound':
-        this._xhrHandleServerError(result, 'Resource not found; presumably deleted');
+        this._xhrHandleServerError(result, 'Resource not found; presumably deleted', false);
         break;
       case 'invalidId':
-        this._xhrHandleServerError(result, 'ID was not unique; request failed');
+        this._xhrHandleServerError(result, 'ID was not unique; request failed', false);
         break;
       case 'validateOnlineAndRetry':
         // Server appears to be hung but will eventually recover.
@@ -343,11 +342,11 @@ class SyncManager extends Root {
         // Server presumably did not like the arguments to this call
         // or the url was invalid.  Do not retry; trigger the callback
         // and let the caller handle it.
-        this._xhrHandleServerError(result, 'Sync Manager Server Rejects Request; removing request');
+        this._xhrHandleServerError(result, 'Sync Manager Server Rejects Request; removing request', true);
         break;
       case 'CORS':
         // A pattern of offline-like failures that suggests its actually a CORs error
-        this._xhrHandleServerError(result, 'Sync Manager Server detects CORS-like errors; removing request');
+        this._xhrHandleServerError(result, 'Sync Manager Server detects CORS-like errors; removing request', false);
         break;
       case 'offline':
         this._xhrHandleConnectionError();
@@ -397,12 +396,20 @@ class SyncManager extends Root {
    * @method _xhrHandleServerError
    * @private
    * @param  {Object} result  - Response object returned by xhr call
+   * @param  {string} logMsg - Message to display in console
+   * @param  {boolean} stringify - log object for quick debugging
    *
    */
-  _xhrHandleServerError(result, logMsg) {
+  _xhrHandleServerError(result, logMsg, stringify) {
     // Execute all callbacks provided by the request
     if (result.request.callback) result.request.callback(result);
-    logger.error(logMsg, result.request);
+    if (stringify) {
+      logger.error(logMsg +
+        '\nREQUEST: ' + JSON.stringify(result.request.toObject(), null, 4) +
+        '\nRESPONSE: ' + JSON.stringify(result.data, null, 4));
+    } else {
+      logger.error(logMsg, result);
+    }
     this.trigger('sync:error', {
       target: result.request.target,
       request: result.request,

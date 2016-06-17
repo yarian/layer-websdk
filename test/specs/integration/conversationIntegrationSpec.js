@@ -31,9 +31,7 @@ describe("Conversation Integration Tests", function() {
 
         client._clientAuthenticated();
         conversation = client._createObject(JSON.parse(JSON.stringify(responses.conversation1)));
-        requests.reset();
-        client.syncManager.queue = [];
-        jasmine.clock().tick(1);
+
         syncManager = new layer.SyncManager({
             client: client,
             onlineManager: client.onlineManager,
@@ -54,7 +52,11 @@ describe("Conversation Integration Tests", function() {
             target: "fred",
             callback: function() {}
         });
+
+        jasmine.clock().tick(1);
+        requests.reset();
         syncManager.queue = [request];
+        client.syncManager.queue = [];
         client._clientReady();
     });
 
@@ -64,6 +66,7 @@ describe("Conversation Integration Tests", function() {
 
 
     it("Should reload participants on error and refire a conversations:change event", function() {
+      syncManager.queue = [];
 
       // Run replaceParticipant and have it fail
       conversation.replaceParticipants([client.userId, "argh"]);

@@ -174,7 +174,7 @@ class Message extends Syncable {
       client._addMessage(this);
       const status = this.recipientStatus[client.user.userId];
       if (status !== Constants.RECEIPT_STATE.READ && status !== Constants.RECEIPT_STATE.DELIVERED) {
-        this._sendReceipt('delivery');
+        Util.defer(() => this._sendReceipt('delivery'));
       }
     }
   }

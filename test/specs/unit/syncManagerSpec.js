@@ -619,7 +619,7 @@ describe("The SyncManager Class", function() {
             syncManager._xhrError(result);
 
             // Posttest
-            expect(syncManager._xhrHandleServerError).toHaveBeenCalledWith(result, jasmine.any(String));
+            expect(syncManager._xhrHandleServerError).toHaveBeenCalledWith(result, jasmine.any(String), false);
         });
 
         it("Should call _xhrHandleServerError if tooManyFailuresWhileOnline if too many 408s", function() {
@@ -631,7 +631,7 @@ describe("The SyncManager Class", function() {
             syncManager._xhrError(result);
 
             // Posttest
-            expect(syncManager._xhrHandleServerError).toHaveBeenCalledWith(result, jasmine.any(String));
+            expect(syncManager._xhrHandleServerError).toHaveBeenCalledWith(result, jasmine.any(String), false);
         });
 
         it("Should call _xhrHandleServerError if CORS error", function() {
@@ -643,7 +643,7 @@ describe("The SyncManager Class", function() {
             syncManager._xhrError(result);
 
             // Posttest
-            expect(syncManager._xhrHandleServerError).toHaveBeenCalledWith(result, jasmine.any(String));
+            expect(syncManager._xhrHandleServerError).toHaveBeenCalledWith(result, jasmine.any(String), false);
         });
 
         it("Should call _xhrHandleServerError if invalidId error", function() {
@@ -655,7 +655,7 @@ describe("The SyncManager Class", function() {
             syncManager._xhrError(result);
 
             // Posttest
-            expect(syncManager._xhrHandleServerError).toHaveBeenCalledWith(result, jasmine.any(String));
+            expect(syncManager._xhrHandleServerError).toHaveBeenCalledWith(result, jasmine.any(String), false);
         });
 
         it("Should call _xhrValidateIsOnline if validateOnlineAndRetry", function() {
@@ -704,7 +704,7 @@ describe("The SyncManager Class", function() {
             syncManager._xhrError(result);
 
             // Posttest
-            expect(syncManager._xhrHandleServerError).toHaveBeenCalledWith(result, jasmine.any(String));
+            expect(syncManager._xhrHandleServerError).toHaveBeenCalledWith(result, jasmine.any(String), true);
         });
 
         it("Should call _xhrHandleConnectionError if offline", function() {

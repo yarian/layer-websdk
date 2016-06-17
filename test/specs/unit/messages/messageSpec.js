@@ -2166,6 +2166,7 @@ describe("The Message class", function() {
 
             // Run,
             var m = layer.Message._createFromServer(data, client);
+            jasmine.clock().tick(1);
 
             // Posttest
             expect(layer.Message.prototype._sendReceipt).toHaveBeenCalledWith('delivery');

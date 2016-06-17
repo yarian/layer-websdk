@@ -53,9 +53,10 @@ describe("The Query Class", function() {
         announcement = client._createObject(responses.announcement);
         conversation2 = client._createObject(responses.conversation2);
         message = conversation.createMessage("Hey");
+
+        jasmine.clock().tick(1);
         requests.reset();
         client.syncManager.queue = [];
-        jasmine.clock().tick(1);
     });
 
     afterEach(function() {
