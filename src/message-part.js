@@ -65,6 +65,7 @@ const xhr = require('./xhr');
 const ClientRegistry = require('./client-registry');
 const LayerError = require('./layer-error');
 const HasBlob = typeof Blob !== 'undefined';
+const logger = require('./logger');
 
 /* istanbul ignore next */
 const LocalFileReader = typeof window === 'undefined' ? require('filereader') : FileReader;
@@ -254,7 +255,7 @@ class MessagePart extends Root {
     }
 
     // If the size is large, Create and upload the Content
-    if (this.size > 2048) {
+    else if (this.size > 2048) {
       this._generateContentAndSend(client);
     }
 
@@ -270,6 +271,12 @@ class MessagePart extends Root {
   }
 
   _sendBody() {
+    if (typeof this.body !== 'string') {
+      const err = 'MessagePart.body must be a string in order to send it';
+      logger.error(err, { mimeType: this.mimeType, body: this.body });
+      throw new Error(err);
+    }
+
     const obj = {
       mime_type: this.mimeType,
       body: this.body,

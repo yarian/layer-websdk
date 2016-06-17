@@ -497,6 +497,19 @@ describe("The MessageParts class", function() {
                 encoding: "fred"
             });
         });
+
+        it("Should throw error on non-string", function() {
+           var part = new layer.MessagePart({
+                body: {hey: "ho"},
+                mimeType: "ho",
+                encoding: "fred"
+            });
+
+            // Run
+            expect(function() {
+                part._sendBody();
+            }).toThrow();
+        });
     });
 
     describe("The _sendWithContent() method", function() {
