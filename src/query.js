@@ -182,7 +182,7 @@ const MESSAGE = 'Message';
 const ANNOUNCEMENT = 'Announcement';
 const IDENTITY = 'Identity';
 const findConvIdRegex = new RegExp(
-  /^conversation.id\s*=\s*['"](layer:\/\/\/conversations\/.{8}-.{4}-.{4}-.{4}-.{12})['"]$/);
+  /^conversation.id\s*=\s*['"]((layer:\/\/\/conversations\/)?.{8}-.{4}-.{4}-.{4}-.{12})['"]$/);
 
 class Query extends Root {
 
@@ -196,6 +196,7 @@ class Query extends Root {
     }
 
     super(options);
+    this.predicate = this.fixPredicate(options.predicate || '');
 
     if ('paginationWindow' in options) {
       const paginationWindow = options.paginationWindow;
@@ -274,13 +275,17 @@ class Query extends Root {
       }
       needsRefresh = true;
     }
-    if ('predicate' in optionsBuilt && this.predicate !== optionsBuilt.predicate) {
-      this.predicate = optionsBuilt.predicate || '';
-      needsRecreate = true;
-    }
     if ('model' in optionsBuilt && this.model !== optionsBuilt.model) {
       this.model = optionsBuilt.model;
       needsRecreate = true;
+    }
+
+    if ('predicate' in optionsBuilt) {
+      const predicate = this.fixPredicate(optionsBuilt.predicate || '');
+      if (this.predicate !== predicate) {
+        this.predicate = predicate;
+        needsRecreate = true;
+      }
     }
     if ('sortBy' in optionsBuilt && JSON.stringify(this.sortBy) !== JSON.stringify(optionsBuilt.sortBy)) {
       this.sortBy = optionsBuilt.sortBy;
@@ -291,6 +296,18 @@ class Query extends Root {
     }
     if (needsRecreate || needsRefresh) this._run();
     return this;
+  }
+
+  fixPredicate(inValue) {
+    if (inValue === '') return '';
+    if (this.model === Query.Message) {
+      let conversationId = inValue.match(findConvIdRegex) ? inValue.replace(findConvIdRegex, '$1') : null;
+      if (!conversationId) throw new Error(LayerError.dictionary.invalidPredicate);
+      if (conversationId.indexOf('layer:///conversations/') !== 0) conversationId = 'layer:///conversations/' + conversationId;
+      return `conversation.id = '${conversationId}'`;
+    } else {
+      throw new Error(LayerError.dictionary.predicateNotSupported);
+    }
   }
 
   /**

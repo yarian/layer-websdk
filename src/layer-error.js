@@ -157,6 +157,8 @@ LayerError.dictionary = {
   deletionModeUnsupported: 'Call to deletion was made with an unsupported deletion mode',
   sessionAndUserRequired: 'connectWithSession requires both a userId and a sessionToken',
   invalidUserIdChange: 'The prn field in the Identity Token must match the requested UserID',
+  predicateNotSupported: 'The predicate is not supported for this value of model',
+  invalidPredicate: 'The predicate does not match the expected format',
 };
 
 module.exports = LayerError;

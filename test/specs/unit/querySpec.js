@@ -170,6 +170,64 @@ describe("The Query Class", function() {
           });
           expect(query.paginationWindow).toEqual(layer.Query.MaxPageSize);
         });
+
+        it("Should accept a full predicate", function() {
+          var query = new layer.Query({
+            client: client,
+            model: layer.Query.Message,
+            predicate: 'conversation.id  =    "layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"'
+          });
+          expect(query.predicate).toEqual('conversation.id = \'layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf\'');
+        });
+
+        it("Should accept a UUID predicate", function() {
+          var query = new layer.Query({
+            client: client,
+            model: layer.Query.Message,
+            predicate: 'conversation.id  =    "fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"'
+          });
+          expect(query.predicate).toEqual('conversation.id = \'layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf\'');
+        });
+
+        it("Should accept a full predicate double quote", function() {
+          var query = new layer.Query({
+            client: client,
+            model: layer.Query.Message,
+            predicate: 'conversation.id  =    "layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"'
+          });
+          expect(query.predicate).toEqual("conversation.id = 'layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf'");
+        });
+
+        it("Should accept a UUID predicate double quote", function() {
+          var query = new layer.Query({
+            client: client,
+            model: layer.Query.Message,
+            predicate: 'conversation.id  =    "fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"'
+          });
+          expect(query.predicate).toEqual("conversation.id = 'layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf'");
+        });
+
+         it("Should reject predicate on Conversations", function() {
+            expect(function() {
+                var query = new layer.Query({
+                    client: client,
+                    model: layer.Query.Conversation,
+                    predicate: 'conversation.id  =    "fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"'
+                });
+            }).toThrowError(layer.LayerError.dictionary.predicateNotSupported);
+            expect(layer.LayerError.dictionary.predicateNotSupported.length > 0).toBe(true);
+        });
+
+        it("Should reject an invalid predicate", function() {
+          expect(function() {
+            var query = new layer.Query({
+                client: client,
+                model: layer.Query.Message,
+                predicate: "layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf-hey"
+            });
+          }).toThrowError(layer.LayerError.dictionary.invalidPredicate);
+          expect(layer.LayerError.dictionary.invalidPredicate.length > 0).toBe(true);
+        });
     });
 
     describe("The destroy() method", function() {
@@ -231,12 +289,31 @@ describe("The Query Class", function() {
             spyOn(query, "_run");
 
             // Run
-            query.update({predicate: 'conversation.id = "fred"'});
+            query.update({
+                model: layer.Query.Message,
+                predicate: 'conversation.id = "layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"'
+            });
 
             // Posttest
-            expect(query.predicate).toEqual('conversation.id = "fred"');
+            expect(query.predicate).toEqual("conversation.id = 'layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf'");
             expect(query._reset).toHaveBeenCalledWith();
             expect(query._run).toHaveBeenCalledWith();
+        });
+
+        it("Should detect predicate is the same", function() {
+            query.update({
+                model: layer.Query.Message,
+                predicate: 'conversation.id = "layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"'
+            });
+            spyOn(query, "_reset");
+            spyOn(query, "_run");
+
+            // Run
+            query.update({predicate: 'conversation.id    =   "fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"'});
+
+            // Posttest
+            expect(query._reset).not.toHaveBeenCalledWith();
+            expect(query._run).not.toHaveBeenCalledWith();
         });
 
         it("Should update the model", function() {
@@ -579,16 +656,8 @@ describe("The Query Class", function() {
             query.destroy();
         });
 
-        it("Should return a UUID from a single quoted predicate", function() {
+        it("Should return a UUID from a single quoted Full predicate", function() {
           query.predicate = 'conversation.id = "' + conversation.id + '"'
-          expect(query._getConversationPredicateIds()).toEqual({
-            uuid: conversation.id.replace(/layer\:\/\/\/conversations\//, ""),
-            id: conversation.id
-          });
-        });
-
-        it("Should return a UUID from a double quoted predicate", function() {
-          query.predicate = 'conversation.id = \'' + conversation.id + '\''
           expect(query._getConversationPredicateIds()).toEqual({
             uuid: conversation.id.replace(/layer\:\/\/\/conversations\//, ""),
             id: conversation.id
