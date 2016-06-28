@@ -2060,51 +2060,95 @@ describe("The Query Class", function() {
         });
 
         it("Should insert as first element if sort by createdAt", function() {
-            var c = {createdAt: 15};
+            var c = client.createConversation({participants: ["a"]});
+            c.syncState = layer.Constants.SYNCED;
+            c.createdAt = 15;
             expect(query._getInsertConversationIndex(c, [conversation2, conversation])).toEqual(0);
         });
 
         it("Should insert as second element if sort by createdAt", function() {
-            var c = {createdAt: 8};
+            var c = client.createConversation({participants: ["a"]});
+            c.syncState = layer.Constants.SYNCED;
+            c.createdAt = 8;
             expect(query._getInsertConversationIndex(c, [conversation2, conversation])).toEqual(1);
         });
 
         it("Should insert as last element if sort by createdAt", function() {
-            var c = {createdAt: 3};
+            var c = client.createConversation({participants: ["a"]});
+            c.syncState = layer.Constants.SYNCED;
+            c.createdAt = 3;
             expect(query._getInsertConversationIndex(c, [conversation2, conversation])).toEqual(2);
         });
 
         it("Should insert as first element if sort by lastMessage", function() {
             query.sortBy = [{"lastMessage.sentAt": "desc"}];
-            var c = {lastMessage: {sentAt: 15}};
+            var c = client.createConversation({participants: ["a"]});
+            c.syncState = layer.Constants.SYNCED;
+            c.createdAt = 15;
             expect(query._getInsertConversationIndex(c, [conversation, conversation2])).toEqual(0);
         });
 
         it("Should insert as second element if sort by lastMessage", function() {
             query.sortBy = [{"lastMessage.sentAt": "desc"}];
-            var c = {lastMessage: {sentAt: 11}};
+            var c = client.createConversation({participants: ["a"]});
+            c.syncState = layer.Constants.SYNCED;
+            c.createdAt = 11;
             expect(query._getInsertConversationIndex(c, [conversation, conversation2])).toEqual(1);
         });
 
         it("Should insert as last element if sort by lastMessage", function() {
             query.sortBy = [{"lastMessage.sentAt": "desc"}];
-            var c = {lastMessage: {sentAt: 3}};
+            var c = client.createConversation({participants: ["a"]});
+            c.syncState = layer.Constants.SYNCED;
+            c.createdAt = 3;
             expect(query._getInsertConversationIndex(c, [conversation, conversation2])).toEqual(2);
         });
 
         it("Should use createdAt field in sort by lastMessage test 1", function() {
             query.sortBy = [{"lastMessage.sentAt": "desc"}];
-            var c = {createdAt: 11};
+            var c = client.createConversation({participants: ["a"]});
+            c.syncState = layer.Constants.SYNCED;
+            c.createdAt = 11;
             expect(query._getInsertConversationIndex(c, [conversation, conversation2])).toEqual(1);
         });
 
         it("Should use createdAt field in sort by lastMessage test 2", function() {
             query.sortBy = [{"lastMessage.sentAt": "desc"}];
-            var c = {lastMessage: {sentAt: 11}};
+            var c = client.createConversation({participants: ["a"]});
+            c.syncState = layer.Constants.SYNCED;
+            c.createdAt = 11;
             data = [conversation, conversation2];
             data[0].createdAt = data[0].lastMessage.sentAt;
             delete data[0].lastMessage;
             expect(query._getInsertConversationIndex(c, data)).toEqual(1);
+        });
+
+        it("Should insert NEW items at top for sort by lastMessage", function() {
+            query.sortBy = [{"lastMessage.sentAt": "desc"}];
+            var c = client.createConversation({participants: ["layer:///identities/doh"]});
+            data = [conversation, conversation2];
+            expect(query._getInsertConversationIndex(c, data)).toEqual(0);
+        });
+
+        it("Should insert NEW items at top for sort by createdAt", function() {
+            query.sortBy = [{"createdAt": "desc"}];
+            var c = client.createConversation({participants: ["layer:///identities/doh"]});
+            data = [conversation, conversation2];
+            expect(query._getInsertConversationIndex(c, data)).toEqual(0);
+        });
+
+        it("Should insert added items after NEW items for sort by lastMessage", function() {
+            query.sortBy = [{"lastMessage.sentAt": "desc"}];
+            var c = client.createConversation({participants: ["layer:///identities/doh"]});
+            data = [c, conversation2];
+            expect(query._getInsertConversationIndex(conversation, data)).toEqual(1);
+        });
+
+        it("Should insert added items after NEW items for sort by createdAt", function() {
+            query.sortBy = [{"createdAt": "desc"}];
+            var c = client.createConversation({participants: ["layer:///identities/doh"]});
+            data = [c, conversation2];
+            expect(query._getInsertConversationIndex(conversation, data)).toEqual(2);
         });
     });
 

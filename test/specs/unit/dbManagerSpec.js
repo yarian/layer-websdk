@@ -274,6 +274,11 @@ describe("The DbManager Class", function() {
         expect(dbManager._getConversationData([conversation])).toEqual([]);
       });
 
+      it("Should ignore SYNC-NEW Conversations", function() {
+        conversation.syncState = layer.Constants.SYNC_STATE.NEW;
+        expect(dbManager._getConversationData([conversation])).toEqual([]);
+      });
+
       it("Should generate a proper object", function() {
         expect(dbManager._getConversationData([conversation])).toEqual([{
           id: conversation.id,
@@ -830,6 +835,7 @@ describe("The DbManager Class", function() {
         spyOn(dbManager, "_createConversation");
         var c1 = client.createConversation({participants: ["c1"]});
         var c2 = client.createConversation({participants: ["c2"]});
+        c1.syncState = c2.syncState = layer.Constants.SYNC_STATE.SYNCED;
 
         // Run
         dbManager._loadConversationsResult(dbManager._getConversationData([c1, c2]), []);
@@ -843,6 +849,7 @@ describe("The DbManager Class", function() {
         var callback = jasmine.createSpy('callback');
         var c1 = client.createConversation({participants: ["c1"]});
         var c2 = client.createConversation({participants: ["c2"]});
+        c1.syncState = c2.syncState = layer.Constants.SYNC_STATE.SYNCED;
         client._conversationsHash = {};
         client._conversationsHash[c2.id] = c2;
 

@@ -16,6 +16,7 @@ const Root = require('./root');
 const logger = require('./logger');
 const SyncEvent = require('./sync-event');
 const Constants = require('./const');
+const SYNC_NEW = Constants.SYNC_STATE.NEW;
 const Util = require('./client-utils');
 
 function getDate(inDate) {
@@ -211,7 +212,7 @@ class DbManager extends Root {
       if (conversation._fromDB) {
         conversation._fromDB = false;
         return false;
-      } else if (conversation.isLoading) {
+      } else if (conversation.isLoading || conversation.syncState === SYNC_NEW) {
         return false;
       } else {
         return true;

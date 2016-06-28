@@ -176,6 +176,7 @@ const Root = require('./root');
 const LayerError = require('./layer-error');
 const Util = require('./client-utils');
 const Logger = require('./logger');
+const { SYNC_STATE } = require('./const');
 
 const CONVERSATION = 'Conversation';
 const MESSAGE = 'Message';
@@ -845,17 +846,22 @@ class Query extends Root {
   }
 
   _getInsertConversationIndex(conversation, data) {
+    if (!conversation.isSaved()) return 0;
     const sortField = this._getSortField();
     let index;
     if (sortField === 'created_at') {
       for (index = 0; index < data.length; index++) {
-        if (conversation.createdAt >= data[index].createdAt) break;
+        const item = data[index];
+        if (item.syncState === SYNC_STATE.NEW || item.syncState === SYNC_STATE.SAVING) continue;
+        if (conversation.createdAt >= item.createdAt) break;
       }
       return index;
     } else {
       const d1 = conversation.lastMessage ? conversation.lastMessage.sentAt : conversation.createdAt;
       for (index = 0; index < data.length; index++) {
-        const d2 = data[index].lastMessage ? data[index].lastMessage.sentAt : data[index].createdAt;
+        const item = data[index];
+        if (item.syncState === SYNC_STATE.NEW || item.syncState === SYNC_STATE.SAVING) continue;
+        const d2 = item.lastMessage ? item.lastMessage.sentAt : item.createdAt;
         if (d1 >= d2) break;
       }
       return index;
@@ -871,7 +877,6 @@ class Query extends Root {
     }
     return index;
   }
-
 
   _handleConversationAddEvent(evt) {
     // Filter out any Conversations already in our data

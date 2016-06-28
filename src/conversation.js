@@ -117,6 +117,10 @@ class Conversation extends Syncable {
       }
     }
 
+    if (!this.createdAt) {
+      this.createdAt = new Date();
+    }
+
     client._addConversation(this);
     this.isInitializing = false;
   }

@@ -123,6 +123,9 @@ describe("The Conversation Class", function() {
             expect(new layer.Conversation({client: client}).localCreatedAt).toEqual(jasmine.any(Date));
         });
 
+        it("Should setup createdAt", function() {
+            expect(new layer.Conversation({client: client}).createdAt).toEqual(jasmine.any(Date));
+        });
 
         it("Should copy in any input participants", function() {
             expect(new layer.Conversation({client: client, participants: [userIdentity1, userIdentity2.userId]}).participants)
@@ -136,8 +139,6 @@ describe("The Conversation Class", function() {
         it("Should copy in distinct", function() {
             expect(new layer.Conversation({client: client, distinct: false}).distinct).toEqual(false);
         });
-
-
 
         it("Should call _addConversation", function() {
             // Setup
