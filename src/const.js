@@ -58,7 +58,8 @@ module.exports = {
   LOCALSTORAGE_KEYS: {
     SESSIONDATA: 'layer-session-data-',
   },
-  ACCEPT: 'application/vnd.layer+json; version=1.0',
+  ACCEPT: 'application/vnd.layer+json; version=2.0',
+  WEBSOCKET_PROTOCOL: 'layer-2.0',
 
   /**
    * Log levels

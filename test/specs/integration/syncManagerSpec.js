@@ -13,7 +13,7 @@ describe("SyncManager Integration Tests", function() {
             isTrustedDevice: false
         });
         client.sessionToken = "sessionToken";
-        client.user = new layer.UserIdentity({
+        client.user = new layer.Identity({
             clientId: client.appId,
             userId: "Frodo",
             id: "layer:///identities/" + "Frodo",

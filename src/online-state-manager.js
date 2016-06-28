@@ -27,6 +27,7 @@ const Root = require('./root');
 const xhr = require('./xhr');
 const logger = require('./logger');
 const Utils = require('./client-utils');
+const { ACCEPT } = require('./const');
 
 class OnlineStateManager extends Root {
   /**
@@ -189,7 +190,7 @@ class OnlineStateManager extends Root {
       url: this.testUrl,
       method: 'POST',
       headers: {
-        accept: 'application/vnd.layer+json; version=1.0',
+        accept: ACCEPT,
       },
     }, () => {
       // this.isOnline will be updated via _connectionListener prior to this line executing

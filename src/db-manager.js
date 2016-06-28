@@ -6,7 +6,7 @@
  *
  * TODO:
  * 0. Redesign this so that knowledge of the data is not hard-coded in
- * @class layer.db-manager
+ * @class layer.DbManager
  * @protected
  */
 
@@ -220,7 +220,7 @@ class DbManager extends Root {
       const item = {
         id: conversation.id,
         url: conversation.url,
-        participants: conversation.participants,
+        participants: this._getIdentityData(conversation.participants, true),
         distinct: conversation.distinct,
         created_at: getDate(conversation.createdAt),
         metadata: conversation.metadata,
@@ -256,11 +256,12 @@ class DbManager extends Root {
    * @method _getIdentityData
    * @private
    * @param {layer.Identity[]} identities
+   * @param {boolean} writeBasicIdentity - Forces output as a Basic Identity
    * @return {Object[]} identities
    */
-  _getIdentityData(identities) {
+  _getIdentityData(identities, writeBasicIdentity) {
     return identities.filter((identity) => {
-      if (identity.isDestroyed || !identity.isFullIdentity) return false;
+      if (identity.isDestroyed || !identity.isFullIdentity && !writeBasicIdentity) return false;
 
       if (identity._fromDB) {
         identity._fromDB = false;
@@ -271,21 +272,31 @@ class DbManager extends Root {
         return true;
       }
     }).map((identity) => {
-      const item = {
-        id: identity.id,
-        url: identity.url,
-        user_id: identity.userId,
-        first_name: identity.firstName,
-        last_name: identity.lastName,
-        display_name: identity.displayName,
-        avatar_url: identity.avatarUrl,
-        metadata: identity.metadata,
-        public_key: identity.publicKey,
-        phone_number: identity.phoneNumber,
-        email_address: identity.emailAddress,
-        sync_state: identity.syncState,
-      };
-      return item;
+      if (identity.isFullIdentity && !writeBasicIdentity) {
+        return {
+          id: identity.id,
+          url: identity.url,
+          user_id: identity.userId,
+          first_name: identity.firstName,
+          last_name: identity.lastName,
+          display_name: identity.displayName,
+          avatar_url: identity.avatarUrl,
+          metadata: identity.metadata,
+          public_key: identity.publicKey,
+          phone_number: identity.phoneNumber,
+          email_address: identity.emailAddress,
+          sync_state: identity.syncState,
+          type: identity.type,
+        };
+      } else {
+        return {
+          id: identity.id,
+          url: identity.url,
+          user_id: identity.userId,
+          display_name: identity.displayName,
+          avatar_url: identity.avatarUrl,
+        };
+      }
     });
   }
 
@@ -344,12 +355,7 @@ class DbManager extends Root {
         },
       })),
       position: message.position,
-      sender: {
-        name: message.sender.name || '',
-        user_id: message.sender.userId || '',
-        display_name: message.sender.displayName || '',
-        avatar_url: message.sender.avatarUrl || '',
-      },
+      sender: this._getIdentityData([message.sender], true)[0],
       recipient_status: message.recipientStatus,
       sent_at: getDate(message.sentAt),
       received_at: getDate(message.receivedAt),
@@ -482,7 +488,7 @@ class DbManager extends Root {
    * @param {string} sortBy       - One of 'last_message' or 'created_at'; always sorts in DESC order
    * @param {string} [fromId=]    - For pagination, provide the conversationId to get Conversations after
    * @param {number} [pageSize=]  - To limit the number of results, provide a number for how many results to return.
-   * @param {Function} callback   - Callback for getting results
+   * @param {Function} [callback]  - Callback for getting results
    * @param {layer.Conversation[]} callback.result
    */
   loadConversations(sortBy, fromId, pageSize, callback) {
@@ -548,7 +554,7 @@ class DbManager extends Root {
    * @param {string} conversationId - ID of the Conversation whose Messages are of interest.
    * @param {string} [fromId=]    - For pagination, provide the messageId to get Messages after
    * @param {number} [pageSize=]  - To limit the number of results, provide a number for how many results to return.
-   * @param {Function} callback   - Callback for getting results
+   * @param {Function} [callback]   - Callback for getting results
    * @param {layer.Message[]} callback.result
    */
   loadMessages(conversationId, fromId, pageSize, callback) {
@@ -566,7 +572,7 @@ class DbManager extends Root {
    * @method loadAnnouncements
    * @param {string} [fromId=]    - For pagination, provide the messageId to get Announcements after
    * @param {number} [pageSize=]  - To limit the number of results, provide a number for how many results to return.
-   * @param {Function} callback
+   * @param {Function} [callback]
    * @param {layer.Announcement[]} callback.result
    */
   loadAnnouncements(fromId, pageSize, callback) {
@@ -719,6 +725,7 @@ class DbManager extends Root {
    * @method _loadSyncEventRelatedData
    * @private
    * @param {Object[]} syncEvents
+   * @param {Function} callback
    * @param {layer.SyncEvent[]} callback.result
    */
   _loadSyncEventRelatedData(syncEvents, callback) {
@@ -763,6 +770,7 @@ class DbManager extends Root {
    * @method _loadSyncEventResults
    * @private
    * @param {Object[]} syncEvents
+   * @param {Function} callback
    * @param {layer.SyncEvent[]} callback.result
    */
   _loadSyncEventResults(syncEvents, callback) {

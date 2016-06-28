@@ -3,7 +3,6 @@
 
     var client = new layer.Client({
       appId: 'layer:///apps/staging/ffffffff-ffff-ffff-ffff-ffffffffffff',
-      userId: 'Fred',
       challenge: function(evt) {
         myAuthenticator({
           nonce: evt.nonce,
@@ -13,13 +12,12 @@
       ready: function(client) {
         alert('I am Client; Server: Serve me!');
       }
-    });
+    }).connect('Fred')
  *
  * You can also initialize this as
 
     var client = new layer.Client({
-      appId: 'layer:///apps/staging/ffffffff-ffff-ffff-ffff-ffffffffffff',
-      userId: 'Fred'
+      appId: 'layer:///apps/staging/ffffffff-ffff-ffff-ffff-ffffffffffff'
     });
 
     client.on('challenge', function(evt) {
@@ -32,6 +30,8 @@
     client.on('ready', function(client) {
       alert('I am Client; Server: Serve me!');
     });
+
+    client.connect('Fred');
  *
  * ## API Synopsis:
  *
@@ -69,7 +69,6 @@
  *
  *     var client = new layer.Client({
  *        appId: 'layer:///apps/staging/ffffffff-ffff-ffff-ffff-ffffffffffff',
- *        userId: 'Fred',
  *        logLevel: layer.Constants.LOG.INFO
  *     });
  *
@@ -85,7 +84,7 @@ const LayerError = require('./layer-error');
 const Syncable = require('./syncable');
 const Message = require('./message');
 const Announcement = require('./announcement');
-const { Identity, UserIdentity, ServiceIdentity } = require('./identity');
+const Identity = require('./identity');
 const TypingIndicatorListener = require('./typing-indicators/typing-indicator-listener');
 const Util = require('./client-utils');
 const Root = require('./root');
@@ -107,7 +106,6 @@ class Client extends ClientAuth {
     this._messagesHash = {};
     this._queriesHash = {};
     this._identitiesHash = {};
-    this._serviceIdentitiesHash = {};
     this._scheduleCheckAndPurgeCacheItems = [];
 
     this._initComponents();
@@ -167,14 +165,6 @@ class Client extends ClientAuth {
       }
     });
     this._identitiesHash = null;
-
-    Object.keys(this._serviceIdentitiesHash).forEach((id) => {
-      const identity = this._serviceIdentitiesHash[id];
-      if (identity && !identity.isDestroyed) {
-        identity.destroy();
-      }
-    });
-    this._serviceIdentitiesHash = null;
 
     if (this.socketManager) this.socketManager.close();
   }
@@ -451,8 +441,7 @@ class Client extends ClientAuth {
   /**
    * Retrieve a identity by Identifier.
    *
-   *      var i1 = client.getIdentity('layer:///identities/user_id');
-   *      var i2 = client.getIdentity('layer:///serviceidentities/service_name');
+   *      var identity = client.getIdentity('layer:///identities/user_id');
    *
    * If there is not an Identity with that id, it will return null.
    *
@@ -460,7 +449,7 @@ class Client extends ClientAuth {
    * This is only supported for User Identities, not Service Identities.
    *
    * If loading from the server, the method will return
-   * a layer.UserIdentity instance that has no data; the identities:loaded/identities:loaded-error events
+   * a layer.Identity instance that has no data; the identities:loaded/identities:loaded-error events
    * will let you know when the identity has finished/failed loading from the server.
    *
    *      var user = client.getIdentity('layer:///identities/123', true)
@@ -473,31 +462,49 @@ class Client extends ClientAuth {
    *
    * @method getIdentity
    * @param  {string} id - Accepts full Layer ID (layer:///identities/frodo-the-dodo) or just the UserID (frodo-the-dodo).
-   *                       If its just a UserID, its presumed to be a UserIdentity not a ServiceIdentity.
    * @param  {boolean} [canLoad=false] - Pass true to allow loading an identity from
    *                                    the server if not found
    * @return {layer.Identity}
    */
   getIdentity(id, canLoad) {
+    let userId;
     if (typeof id !== 'string') throw new Error(LayerError.dictionary.idParamRequired);
-    if (!UserIdentity.isValidId(id) && !ServiceIdentity.isValidId(id)) {
-      id = UserIdentity.prefixUUID + encodeURIComponent(id);
+    if (!Identity.isValidId(id)) {
+      userId = id;
+      id = Identity.prefixUUID + encodeURIComponent(id);
     }
 
-    switch (Util.typeFromID(id)) {
-      case 'identities':
-        if (this._identitiesHash[id]) {
-          return this._identitiesHash[id];
-        } else if (canLoad) {
-          return Identity.load(id, this);
-        }
-        break;
-      case 'serviceidentities':
-        if (this._serviceIdentitiesHash[id]) {
-          return this._serviceIdentitiesHash[id];
-        }
+    if (this._identitiesHash[id]) {
+      return this._identitiesHash[id];
+    } else if (canLoad) {
+      return Identity.load(id, this);
     }
+
     return null;
+  }
+
+  /**
+   * Takes an array of Identity instances, User IDs, Identity IDs, Identity objects,
+   * or Server formatted Identity Objects and returns an array of Identity instances.
+   *
+   * @method _fixIdentities
+   * @private
+   * @param {Mixed[]} identities - Something that tells us what Identity to return
+   * @return {layer.Identity[]}
+   */
+  _fixIdentities(identities) {
+    return identities.map((identity) => {
+      if (identity instanceof Identity) return identity;
+      if (typeof identity === 'string') {
+        return this.getIdentity(identity, true);
+      } else if (identity && typeof identity === 'object') {
+        if ('userId' in identity) {
+          return this.getIdentity(identity.id || identity.userId);
+        } else if ('user_id' in identity) {
+          return this._createObject(identity);
+        }
+      }
+    });
   }
 
   /**
@@ -516,20 +523,10 @@ class Client extends ClientAuth {
    */
   _addIdentity(identity) {
     const id = identity.id;
-    switch (Util.typeFromID(id)) {
-      case 'identities':
-        if (!this._identitiesHash[id]) {
-          // Register the Identity
-          this._identitiesHash[id] = identity;
-          this._triggerAsync('identities:add', { identities: [identity] });
-        }
-        break;
-      case 'serviceidentities':
-        if (!this._serviceIdentitiesHash[id]) {
-          // Register the Identity
-          this._serviceIdentitiesHash[id] = identity;
-        }
-        break;
+    if (id && !this._identitiesHash[id]) {
+      // Register the Identity
+      this._identitiesHash[id] = identity;
+      this._triggerAsync('identities:add', { identities: [identity] });
     }
     return this;
   }
@@ -552,18 +549,9 @@ class Client extends ClientAuth {
     identity.off(null, null, this);
 
     const id = identity.id;
-    switch (Util.typeFromID(id)) {
-      case 'identities':
-        if (this._identitiesHash[id]) {
-          delete this._identitiesHash[id];
-          this._triggerAsync('identities:remove', { identities: [identity] });
-        }
-        break;
-      case 'serviceidentities':
-        if (this._serviceIdentitiesHash[id]) {
-          delete this._serviceIdentitiesHash[id];
-        }
-        break;
+    if (this._identitiesHash[id]) {
+      delete this._identitiesHash[id];
+      this._triggerAsync('identities:remove', { identities: [identity] });
     }
     return this;
   }
@@ -573,15 +561,15 @@ class Client extends ClientAuth {
    *
    * @method followIdentity
    * @param  {string} id - Accepts full Layer ID (layer:///identities/frodo-the-dodo) or just the UserID (frodo-the-dodo).
-   * @returns {layer.UserIdentity}
+   * @returns {layer.Identity}
    */
   followIdentity(id) {
-    if (!UserIdentity.isValidId(id)) {
-      id = UserIdentity.prefixUUID + encodeURIComponent(id);
+    if (!Identity.isValidId(id)) {
+      id = Identity.prefixUUID + encodeURIComponent(id);
     }
     let identity = this.getIdentity(id);
     if (!identity) {
-      identity = new UserIdentity({
+      identity = new Identity({
         id,
         clientId: this.appId,
         userId: id.substring(20),
@@ -596,15 +584,15 @@ class Client extends ClientAuth {
    *
    * @method unfollowIdentity
    * @param  {string} id - Accepts full Layer ID (layer:///identities/frodo-the-dodo) or just the UserID (frodo-the-dodo).
-   * @returns {layer.UserIdentity}
+   * @returns {layer.Identity}
    */
   unfollowIdentity(id) {
-    if (!UserIdentity.isValidId(id)) {
-      id = UserIdentity.prefixUUID + encodeURIComponent(id);
+    if (!Identity.isValidId(id)) {
+      id = Identity.prefixUUID + encodeURIComponent(id);
     }
     let identity = this.getIdentity(id);
     if (!identity) {
-      identity = new UserIdentity({
+      identity = new Identity({
         id,
         clientId: this.appId,
         userId: id.substring(20),
@@ -638,7 +626,6 @@ class Client extends ClientAuth {
       case 'queries':
         return this.getQuery(id);
       case 'identities':
-      case 'serviceidentities':
         return this.getIdentity(id);
     }
     return null;
@@ -667,9 +654,7 @@ class Client extends ClientAuth {
         case 'conversations':
           return Conversation._createFromServer(obj, this);
         case 'identities':
-          return UserIdentity._createFromServer(obj, this);
-        case 'serviceidentities':
-          return ServiceIdentity._createFromServer(obj, this);
+          return Identity._createFromServer(obj, this);
       }
     }
   }
@@ -789,7 +774,6 @@ class Client extends ClientAuth {
     this._messagesHash = {};
     this._queriesHash = {};
     this._identitiesHash = {};
-    this._serviceIdentitiesHash = {};
     return super._resetSession();
   }
 
@@ -801,9 +785,8 @@ class Client extends ClientAuth {
    * There are a few ways to invoke it; note that the default behavior is to create a Distinct Conversation
    * unless otherwise stated via the layer.Conversation.distinct property.
    *
-   *         client.createConversation(['a', 'b']);
-   *
    *         client.createConversation({participants: ['a', 'b']});
+   *         client.createConversation({participants: [userIdentityA, userIdentityB]});
    *
    *         client.createConversation({
    *             participants: ['a', 'b'],
@@ -828,7 +811,12 @@ class Client extends ClientAuth {
    * will be triggered asynchronously and the Conversation object will be ready
    * at that time.  Further, the event will provide details on the result:
    *
-   *       var conversation = client.createConversation(['a', 'b']);
+   *       var conversation = client.createConversation({
+   *          participants: ['a', 'b'],
+   *          metadata: {
+   *            title: 'I am a title'
+   *          }
+   *       });
    *       conversation.on('conversations:sent', function(evt) {
    *           switch(evt.result) {
    *               case Conversation.CREATED:
@@ -844,25 +832,16 @@ class Client extends ClientAuth {
    *       });
    *
    * @method createConversation
-   * @param  {Object/string[]} options Either an array of participants,
-   *                                  or an object with parameters to pass to
-   *                                  Conversation's constructor
+   * @param  {Object} options
+   * @param {string[]/layer.Identity[]} participants - Array of UserIDs or UserIdentities
    * @param {Boolean} [options.distinct=true] Is this a distinct Converation?
    * @param {Object} [options.metadata={}] Metadata for your Conversation
    * @return {layer.Conversation}
    */
   createConversation(options) {
-    let opts;
-    if (Array.isArray(options)) {
-      opts = {
-        participants: options,
-      };
-    } else {
-      opts = options;
-    }
-    if (!('distinct' in opts)) opts.distinct = true;
-    opts.client = this;
-    return Conversation.create(opts);
+    if (!('distinct' in options)) options.distinct = true;
+    options.client = this;
+    return Conversation.create(options);
   }
 
   /**
@@ -977,7 +956,7 @@ class Client extends ClientAuth {
    *
    * @method _scheduleCheckAndPurgeCache
    * @private
-   * @param {layer.Root}
+   * @param {layer.Root} object
    */
   _scheduleCheckAndPurgeCache(object) {
     if (object.isSaved()) {
@@ -990,7 +969,10 @@ class Client extends ClientAuth {
   }
 
   /**
-   * Calls _checkAndPurgeCache on accumulated objects and resets its state
+   * Calls _checkAndPurgeCache on accumulated objects and resets its state.
+   *
+   * @method _runScheduledCheckAndPurgeCache
+   * @private
    */
   _runScheduledCheckAndPurgeCache() {
     const list = this._scheduleCheckAndPurgeCacheItems;
@@ -1203,7 +1185,6 @@ Client.prototype._scheduleCheckAndPurgeCacheItems = null;
  * @type {number}
  */
 Client.prototype._scheduleCheckAndPurgeCacheAt = 0;
-
 
 /**
  * Any Conversation or Message that is part of a Query's results are kept in memory for as long as it
@@ -1549,8 +1530,8 @@ Client._supportedEvents = [
   /**
    * Identities have been added to the Client.
    *
-   * This event is triggered whenever a new layer.UserIdentity (Full identity or not)
-   * has been received by the Client. layer.ServiceIdentity does not trigger this event.
+   * This event is triggered whenever a new layer.Identity (Full identity or not)
+   * has been received by the Client.
    *
           client.on('identities:add', function(evt) {
               evt.identities.forEach(function(identity) {
@@ -1560,7 +1541,7 @@ Client._supportedEvents = [
    *
    * @event
    * @param {layer.LayerEvent} evt
-   * @param {layer.UserIdentity[]} evt.identities
+   * @param {layer.Identity[]} evt.identities
    */
   'identities:add',
 
@@ -1577,7 +1558,7 @@ Client._supportedEvents = [
    *
    * @event
    * @param {layer.LayerEvent} evt
-   * @param {layer.UserIdentity[]} evt.identities
+   * @param {layer.Identity[]} evt.identities
    */
   'identities:remove',
 
@@ -1589,7 +1570,7 @@ Client._supportedEvents = [
    * but we do downgrade them from Full Identity to Basic Identity.
    * @event
    * @param {layer.LayerEvent} evt
-   * @param {layer.UserIdentity} evt.target
+   * @param {layer.Identity} evt.target
    */
   'identities:unfollow',
 

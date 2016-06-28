@@ -17,6 +17,7 @@
 const Root = require('../root');
 const Utils = require('../client-utils');
 const logger = require('../logger');
+const { WEBSOCKET_PROTOCOL } = require('../const');
 
 class SocketManager extends Root {
   /**
@@ -127,7 +128,7 @@ class SocketManager extends Root {
     const url = this.client.url.replace(/^http/, 'ws') +
       '/websocket?session_token=' +
       this.client.sessionToken;
-    this._socket = new WS(url, 'layer-1.0');
+    this._socket = new WS(url, WEBSOCKET_PROTOCOL);
 
     // If its the shim, set the event hanlers
     /* istanbul ignore if */

@@ -37,7 +37,7 @@ const LayerError = require('./layer-error');
 const OnlineManager = require('./online-state-manager');
 const SyncManager = require('./sync-manager');
 const DbManager = require('./db-manager');
-const { UserIdentity } = require('./identity');
+const Identity = require('./identity');
 const { XHRSyncEvent, WebsocketSyncEvent } = require('./sync-event');
 const { ACCEPT, LOCALSTORAGE_KEYS } = require('./const');
 const logger = require('./logger');
@@ -179,18 +179,18 @@ class ClientAuthenticator extends Root {
   }
 
 /**
-   * Restore the UserIdentity for the session owner from localStorage.
+   * Restore the Identity for the session owner from localStorage.
    *
    * @method _restoreLastSession
    * @private
-   * @return {layer.UserIdentity}
+   * @return {layer.Identity}
    */
   _restoreLastUser() {
     try {
       const sessionData = global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId];
       if (!sessionData) return null;
       const userObj = JSON.parse(sessionData).user;
-      return new UserIdentity({
+      return new Identity({
         clientId: this.appId,
         sessionOwner: true,
         fromServer: userObj,
@@ -247,11 +247,11 @@ class ClientAuthenticator extends Root {
     }
 
     if (!this.user) {
-      this.user = new UserIdentity({
+      this.user = new Identity({
         userId,
         sessionOwner: true,
         clientId: this.appId,
-        id: userId ? UserIdentity.prefixUUID + encodeURIComponent(userId) : '',
+        id: userId ? Identity.prefixUUID + encodeURIComponent(userId) : '',
       });
     }
 
@@ -299,11 +299,11 @@ class ClientAuthenticator extends Root {
     this.onlineManager.start();
 
     if (!this.user) {
-      this.user = new UserIdentity({
+      this.user = new Identity({
         userId,
         sessionOwner: true,
         clientId: this.appId,
-        id: UserIdentity.prefixUUID + encodeURIComponent(userId),
+        id: Identity.prefixUUID + encodeURIComponent(userId),
       });
     }
 
@@ -612,7 +612,7 @@ class ClientAuthenticator extends Root {
 
   /**
    * Deletes your sessionToken from the server, and removes all user data from the Client.
-   * Call `client.login()` to restart the authentication process.
+   * Call `client.connect()` to restart the authentication process.
    *
    * @method logout
    * @return {layer.ClientAuthenticator} this
@@ -1041,7 +1041,7 @@ ClientAuthenticator.prototype.appId = '';
 /**
  * You can use this to find the userId you are logged in as.
  *
- * @type {layer.UserIdentity}
+ * @type {layer.Identity}
  */
 ClientAuthenticator.prototype.user = null;
 
@@ -1117,7 +1117,7 @@ ClientAuthenticator.prototype.isTrustedDevice = false;
  *        }
  *      });
  *
- * @type {object}
+ * @type {Object}
  */
 ClientAuthenticator.prototype.persistenceFeatures = null;
 

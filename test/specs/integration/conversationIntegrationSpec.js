@@ -2,6 +2,7 @@
 describe("Conversation Integration Tests", function() {
     var socket, client, syncManager, request;
     var appId = "Fred's App";
+    var userIdentity;
 
     beforeEach(function() {
         jasmine.clock().install();
@@ -13,7 +14,7 @@ describe("Conversation Integration Tests", function() {
             isTrustedDevice: false
         });
         client.sessionToken = "sessionToken";
-        client.user = new layer.UserIdentity({
+        client.user = new layer.Identity({
           clientId: client.appId,
           userId: "Frodo",
           id: "layer:///identities/" + "Frodo",
@@ -46,6 +47,13 @@ describe("Conversation Integration Tests", function() {
             close: function() {},
             readyState: WebSocket.OPEN
         };
+
+        userIdentity = new layer.Identity({
+            clientId: client.appId,
+            id: "layer:///identities/6",
+            displayName: "6",
+            userId: "6"
+        });
         request = new layer.XHRSyncEvent({
             method: "POST",
             data: {hey: "ho"},
@@ -69,7 +77,7 @@ describe("Conversation Integration Tests", function() {
       syncManager.queue = [];
 
       // Run replaceParticipant and have it fail
-      conversation.replaceParticipants([client.userId, "argh"]);
+      conversation.replaceParticipants([client.user.userId, userIdentity.userId]);
       requests.mostRecent().response({
         status: 500,
         data: {}
@@ -85,8 +93,8 @@ describe("Conversation Integration Tests", function() {
 
       // Posttest
       expect(conversation._triggerAsync).toHaveBeenCalledWith("conversations:change", jasmine.objectContaining({
-        oldValue: [client.userId, "argh"],
-        newValue: responses.conversation1.participants,
+        oldValue: [client.user, userIdentity],
+        newValue: client._fixIdentities(responses.conversation1.participants),
         property: "participants"
       }));
     });

@@ -18,7 +18,7 @@ describe("The Syncable Class", function() {
             url: "https://huh.com"
         });
         client.sessionToken = "sessionToken";
-        client.user = new layer.UserIdentity({
+        client.user = new layer.Identity({
           clientId: client.appId,
           userId: "Frodo",
           id: "layer:///identities/" + client.userId,
@@ -49,7 +49,7 @@ describe("The Syncable Class", function() {
         announcement = client._createObject(responses.announcement);
         requests.reset();
         client.syncManager.queue = [];
-        jasmine.clock().tick(1);
+        jasmine.clock().tick(11);
     });
 
     afterEach(function() {

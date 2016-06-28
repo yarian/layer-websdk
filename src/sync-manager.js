@@ -163,8 +163,10 @@ class SyncManager extends Root {
   _processNextRequest() {
     if (this.isDestroyed) return;
     const requestEvt = this.queue[0];
-    if (this.isOnline() && requestEvt && !requestEvt.isFiring) {
+    if (this.isOnline() && requestEvt && !requestEvt.isFiring && !requestEvt._isValidating) {
+      requestEvt._isValidating = true;
       this._validateRequest(requestEvt, (isValid) => {
+        requestEvt._isValidating = false;
         if (!isValid) {
           this._removeRequest(requestEvt);
           return this._processNextRequest();

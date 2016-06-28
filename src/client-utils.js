@@ -186,6 +186,7 @@ function createParser(request) {
   parser = new LayerParser({
     camelCase: true,
     getObjectCallback: (id) => request.client._getObject(id),
+    createObjectCallback: (id, obj) => request.client._createObject(obj),
     propertyNameMap: {
       Conversation: {
         unreadMessageCount: 'unreadCount',

@@ -233,7 +233,7 @@ class Query extends Root {
   /**
    * Get the maximum number of items allowed in a page
    *
-   * @method
+   * @method _getMaxPageSize
    * @private
    * @returns {number}
    */
@@ -415,7 +415,7 @@ class Query extends Root {
    *
    * Extract the Conversation's UUID from the predicate... or returned the cached value.
    *
-   * @method _getConversationUUID
+   * @method _getConversationPredicateIds
    * @private
    */
   _getConversationPredicateIds() {
@@ -561,7 +561,7 @@ class Query extends Root {
     this._firingRequest = '';
     if (results.success) {
       this._appendResults(results, false);
-      this.totalSize = results.xhr.getResponseHeader('Layer-Count');
+      this.totalSize = Number(results.xhr.getResponseHeader('Layer-Count'));
     } else {
       this.trigger('error', { error: results.data });
     }
@@ -645,7 +645,7 @@ class Query extends Root {
 
   /**
    * Returns an instance regardless of whether the input is instance or object
-   * @method
+   * @method _getInstance
    * @private
    * @param {layer.Root|Object} item - Conversation or Message object/instance
    * @return {layer.Root}
@@ -1360,10 +1360,12 @@ Query.prototype.data = null;
  * Model is one of
  * * layer.Query.Conversation
  * * layer.Query.Message
+ * * layer.Query.Announcement
+ * * layer.Query.Identity
  *
  * @type {String}
  */
-Query.prototype.model = CONVERSATION;
+Query.prototype.model = '';
 
 /**
  * What type of results to request of the server.

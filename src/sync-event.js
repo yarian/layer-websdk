@@ -107,6 +107,8 @@ Object.defineProperty(SyncEvent.prototype, 'isFiring', {
   },
 });
 
+SyncEvent.prototype._isValidating = false;
+
 SyncEvent.prototype.id = '';
 
 

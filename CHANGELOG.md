@@ -2,40 +2,60 @@
 
 ## 1.1.0
 
-#### Public API Changes
+#### Major new Features
 
-* Deduplication
-  * If a response is not received to a request to create a Conversation or Message, it will be retried with deduplication support to insure that if it was created before, a duplicate is not created on retry.
-  * Message and Conversation IDs no longer change as they are created.  Note: A Conversation ID can change if creating a Distinct Conversation and a matching Conversation is found on the server -- in this case, the ID will change from the proposed ID to the ID of the matching Conversation.
-  * When a Message is created, it no longer triggers a "messages:change" with "property": "id".  However,
-    it does trigger a "messages:change" event with "property" of "position".
-  * Use of "temp_layer:///" IDs is removed.
+* Identities
+  * Layer now supports an Identity object, represented here as a `layer.Identity` class containing a User ID, Identity ID, Display Name and an Avatar URL.
+  * Message sender is now represented using an Identity Object
+  * Conversation participants is now an array of Identity Objects
+  * Identities can be queried to find all of the users that the authenticated user is following.
+* Announcements
+  * Introduces the `layer.Announcement` class
+  * You can now Query for Announcements sent to your users
+* Persistence
+  * IndexedDB can store all Conversations, Messages, Announcements and Identities if the `layer.Client.isTrustedDevice` property is set to `true`
+  * Applications can now run entirely offline, populating `layer.Query` data using IndexedDB databases.
+  * `layer.Client.persistenceFeatures` gives more precise control over what is persisted
+
+#### Minor new Features
+
+* Deleting with `MY_DEVICES`
+  * In addition to calling `conversation.delete(layer.Constants.DELETION_MODE.ALL)` and `message.delete(layer.Constants.DELETION_MODE.ALL)`, you can now delete Messages and Conversation from your user's devices Only using `layer.Constants.DELETION_MODE.MY_DEVICES`.
+  * `layer.Conversation.leave()` can be called to remove yourself as a participant and remove the Conversation from your devices.
+* No more `temp_layer:///` IDs, no more ID change events
+  * Sending a Message will no longer result in a `messages:change` event that contains a change to the Message ID; the Message ID that is assigned when creating the Message will be accepted by the server.
+  * Conversations may still get an ID change event in the case where a Distinct Conversation is created, and a matching Distinct Conversation is found on the server.
+
+#### Breaking Changes
+
 * Authentication
+  * Initializing the `layer.Client` does *NOT* start Authentication any more!
   * Client initialization no longer takes a `userId` parameter, and no longer immediately begins the authentication process
   * Client initialization no longer takes a `sessionToken` parameter
   * layer.Client.connect is now called to start authentication
   * layer.Client.connectWithSession can also be used to startup the client, if you already have a Session Token.
   * layer.Client.login has been removed; see layer.Client.connect instead
-* layer.Constants
-  * Adds layer.Constants.DELETION_MODE.MY_DEVICES for layer.Message.delete() and layer.Conversation.delete()
 * layer.Conversation
-  * Support for Deletion with either layer.Constants.DELETION_MODE.MY_DEVICES or layer.Constants.DELETION_MODE.ALL (delete for all users or just for me).  Note that deleting for just me doesn't remove me as a participant, which means that new Messages will cause the Conversation to reappear.
-  * Adds layer.Conversation.leave() to leave a Conversation and remove it from my Conversation list.  New Messages will NOT cause the Conversation to reappear.
+  * `participants` property is now an array of `layer.Identity` objects rather than User IDs
+  * Removes support for `client.createConversation(participantArray)` shorthand; now requires `client.createConversation({participants:
+   participantArray})`.
+  * Creating a Conversation, adding, removing and setting participants of an existing Conversation all accept Identity IDs or Identity Objects rather than User IDs.
+    * For backwards compatibility, we are continuing to accept User IDs (`UserA`).  For now.
 * layer.Message
-  * Support for Deletion with either layer.Constants.DELETION_MODE.MY_DEVICES or layer.Constants.DELETION_MODE.ALL (delete for all users or just for me).  Note that deleting for just me doesn't remove me as a participant, which means that new Messages will cause the Conversation to reappear.
-  * layer.Message.getConversation now supports a boolean parameter to load from server if Conversation is not cached.
-  * layer.Message.sender is now an instance of layer.Identity.
-* Persistence
-  * Conversations, Messages, Identities, Announcements and incomplete server requests can now be persisted between sessions.  See layer.Client.persistenceFeatures for more detail.
-* layer.Announcement
-  * Introduces the layer.Announcement class
-  * Introduces the ability to create Queries to receive Announcements
-* layer.Identity
-    * Introduces the layer.UserIdentity and layer.ServiceIdentity clases.  A UserIdentity instance represents a user of the system that you can chat with.  A ServiceIdentity represents a Bot, or named service that posts messages and announcements.
-    * Introduces the ability to create Queries to receive Identities
+  * The `recipient_status` property is now a hash of Identity IDs, not User IDs
+* layer.TypingIndicators.TypingIndicatorListener
+  * The `typing-indicator-change` event now delivers arrays of Identities instead of User IDs
 * layer.User has been removed.
-* layer.Client now has a `user` property containing a `layer.UserIdentity` instance representing the authenticated user of this session.
-  * Conversations, Messages, Identities and unfinishedServer Requests can now be persisted between sessions.  See layer.Client.persistenceFeatures for more detail.
+* layer.Query no longer defaults to a Conversation model; this must be specificied explicitly.
+
+#### Miscellaneous Changes
+
+* Deduplication
+  * If a response is not received to a request to create a Conversation or Message, it will be retried with deduplication support to insure that if it was created before, a duplicate is not created on retry.
+* layer.Message
+  * `layer.Message.getConversation()` now supports a boolean parameter to load from server if Conversation is not cached.
+* layer.Client
+  * Adds a `user` property containing a `layer.Identity` instance representing the authenticated user of this session.
 * layer.OnlineStateManager: Now starts managing isOnline state as soon as `client.connect()` or `client.connectWithSession()` are called.
 
 #### Bug Fixes

@@ -13,7 +13,7 @@ describe("The Websocket Change Manager Class", function() {
         });
         client.sessionToken = "sessionToken";
         client.userId = "Frodo";
-        client.user = new layer.UserIdentity({
+        client.user = new layer.Identity({
             clientId: client.appId,
             userId: client.userId,
             id: "layer:///identities/" + client.userId,

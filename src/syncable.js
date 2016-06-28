@@ -40,36 +40,6 @@ class Syncable extends Root {
     return ClientRegistry.get(this.clientId);
   }
 
-  static load(id, client) {
-    if (!client || !(client instanceof Root)) throw new Error(LayerError.dictionary.clientMissing);
-
-    const obj = {
-      id,
-      url: client.url + id.substring(8),
-      clientId: client.appId,
-    };
-
-    const ConstructorClass = Syncable.subclasses.filter(aClass => obj.id.indexOf(aClass.prefixUUID) === 0)[0];
-    const syncItem = new ConstructorClass(obj);
-    const typeName = ConstructorClass.eventPrefix;
-
-    if (typeName) {
-      client.dbManager.getObjects(typeName, [id], (items) => {
-        if (items.length) {
-          syncItem._populateFromServer(items[0]);
-          syncItem.trigger(typeName + ':loaded');
-        } else {
-          syncItem._load();
-        }
-      });
-    } else {
-      syncItem._load();
-    }
-
-    syncItem.syncState = SYNC_STATE.LOADING;
-    return syncItem;
-  }
-
   /**
    * Fire an XHR request using the URL for this resource.
    *
@@ -122,59 +92,10 @@ class Syncable extends Root {
   }
 
   /**
-   * Load this resource from the server.
-   *
-   * Called from the static layer.Syncable.load() method
-   *
-   * @method _load
-   * @private
-   */
-  _load() {
-    this.syncState = SYNC_STATE.LOADING;
-    this._xhr({
-      method: 'GET',
-      sync: false,
-    }, result => this._loadResult(result));
-  }
-
-  /**
-   * Process the server's results from calling `load()`
-   *
-   * @method _loadResult
-   * @private
-   * @param {Object} result
-   */
-  _loadResult(result) {
-    const prefix = this.constructor.eventPrefix;
-    if (!result.success) {
-      this.syncState = SYNC_STATE.NEW;
-      this._triggerAsync(prefix + ':loaded-error', { error: result.data });
-      setTimeout(() => this.destroy(), 100); // Insure destroyed AFTER loaded-error event has triggered
-    } else {
-      this._populateFromServer(result.data);
-      this._loaded(result.data);
-      this.trigger(prefix + ':loaded');
-    }
-  }
-
-  /**
-   * Processing the result of a _load() call.
-   *
-   * Typically used to register the object and cleanup any properties not handled by _populateFromServer.
-   *
-   * @method _loaded
-   * @private
-   * @param  {Object} data - Response data from server
-   */
-  _loaded(data) {
-
-  }
-
-  /**
    * A websocket event has been received specifying that this resource
    * has been deleted.
    *
-   * @method
+   * @method handleWebsocketDelete
    * @protected
    * @param {Object} data
    */
@@ -196,6 +117,20 @@ class Syncable extends Root {
   }
 
 
+  /**
+   * Load the resource identified via a Layer ID.
+   *
+   * Will load the requested resource from persistence or server as needed,
+   * and trigger `type-name:loaded` when its loaded.  Instance returned by this
+   * method will have only ID and URL properties, all others are unset until
+   * the `conversations:loaded`, `messages:loaded`, etc... event has fired.
+   *
+   * @method load
+   * @static
+   * @param {string} id - `layer:///messages/UUID`
+   * @param {layer.Client} client
+   * @return {layer.Syncable} - Returns an empty object that will be populated once data is loaded.
+   */
   static load(id, client) {
     if (!client || !(client instanceof Root)) throw new Error(LayerError.dictionary.clientMissing);
 
@@ -211,6 +146,7 @@ class Syncable extends Root {
 
     if (typeName) {
       client.dbManager.getObjects(typeName, [id], (items) => {
+        if (syncItem.isDestroyed) return;
         if (items.length) {
           syncItem._populateFromServer(items[0]);
           syncItem.trigger(typeName + ':loaded');

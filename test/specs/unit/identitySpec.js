@@ -21,7 +21,7 @@ describe("The Identity Class", function() {
         });
         client.sessionToken = "sessionToken";
         client.userId = "Frodo";
-        client.user = new layer.UserIdentity({
+        client.user = new layer.Identity({
             clientId: client.appId,
             userId: client.userId,
             id: "layer:///identities/" + client.userId,
@@ -53,7 +53,7 @@ describe("The Identity Class", function() {
         client.onlineManager.isOnline = true;
 
         client.syncManager.queue = [];
-        identity = new layer.UserIdentity({
+        identity = new layer.Identity({
           clientId: client.appId,
           userId: client.userId,
           id: "layer:///identities/" + client.userId,
@@ -68,16 +68,16 @@ describe("The Identity Class", function() {
           syncState: layer.Constants.SYNC_STATE.SYNCED,
           isFullIdentity: true
         });
-        basicIdentity = new layer.UserIdentity({
+        basicIdentity = new layer.Identity({
           clientId: client.appId,
           userId: client.userId + "a",
           id: "layer:///identities/" + client.userId + "a",
           isFullIdentity: false
         });
-        serviceIdentity = new layer.ServiceIdentity({
+        serviceIdentity = new layer.Identity({
           clientId: client.appId,
-          name: "Sauron the Sore",
-          id: "layer:///serviceidentities/Sauron the Sore"
+          display_name: "Sauron the Sore",
+          id: "layer:///identities/Sauron the Sore"
         });
 
         dbManager = client.dbManager;
@@ -96,51 +96,73 @@ describe("The Identity Class", function() {
 
       describe("The constructor() method", function() {
         it("Should call populateFromServer if fromServer", function() {
-          var populateFromServer = layer.UserIdentity.prototype._populateFromServer;
-          spyOn(layer.UserIdentity.prototype, "_populateFromServer");
-          new layer.UserIdentity({
+          var populateFromServer = layer.Identity.prototype._populateFromServer;
+          spyOn(layer.Identity.prototype, "_populateFromServer");
+          new layer.Identity({
             fromServer: {
+              id: "hey"
             },
+            id: "hey",
             client: client
           });
 
           // Posttest
-          expect(layer.UserIdentity.prototype._populateFromServer).toHaveBeenCalledWith({});
+          expect(layer.Identity.prototype._populateFromServer).toHaveBeenCalledWith({id: "hey"});
 
           // Cleanup
-          layer.UserIdentity.prototype._populateFromServer = populateFromServer;
+          layer.Identity.prototype._populateFromServer = populateFromServer;
         });
 
         it("Should fail if no client or clientId", function() {
           expect(function() {
-            new layer.UserIdentity({});
+            new layer.Identity({});
           }).toThrowError(layer.LayerError.dictionary.clientMissing);
         });
 
         it("Should work if client", function() {
-          new layer.UserIdentity({
+          new layer.Identity({
             client: client
           });
         });
 
         it("Should work if clientId", function() {
-          new layer.UserIdentity({
+          new layer.Identity({
             clientId: client.appId
           });
         });
 
         it("Should set a URL if none provided", function() {
-          expect(new layer.UserIdentity({
+          expect(new layer.Identity({
             userId: "frodo",
             client: client
           }).url).toEqual(client.url + '/identities/frodo');
+        });
+
+        it("Should call client._addIdentity", function() {
+          spyOn(client, "_addIdentity");
+          var identity = new layer.Identity({
+            userId: "frodo",
+            client: client
+          })
+          expect(client._addIdentity).toHaveBeenCalledWith(identity);
+        });
+
+        it("Should not register deprecated non-ided identities", function() {
+          var oldIdentity = new layer.Identity({
+            clientId: client.appId,
+            fromServer: {
+              display_name: "Sauron the Sore"
+            }
+          });
+          expect(oldIdentity.id).toEqual('');
+          expect(client._identitiesHash[oldIdentity.id]).toBe(undefined);
         });
       });
 
       describe("The _populateFromServer() method", function() {
         var identity;
         beforeEach(function() {
-          identity = new layer.UserIdentity({
+          identity = new layer.Identity({
             client: client
           });
         });
@@ -222,22 +244,6 @@ describe("The Identity Class", function() {
             newValue: 'h'
           });
           expect(identity._triggerAsync.calls.count()).toEqual(6);
-        });
-
-        it("Should call client._addIdentity", function() {
-          spyOn(client, "_addIdentity");
-          identity._populateFromServer({
-            display_name: "a",
-            first_name: "b",
-            last_name: "c",
-            phone_number: "d",
-            email_address: "e",
-            metadata: {hey: "ho"},
-            public_key: "h",
-            user_id: "i",
-            id: "layer:///identities/i"
-          });
-          expect(client._addIdentity).toHaveBeenCalledWith(identity);
         });
 
         it("Should set isFullIdentity to true", function() {
@@ -340,7 +346,7 @@ describe("The Identity Class", function() {
           basicIdentity.follow();
           expect(basicIdentity._xhr).toHaveBeenCalledWith({
             method: "PUT",
-            url: client.url + '/following/' + basicIdentity.userId,
+            url: client.url + '/following/users/' + basicIdentity.userId,
             syncable: {}
           }, jasmine.any(Function));
         });
@@ -361,18 +367,10 @@ describe("The Identity Class", function() {
           basicIdentity.unfollow();
           expect(basicIdentity._xhr).toHaveBeenCalledWith({
             method: "DELETE",
-            url: client.url + '/following/' + basicIdentity.userId,
+            url: client.url + '/following/users/' + basicIdentity.userId,
             syncable: {}
           });
         });
-      });
-
-      describe("The _loaded() method", function() {
-         it("Should call client._addIdentity", function() {
-            spyOn(client, "_addIdentity");
-            identity._loaded({});
-            expect(client._addIdentity).toHaveBeenCalledWith(identity);
-         });
       });
 
       describe("The _handleWebsocketDelete() method", function() {
@@ -401,21 +399,13 @@ describe("The Identity Class", function() {
       });
 
       describe("The _createFromServer() method", function() {
-        it("Should return a new UserIdentity", function() {
-          expect(layer.UserIdentity._createFromServer(responses.useridentity, client)).toEqual(jasmine.any(layer.UserIdentity));
-          expect(layer.UserIdentity._createFromServer(responses.useridentity, client).userId).toEqual(responses.useridentity.user_id);
+        it("Should return a new Identity", function() {
+          expect(layer.Identity._createFromServer(responses.useridentity, client)).toEqual(jasmine.any(layer.Identity));
+          expect(layer.Identity._createFromServer(responses.useridentity, client).userId).toEqual(responses.useridentity.user_id);
         });
       });
 
       describe("The _setUserId() method", function() {
-        it("Should fail if no client", function() {
-          spyOn(client.user, "getClient").and.returnValue(null);
-          expect(function() {
-            client.user._setUserId('Frodo the Dodo');
-          }).toThrowError(layer.LayerError.dictionary.clientMissing);
-          expect(layer.LayerError.dictionary.clientMissing.length > 0).toBe(true);
-        });
-
         it("Should update userId", function() {
           // Run
           client.user._setUserId('Frodo the Dodo');
@@ -457,31 +447,6 @@ describe("The Identity Class", function() {
 
       xit("Should escape user ids", function() {
         expect(1).toBe(0);
-      });
-    });
-
-    describe("The ServiceIdentity Class", function() {
-      describe("The _populateFromServer() method", function() {
-        it("Should set the name and displayName", function() {
-          var identity = new layer.ServiceIdentity({
-            client: client
-          });
-          identity._populateFromServer({
-            id: "layer:///serviceidentities/Lord of Kite",
-            name: "I am Zod"
-          });
-          expect(identity.name).toEqual("I am Zod");
-          expect(identity.displayName).toEqual("I am Zod");
-        });
-
-        it("Should call client._addIdentity", function() {
-          spyOn(client, "_addIdentity");
-          var identity = new layer.ServiceIdentity({
-            client: client
-          });
-          identity._populateFromServer(responses.serviceidentity);
-          expect(client._addIdentity).toHaveBeenCalledWith(identity);
-        });
       });
     });
 

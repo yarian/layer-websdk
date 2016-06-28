@@ -10,7 +10,7 @@ describe("The SyncEvent Classes", function() {
       });
 
       client.userId = 'Frodo';
-      client.user = new layer.UserIdentity({
+      client.user = new layer.Identity({
           clientId: client.appId,
           userId: client.userId,
           id: "layer:///identities/" + client.userId,
@@ -26,6 +26,9 @@ describe("The SyncEvent Classes", function() {
           isFullIdentity: true,
           sessionOwner: true
         });
+
+        client._clientAuthenticated();
+        client._clientReady();
     });
     afterEach(function() {
       jasmine.clock().uninstall();
@@ -109,7 +112,7 @@ describe("The SyncEvent Classes", function() {
 
         describe("The _updateData() method", function() {
             it("Should call target._getSendData if there is a target", function() {
-                var c = client.createConversation(["hey"]);
+                var c = client.createConversation({participants: ["hey"]});
                 var evt = new layer.SyncEvent({
                     data: "hey",
                     target: c.id,
@@ -169,7 +172,7 @@ describe("The SyncEvent Classes", function() {
             });
 
             it("Should update url if its a function", function() {
-                var c = client.createConversation(['abc']);
+                var c = client.createConversation({participants: ['abc']});
                 spyOn(c, "_getUrl").and.returnValue("ho");
                 var evt = new layer.XHRSyncEvent({
                     url: "hey",

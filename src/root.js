@@ -522,12 +522,12 @@ class Root extends EventClass {
   _foldEvents(events, name, newTarget) {
     const firstEvt = events.length ? events[0][1] : null;
     const firstEvtProp = firstEvt ? firstEvt[name] : null;
-    events.forEach(function (evt, i) {
+    events.forEach((evt, i) => {
       if (i > 0) {
         firstEvtProp.push(evt[1][name][0]);
         this._delayedTriggers.splice(this._delayedTriggers.indexOf(evt), 1);
       }
-    }, this);
+    });
     if (events.length && newTarget) events[0][1].target = newTarget;
   }
 

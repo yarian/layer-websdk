@@ -20,7 +20,8 @@ describe("The DbManager Class", function() {
             isTrustedDevice: true
         });
         client.sessionToken = "sessionToken";
-        identity = new layer.UserIdentity({
+
+        identity = new layer.Identity({
           clientId: client.appId,
           userId: "Frodo",
           id: "layer:///identities/" + "Frodo",
@@ -36,7 +37,6 @@ describe("The DbManager Class", function() {
           isFullIdentity: true
         });
         client.user = identity;
-
         client._clientAuthenticated();
         client._clientReady();
         client.syncManager.queue = [];
@@ -44,7 +44,7 @@ describe("The DbManager Class", function() {
         message = conversation.lastMessage;
         announcement = client._createObject(responses.announcement);
 
-        basicIdentity = new layer.UserIdentity({
+        basicIdentity = new layer.Identity({
           clientId: client.appId,
           userId: client.userId,
           id: "layer:///identities/" + client.userId,
@@ -278,7 +278,7 @@ describe("The DbManager Class", function() {
         expect(dbManager._getConversationData([conversation])).toEqual([{
           id: conversation.id,
           url: conversation.url,
-          participants: conversation.participants,
+          participants: client.dbManager._getIdentityData(conversation.participants, true),
           distinct: conversation.distinct,
           created_at: conversation.createdAt.toISOString(),
           metadata: conversation.metadata,
@@ -338,8 +338,9 @@ describe("The DbManager Class", function() {
           conversation: message.conversationId,
           is_unread: false,
           sender: {
+            id: "layer:///identities/Frodo",
+            url: "https://huh.com/identities/Frodo",
             user_id: message.sender.userId || '',
-            name: '',
             display_name: message.sender.displayName,
             avatar_url: message.sender.avatarUrl
           },
@@ -359,6 +360,16 @@ describe("The DbManager Class", function() {
       it("Should generate a proper Announcement object", function() {
         message = client._createObject(JSON.parse(JSON.stringify(responses.announcement)));
         message.receivedAt = new Date();
+        message.sender = new layer.Identity({
+          fromServer: {
+            id: null,
+            user_id: null,
+            url: null,
+            display_name: 'Hey ho',
+            avatar_url: null,
+          },
+          client: client
+        });
         expect(dbManager._getMessageData([message])).toEqual([{
           id: message.id,
           url: message.url,
@@ -370,7 +381,8 @@ describe("The DbManager Class", function() {
           conversation: 'announcement',
           sender: {
             user_id: '',
-            name: 'Hey ho',
+            id: '',
+            url: '',
             display_name: 'Hey ho',
             avatar_url: ''
           },
@@ -386,7 +398,9 @@ describe("The DbManager Class", function() {
       });
 
       it("Should generate a proper Announcement object", function() {
-        message = client._createObject(JSON.parse(JSON.stringify(responses.announcement)));
+        var data = JSON.parse(JSON.stringify(responses.announcement));
+        delete client._identitiesHash[data.sender.id];
+        message = client._createObject(data);
         message.receivedAt = new Date();
         expect(dbManager._getMessageData([message])).toEqual([{
           id: message.id,
@@ -398,9 +412,10 @@ describe("The DbManager Class", function() {
           conversation: 'announcement',
           is_unread: message.isUnread,
           sender: {
-            user_id: '',
-            name: 'Hey ho',
-            display_name: 'Hey ho',
+            user_id: 'admin',
+            id: 'layer:///identities/admin',
+            url: client.url + '/identities/admin',
+            display_name: 'Lord Master the Admin',
             avatar_url: ''
           },
           sync_state: message.syncState,
@@ -474,6 +489,16 @@ describe("The DbManager Class", function() {
         expect(dbManager._getIdentityData([identity, basicIdentity])).toEqual(dbManager._getIdentityData([identity]));
       });
 
+      it("Should write Basic Identities", function() {
+        expect(dbManager._getIdentityData([identity, basicIdentity], true)).toEqual([dbManager._getIdentityData([identity], true)[0], {
+          id: basicIdentity.id,
+          url: client.url + "/identities/" + basicIdentity.userId,
+          user_id: basicIdentity.userId,
+          display_name: basicIdentity.displayName,
+          avatar_url: basicIdentity.avatarUrl
+        }]);
+      });
+
       it("Should ignore Loading Identities", function() {
         identity.syncState = layer.Constants.SYNC_STATE.LOADING;
         expect(dbManager._getIdentityData([identity, basicIdentity])).toEqual([]);
@@ -494,6 +519,7 @@ describe("The DbManager Class", function() {
           public_key: identity.publicKey,
           phone_number: identity.phoneNumber,
           sync_state: identity.syncState,
+          type: layer.Identity.UserType
         }]);
       });
     });
@@ -802,8 +828,8 @@ describe("The DbManager Class", function() {
 
       it("Should call _createConversation for each Conversation", function() {
         spyOn(dbManager, "_createConversation");
-        var c1 = client.createConversation(["c1"]);
-        var c2 = client.createConversation(["c2"]);
+        var c1 = client.createConversation({participants: ["c1"]});
+        var c2 = client.createConversation({participants: ["c2"]});
 
         // Run
         dbManager._loadConversationsResult(dbManager._getConversationData([c1, c2]), []);
@@ -815,8 +841,8 @@ describe("The DbManager Class", function() {
 
       it("Should filter out any Conversation that was already loaded", function() {
         var callback = jasmine.createSpy('callback');
-        var c1 = client.createConversation(["c1"]);
-        var c2 = client.createConversation(["c2"]);
+        var c1 = client.createConversation({participants: ["c1"]});
+        var c2 = client.createConversation({participants: ["c2"]});
         client._conversationsHash = {};
         client._conversationsHash[c2.id] = c2;
 
@@ -1290,7 +1316,7 @@ describe("The DbManager Class", function() {
       var m1, m2, m3, m4;
       beforeEach(function(done) {
         dbManager.deleteTables(function() {
-          var c2 = client.createConversation(["c2"]);
+          var c2 = client.createConversation({participants: ["c2"]});
           message = conversation.createMessage("first message").send();
           m1 = conversation.createMessage("m1").send();
           m2 = conversation.createMessage("m2").send();

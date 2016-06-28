@@ -24,7 +24,7 @@ describe("The Client Authenticator Class", function() {
         });
         spyOn(layer.Syncable.prototype, "getClient").and.returnValue(client);
 
-        userIdentity = new layer.UserIdentity({
+        userIdentity = new layer.Identity({
           clientId: client.appId,
           userId: userId,
           id: "layer:///identities/" + userId,
@@ -148,7 +148,7 @@ describe("The Client Authenticator Class", function() {
                });
 
                var result = client._restoreLastUser();
-               expect(result).toEqual(jasmine.any(layer.UserIdentity));
+               expect(result).toEqual(jasmine.any(layer.Identity));
                expect(result.userId).toEqual('FrodoTheDodo');
                expect(result.displayName).toEqual('Frodo is a Dodo');
                expect(result.avatarUrl).toEqual('https://frodo-the-dodo.com');
@@ -381,7 +381,7 @@ describe("The Client Authenticator Class", function() {
                 client.connect('MyUserId');
 
                 // Posttest
-                expect(client.user).toEqual(jasmine.any(layer.UserIdentity));
+                expect(client.user).toEqual(jasmine.any(layer.Identity));
                 expect(client.user.toObject()).toEqual(jasmine.objectContaining({
                     userId: 'MyUserId',
                     id: 'layer:///identities/MyUserId',
@@ -398,7 +398,7 @@ describe("The Client Authenticator Class", function() {
                 client.connect();
 
                 // Posttest
-                expect(client.user).toEqual(jasmine.any(layer.UserIdentity));
+                expect(client.user).toEqual(jasmine.any(layer.Identity));
                 expect(client.user.userId).toEqual('');
                 expect(client.user.id).toEqual('');
                 expect(client.user.url).toEqual('');
@@ -430,7 +430,7 @@ describe("The Client Authenticator Class", function() {
                 client.connect('MyUserId');
 
                 // Posttest
-                expect(client.user).toEqual(jasmine.any(layer.UserIdentity));
+                expect(client.user).toEqual(jasmine.any(layer.Identity));
                 expect(client.user.userId).toEqual('MyUserId');
                 expect(client.user.id).toEqual('layer:///identities/MyUserId');
             });
@@ -450,7 +450,7 @@ describe("The Client Authenticator Class", function() {
                     url: client.url + "/nonces",
                     requestHeaders: {
                         "content-type": "application/json",
-                        "accept": "application/vnd.layer+json; version=1.0"
+                        "accept": "application/vnd.layer+json; version=2.0"
                     },
                     method: "POST"
                 });
@@ -530,7 +530,7 @@ describe("The Client Authenticator Class", function() {
                 client.connectWithSession('MyUserId', 'MySession');
 
                 // Posttest
-                expect(client.user).toEqual(jasmine.any(layer.UserIdentity));
+                expect(client.user).toEqual(jasmine.any(layer.Identity));
                 expect(client.user.toObject()).toEqual(jasmine.objectContaining({
                     userId: 'MyUserId',
                     id: 'layer:///identities/MyUserId',
@@ -561,7 +561,7 @@ describe("The Client Authenticator Class", function() {
                 client.connectWithSession('MyUserId', 'MySession');
 
                 // Posttest
-                expect(client.user).toEqual(jasmine.any(layer.UserIdentity));
+                expect(client.user).toEqual(jasmine.any(layer.Identity));
                 expect(client.user.userId).toEqual('MyUserId');
                 expect(client.user.id).toEqual('layer:///identities/MyUserId');
             });
@@ -1466,7 +1466,7 @@ describe("The Client Authenticator Class", function() {
             it("Should not be possible to change user instances once connected", function () {
                 client.isConnected = true;
                 expect(function () {
-                    client.user = new layer.UserIdentity({
+                    client.user = new layer.Identity({
                         clientId: client.appId
                     });
                 }).toThrowError(layer.LayerError.dictionary.cantChangeIfConnected);

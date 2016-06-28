@@ -12,7 +12,8 @@ describe("The Websocket Request Manager Class", function() {
             url: "https://huh.com"
         });
         client.sessionToken = "sessionToken";
-        client.user = new layer.UserIdentity({
+
+        client.user = new layer.Identity({
             clientId: client.appId,
             userId: 'Frodo',
             id: "layer:///identities/" + 'Frodo',

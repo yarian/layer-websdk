@@ -84,6 +84,7 @@ class Content extends Root {
     client.xhr({
       url: this.refreshUrl,
       method: 'GET',
+      sync: false,
     }, result => {
       const { data } = result;
       this.expiration = new Date(data.expiration);

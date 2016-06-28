@@ -64,7 +64,6 @@ const Util = require('./client-utils');
 const Constants = require('./const');
 const Root = require('./root');
 const LayerEvent = require('./layer-event');
-const logger = require('./logger');
 
 class Conversation extends Syncable {
 
@@ -80,7 +79,7 @@ class Conversation extends Syncable {
    * @method constructor
    * @protected
    * @param  {Object} options
-   * @param {string[]} options.participants - Array of participant ids
+   * @param {string[]/layer.Identity[]} options.participants - Array of Participant IDs or layer.Identity instances
    * @param {boolean} [options.distinct=true] - Is the conversation distinct
    * @param {Object} [options.metadata] - An object containing Conversation Metadata.
    * @return {layer.Conversation}
@@ -110,11 +109,15 @@ class Conversation extends Syncable {
     }
 
     // Setup participants
-    else if (client && this.participants.indexOf(client.user.userId) === -1) {
-      this.participants.push(client.user.userId);
+    else {
+      this.participants = client._fixIdentities(this.participants);
+
+      if (this.participants.indexOf(client.user) === -1) {
+        this.participants.push(client.user);
+      }
     }
 
-    if (client) client._addConversation(this);
+    client._addConversation(this);
     this.isInitializing = false;
   }
 
@@ -168,7 +171,8 @@ class Conversation extends Syncable {
 
     // If this is part of a create({distinct:true}).send() call where
     // the distinct conversation was found, just trigger the cached event and exit
-    if (this._sendDistinctEvent) return this._handleLocalDistinctConversation();
+    const wasLocalDistinct = Boolean(this._sendDistinctEvent);
+    if (this._sendDistinctEvent) this._handleLocalDistinctConversation();
 
     // If a message is passed in, then that message is being sent, and is our
     // new lastMessage (until the websocket tells us otherwise)
@@ -190,13 +194,13 @@ class Conversation extends Syncable {
     }
 
     // If the Conversation is already on the server, don't send.
-    if (this.syncState !== Constants.SYNC_STATE.NEW) return this;
+    if (wasLocalDistinct || this.syncState !== Constants.SYNC_STATE.NEW) return this;
 
     // Make sure this user is a participant (server does this for us, but
     // this insures the local copy is correct until we get a response from
     // the server
-    if (this.participants.indexOf(client.user.userId) === -1) {
-      this.participants.push(client.user.userId);
+    if (this.participants.indexOf(client.user) === -1) {
+      this.participants.push(client.user);
     }
 
     // If there is only one participant, its client.user.userId.  Not enough
@@ -268,7 +272,7 @@ class Conversation extends Syncable {
     return {
       method: 'Conversation.create',
       data: {
-        participants: this.participants,
+        participants: this.participants.map(identity => identity.id),
         distinct: this.distinct,
         metadata: isMetadataEmpty ? null : this.metadata,
         id: this.id,
@@ -362,15 +366,14 @@ class Conversation extends Syncable {
     }
 
     this.url = conversation.url;
-    this.participants = conversation.participants;
+    this.participants = client._fixIdentities(conversation.participants);
     this.distinct = conversation.distinct;
     this.createdAt = new Date(conversation.created_at);
     this.metadata = conversation.metadata;
     this.unreadCount = conversation.unread_message_count;
-    this.isCurrentParticipant = this.participants.indexOf(client.user.userId) !== -1;
+    this.isCurrentParticipant = this.participants.indexOf(client.user) !== -1;
 
     client._addConversation(this);
-
 
     if (conversation.last_message) {
       this.lastMessage = client._createObject(conversation.last_message);
@@ -393,12 +396,14 @@ class Conversation extends Syncable {
    * TODO WEB-967: Roll participants back on getting a server error
    *
    * @method addParticipants
-   * @param  {string[]} participants - Array of participant ids
+   * @param  {string[]/layer.Identity[]} participants - Array of Participant IDs or Identity objects
    * @returns {layer.Conversation} this
    */
   addParticipants(participants) {
     // Only add those that aren't already in the list.
-    const adding = participants.filter(participant => this.participants.indexOf(participant) === -1);
+    const client = this.getClient();
+    const identities = client._fixIdentities(participants);
+    const adding = identities.filter(identity => this.participants.indexOf(identity) === -1);
     this._patchParticipants({ add: adding, remove: [] });
     return this;
   }
@@ -416,13 +421,18 @@ class Conversation extends Syncable {
    * TODO  WEB-967: Roll participants back on getting a server error
    *
    * @method removeParticipants
-   * @param  {string[]} participants - Array of participant ids
+   * @param  {string[]/layer.Identity[]} participants - Array of Participant IDs or Identity objects
    * @returns {layer.Conversation} this
    */
   removeParticipants(participants) {
-    const currentParticipants = this.participants.concat([]).sort();
-    const removing = participants.filter(participant => this.participants.indexOf(participant) !== -1).sort();
-    if (JSON.stringify(currentParticipants) === JSON.stringify(removing)) {
+    const currentParticipants = {};
+    this.participants.forEach(participant => (currentParticipants[participant.id] = true));
+    const client = this.getClient();
+    const identities = client._fixIdentities(participants);
+
+    const removing = identities.filter(participant => currentParticipants[participant.id]);
+    if (removing.length === 0) return;
+    if (removing.length === this.participants.length) {
       throw new Error(LayerError.dictionary.moreParticipantsRequired);
     }
     this._patchParticipants({ add: [], remove: removing });
@@ -440,7 +450,7 @@ class Conversation extends Syncable {
    * TODO WEB-967: Roll participants back on getting a server error
    *
    * @method replaceParticipants
-   * @param  {string[]} participants - Array of participant ids
+   * @param  {string[]/layer.Identity[]} participants - Array of Participant IDs or Identity objects
    * @returns {layer.Conversation} this
    */
   replaceParticipants(participants) {
@@ -448,7 +458,10 @@ class Conversation extends Syncable {
       throw new Error(LayerError.dictionary.moreParticipantsRequired);
     }
 
-    const change = this._getParticipantChange(participants, this.participants);
+    const client = this.getClient();
+    const identities = client._fixIdentities(participants);
+
+    const change = this._getParticipantChange(identities, this.participants);
     this._patchParticipants(change);
     return this;
   }
@@ -471,22 +484,22 @@ class Conversation extends Syncable {
    */
   _patchParticipants(change) {
     this._applyParticipantChange(change);
-    this.isCurrentParticipant = this.participants.indexOf(this.getClient().user.userId) !== -1;
+    this.isCurrentParticipant = this.participants.indexOf(this.getClient().user) !== -1;
 
     const ops = [];
-    change.remove.forEach(id => {
+    change.remove.forEach(participant => {
       ops.push({
         operation: 'remove',
         property: 'participants',
-        value: id,
+        id: participant.id,
       });
     });
 
-    change.add.forEach(id => {
+    change.add.forEach(participant => {
       ops.push({
         operation: 'add',
         property: 'participants',
-        value: id,
+        id: participant.id,
       });
     });
 
@@ -511,16 +524,16 @@ class Conversation extends Syncable {
    * @method _applyParticipantChange
    * @private
    * @param  {Object} change
-   * @param  {string[]} change.add - Array of userids to add
-   * @param  {string[]} change.remove - Array of userids to remove
+   * @param  {layer.Identity[]} change.add - Array of userids to add
+   * @param  {layer.Identity[]} change.remove - Array of userids to remove
    */
   _applyParticipantChange(change) {
     const participants = [].concat(this.participants);
-    change.add.forEach(id => {
-      if (participants.indexOf(id) === -1) participants.push(id);
+    change.add.forEach(participant => {
+      if (participants.indexOf(participant) === -1) participants.push(participant);
     });
-    change.remove.forEach(id => {
-      const index = participants.indexOf(id);
+    change.remove.forEach(participant => {
+      const index = participants.indexOf(participant);
       if (index !== -1) participants.splice(index, 1);
     });
     this.participants = participants;
@@ -647,11 +660,15 @@ class Conversation extends Syncable {
   }
 
   /**
-   * Accepts json-patch operations for modifying participants or metadata
+   * LayerPatch will call this after changing any properties.
+   *
+   * Trigger any cleanup or events needed after these changes.
    *
    * @method _handlePatchEvent
    * @private
-   * @param  {Object[]} data - Array of operations
+   * @param  {Mixed} newValue - New value of the property
+   * @param  {Mixed} oldValue - Prior value of the property
+   * @param  {string[]} paths - Array of paths specifically modified: ['participants'], ['metadata.keyA', 'metadata.keyB']
    */
   _handlePatchEvent(newValue, oldValue, paths) {
     // Certain types of __update handlers are disabled while values are being set by
@@ -665,6 +682,10 @@ class Conversation extends Syncable {
       if (paths[0].indexOf('metadata') === 0) {
         this.__updateMetadata(newValue, oldValue, paths);
       } else if (paths[0] === 'participants') {
+        const client = this.getClient();
+        // oldValue/newValue come as a Basic Identity POJO; lets deliver events with actual instances
+        oldValue = oldValue.map(identity => client.getIdentity(identity.id));
+        newValue = newValue.map(identity => client.getIdentity(identity.id));
         this.__updateParticipants(newValue, oldValue);
       }
       this._disableEvents = events;
@@ -680,8 +701,8 @@ class Conversation extends Syncable {
    *
    * @method _getParticipantChange
    * @private
-   * @param  {string[]} newValue
-   * @param  {string[]} oldValue
+   * @param  {layer.Identity[]} newValue
+   * @param  {layer.Identity[]} oldValue
    * @return {Object} Returns changes in the form of `{add: [...], remove: [...]}`
    */
   _getParticipantChange(newValue, oldValue) {
@@ -1088,19 +1109,24 @@ class Conversation extends Syncable {
    * @protected
    * @param  {Object} options
    * @param  {layer.Client} options.client
-   * @param  {string[]} options.participants - Array of participant ids
-   * @param {boolean} [options.distinct=false] - Create a distinct conversation
+   * @param  {string[]/layer.Identity[]} options.participants - Array of Participant IDs or layer.Identity objects to create a conversation with.
+   * @param {boolean} [options.distinct=true] - Create a distinct conversation
    * @param {Object} [options.metadata={}] - Initial metadata for Conversation
    * @return {layer.Conversation}
    */
   static create(options) {
     if (!options.client) throw new Error(LayerError.dictionary.clientMissing);
-    if (options.distinct) {
-      const conv = this._createDistinct(options);
+    const newOptions = {
+      distinct: options.distinct,
+      participants: options.client._fixIdentities(options.participants),
+      metadata: options.metadata,
+      client: options.client,
+    };
+    if (newOptions.distinct) {
+      const conv = this._createDistinct(newOptions);
       if (conv) return conv;
     }
-
-    return new Conversation(options);
+    return new Conversation(newOptions);
   }
 
   /**
@@ -1115,21 +1141,25 @@ class Conversation extends Syncable {
    * @method _createDistinct
    * @static
    * @private
-   * @param  {Object} options - See layer.Conversation.create options
+   * @param  {Object} options - See layer.Conversation.create options; participants must be layer.Identity[]
    * @return {layer.Conversation}
    */
   static _createDistinct(options) {
-    if (options.participants.indexOf(options.client.user.userId) === -1) {
-      options.participants.push(options.client.user.userId);
+    if (options.participants.indexOf(options.client.user) === -1) {
+      options.participants.push(options.client.user);
     }
 
-    const participants = options.participants.sort();
-    const pString = participants.join(',');
+    const participantsHash = {};
+    options.participants.forEach((participant) => {
+      participantsHash[participant.id] = participant;
+    });
 
     const conv = options.client.findCachedConversation(aConv => {
-      if (aConv.distinct && aConv.participants.length === participants.length) {
-        const participants2 = aConv.participants.sort();
-        return participants2.join(',') === pString;
+      if (aConv.distinct && aConv.participants.length === options.participants.length) {
+        for (let index = 0; index < aConv.participants.length; index++) {
+          if (!participantsHash[aConv.participants[index].id]) return false;
+        }
+        return true;
       }
     });
 
@@ -1166,7 +1196,7 @@ class Conversation extends Syncable {
  * use addParticipants, removeParticipants and replaceParticipants
  * to manipulate the array.
  *
- * @type {string[]}
+ * @type {layer.Identity[]}
  */
 Conversation.prototype.participants = null;
 

@@ -30,13 +30,15 @@ var messageTemplate = {
     "sent_at": "2014-09-09T04:44:47+00:00",
     "sender": {
         "user_id": "12345",
-        "name": null
+        "display_name": "One through Five",
+        "id": "layer:///identities/12345",
+        "url": "https://huh.com/identities/12345"
     },
     "is_unread": true,
     "recipient_status": {
-        "777": "sent",
-        "999": "read",
-        "111": "delivered"
+        "layer:///identities/777": "sent",
+        "layer:///identities/999": "read",
+        "layer:///identities/111": "delivered"
     }
 };
 var sampleMessage1 = JSON.parse(JSON.stringify(messageTemplate));
@@ -49,8 +51,8 @@ sampleMessage3.parts.forEach(function(part) {part.id = part.id.replace(/\/parts/
 
 sampleMessage2.parts[0].body += "2";
 sampleMessage3.parts[0].body += "3";
-sampleMessage2.recipient_status["777"] = "delivered";
-sampleMessage3.recipient_status["777"] = "read";
+sampleMessage2.recipient_status["layer:///identities/777"] = "delivered";
+sampleMessage3.recipient_status["layer:///identities/777"] = "read";
 responses = {
     error1: {
         "message": "Body cannot be blank.",
@@ -69,8 +71,8 @@ responses = {
         "created_at": "2014-09-15T04:44:47+00:00",
         "last_message": sampleMessage1,
         "participants": [
-            "1234",
-            "5678"
+            {user_id: "1234", id: "layer:///identities/1234", url: "https://huh.com/identities/1234", display_name: "one two three four", avatar_url: ""},
+            {user_id: "5678", id: "layer:///identities/5678", url: "https://huh.com/identities/5678", display_name: "five six seven eight", avatar_url: ""},
         ],
         "distinct": true,
         "unread_message_count": 3,
@@ -85,9 +87,9 @@ responses = {
         "created_at": "2014-09-15T04:44:47+00:00",
         "last_message": sampleMessage2,
         "participants": [
-            "777",
-            "999",
-            "111"
+            {user_id: "777", id: "layer:///identities/777", url: "https://huh.com/identities/777", display_name: "Sevens", avatar_url: ""},
+            {user_id: "999", id: "layer:///identities/999", url: "https://huh.com/identities/999", display_name: "Nines", avatar_url: ""},
+            {user_id: "111", id: "layer:///identities/111", url: "https://huh.com/identities/111", display_name: "Ones", avatar_url: ""},
         ],
         "distinct": true,
         "unread_message_count": 3,
@@ -95,14 +97,6 @@ responses = {
             "favorite": "true",
             "background_color": "#3c3c3c"
         }
-    },
-    createConversationDistinct: {
-        "participants": [ "1234", "5678" ],
-        "distinct": true
-    },
-    createConversationNonDistinct: {
-        "participants": [ "1234", "5678" ],
-        "distinct": false
     },
     message1: sampleMessage2,
     message2: sampleMessage3,
@@ -120,23 +114,23 @@ responses = {
       ],
       "sent_at": "2014-09-09T04:44:47+00:00",
       "sender": {
-          "name": "Hey ho"
+        "user_id": "admin",
+        "display_name": "Lord Master the Admin",
+        "id": "layer:///identities/admin",
+        "url": "https://huh.com/identities/admin"
       },
       "is_unread": true,
       "recipient_status": {
-          "777": "sent"
+          "layer:///identities/777": "sent"
       }
     },
     useridentity: {
         id: "layer:///identities/frodo-the-dodo",
         user_id: "frodo-the-dodo",
         display_name: "Frodo The Dodo",
-        firstName: "Frodo",
-        lastName: "Dodo",
+        first_name: "Frodo",
+        last_name: "Dodo",
         metadata: {}
-    },
-    serviceidentity: {
-        name: "I am Zod"
     }
 };
 
