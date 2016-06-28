@@ -1425,5 +1425,19 @@ describe("The DbManager Class", function() {
       });
     });
 
+    describe("The getObject() method", function() {
+      var m1;
+      beforeEach(function(done) {
+        m1 = conversation.createMessage("m1").send();
+        dbManager._writeObjects('messages', dbManager._getMessageData([m1]), false, done);
+      });
+      it("Should get the specified object", function(done) {
+        dbManager.getObject('messages', m1.id, function(result) {
+          expect(result).toEqual(dbManager._getMessageData([m1])[0]);
+          done();
+        });
+      });
+    });
+
 
 });

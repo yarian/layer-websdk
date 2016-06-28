@@ -145,10 +145,10 @@ class Syncable extends Root {
     const typeName = ConstructorClass.eventPrefix;
 
     if (typeName) {
-      client.dbManager.getObjects(typeName, [id], (items) => {
+      client.dbManager.getObject(typeName, id, (item) => {
         if (syncItem.isDestroyed) return;
-        if (items.length) {
-          syncItem._populateFromServer(items[0]);
+        if (item) {
+          syncItem._populateFromServer(item);
           syncItem.trigger(typeName + ':loaded');
         } else {
           syncItem._load();

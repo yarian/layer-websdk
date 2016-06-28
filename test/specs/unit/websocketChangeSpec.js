@@ -32,10 +32,10 @@ describe("The Websocket Change Manager Class", function() {
 
 
         client._clientAuthenticated();
-        getObjectsResult = [];
-        spyOn(client.dbManager, "getObjects").and.callFake(function(tableName, ids, callback) {
+        getObjectResult = null;
+        spyOn(client.dbManager, "getObject").and.callFake(function(tableName, ids, callback) {
             setTimeout(function() {
-                callback(getObjectsResult);
+                callback(getObjectResult);
             }, 10);
         });
         client._clientReady();

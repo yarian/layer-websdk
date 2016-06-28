@@ -7,7 +7,7 @@ describe("The Syncable Class", function() {
         announcement,
         client,
         requests,
-        getObjectsResult;
+        getObjectResult;
 
     beforeEach(function() {
         jasmine.clock().install();
@@ -36,10 +36,10 @@ describe("The Syncable Class", function() {
         });
         client.isTrustedDevice = true;
         client._clientAuthenticated();
-        getObjectsResult = [];
-        spyOn(client.dbManager, "getObjects").and.callFake(function(tableName, ids, callback) {
+        getObjectResult = null;
+        spyOn(client.dbManager, "getObject").and.callFake(function(tableName, ids, callback) {
             setTimeout(function() {
-                callback(getObjectsResult);
+                callback(getObjectResult);
             }, 10);
         });
         client._clientReady();
@@ -78,18 +78,18 @@ describe("The Syncable Class", function() {
           expect(layer.LayerError.dictionary.clientMissing).toEqual(jasmine.any(String));
         });
 
-        it("Should call dbManager.getObjects", function() {
-          client.dbManager.getObjects.calls.reset();
+        it("Should call dbManager.getObject", function() {
+          client.dbManager.getObject.calls.reset();
 
           // Run
           layer.Message.load(responses.message1.id, client);
 
           // Posttest
-          expect(client.dbManager.getObjects).toHaveBeenCalledWith('messages', [responses.message1.id], jasmine.any(Function));
+          expect(client.dbManager.getObject).toHaveBeenCalledWith('messages', responses.message1.id, jasmine.any(Function));
         });
 
         it("Should populateFromServer and trigger loaded if db has data", function() {
-            getObjectsResult = [{parts: []}];
+            getObjectResult = {parts: []};
 
             // Run
             var ident = layer.Message.load(responses.message1.id, client);
@@ -129,7 +129,7 @@ describe("The Syncable Class", function() {
         });
 
         it("Should populateFromServer and trigger loaded if db has data", function() {
-            getObjectsResult = [{parts: []}];
+            getObjectResult = {parts: []};
 
             // Run
             var ident = layer.Announcement.load(responses.announcement.id, client);
@@ -170,7 +170,7 @@ describe("The Syncable Class", function() {
         });
 
         it("Should populateFromServer and trigger loaded if db has data", function() {
-            getObjectsResult = [{participants: []}];
+            getObjectResult = {participants: []};
 
             // Run
             var ident = layer.Conversation.load(responses.conversation1.id, client);
@@ -211,7 +211,7 @@ describe("The Syncable Class", function() {
         });
 
         it("Should populateFromServer and trigger loaded if db has data", function() {
-            getObjectsResult = [{display_name: "hey ho"}];
+            getObjectResult = {display_name: "hey ho"};
 
             // Run
             var ident = layer.Identity.load(responses.useridentity.id, client);

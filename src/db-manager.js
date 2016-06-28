@@ -961,6 +961,43 @@ class DbManager extends Root {
   }
 
   /**
+   * A simplified getObjects() method that gets a single object, and also gets its related objects.
+   *
+   * @method getObject
+   * @param {string} tableName
+   * @param {string} id
+   * @param {Function} callback
+   * @param {Object} callback.data
+   */
+  getObject(tableName, id, callback) {
+    if (!this['_permission_' + tableName] || this._isOpenError) return callback();
+
+    this.onOpen(() => {
+      this.db.transaction([tableName], 'readonly')
+        .objectStore(tableName)
+        .openCursor(window.IDBKeyRange.only(id)).onsuccess = (evt) => {
+          const cursor = evt.target.result;
+          if (!cursor) return callback(null);
+
+          switch (tableName) {
+            case 'messages':
+            case 'identities':
+              return callback(cursor.value);
+            case 'conversations':
+              if (cursor.value.last_message && !this.client.getMessage(cursor.value.last_message)) {
+                return this.getObject('messages', cursor.value.last_message, (message) => {
+                  cursor.value.last_message = message;
+                  callback(cursor.value);
+                });
+              } else {
+                return callback(cursor.value);
+              }
+          }
+        };
+    });
+  }
+
+  /**
    * Claim a Sync Event.
    *
    * A sync event is claimed by locking the table,  validating that it is still in the table... and then deleting it from the table.

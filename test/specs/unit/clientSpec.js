@@ -147,6 +147,9 @@ describe("The Client class", function() {
             spyOn(client.dbManager, "getObjects").and.callFake(function(tableName, ids, callback) {
                callback([]);
             });
+            spyOn(client.dbManager, "getObject").and.callFake(function(tableName, ids, callback) {
+               callback(null);
+            });
             client._clientReady();
 
         });
