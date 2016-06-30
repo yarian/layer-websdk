@@ -287,8 +287,8 @@ describe("The Util Library", function() {
                 type: 'Conversation',
                 operations: [
                     {operation: "set", property: "unread_message_count", value: 5},
-                    {operation: "add", property: "participants", value: "c"},
-                    {operation: "remove", property: "participants", value: "a"},
+                    {operation: "add", property: "participants", id: "layer:///identities/c", value: {id: "layer:///identities/c", url: "https:///heyho.com/identities/c", user_id: "c", display_name: "User C", avatar_url: null}},
+                    {operation: "remove", property: "participants", id: "layer:///identities/a"},
                     {operation: "delete", property: "metadata.eat"},
                     {operation: "set", property: "lastMessage", id: message.id}
                 ]
@@ -306,12 +306,14 @@ describe("The Util Library", function() {
 
         it("Should add a participant", function() {
             layer.Util.layerParse(config);
-            expect(conversation.participants.indexOf("c")).not.toEqual(-1);
+            var identityC = client.getIdentity("c");
+            expect(conversation.participants.indexOf(identityC)).not.toEqual(-1);
         });
 
         it("Should remove a participant", function() {
             layer.Util.layerParse(config);
-            expect(conversation.participants.indexOf("a")).toEqual(-1);
+            var identityA = client.getIdentity("a");
+            expect(conversation.participants.indexOf(identityA)).toEqual(-1);
         });
 
         it("Should delete a metadata property", function() {
