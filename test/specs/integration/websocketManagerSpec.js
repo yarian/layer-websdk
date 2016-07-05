@@ -206,7 +206,7 @@ describe("Websocket tests", function() {
             socket._onMessage({data: JSON.stringify({
                 "type": "change",
                 body: {
-                    "operation": "patch",
+                    "operation": "update",
                     "object": {
                         "type": "Conversation",
                         "id": c1.id
@@ -282,7 +282,7 @@ describe("Websocket tests", function() {
 
                 // Run
                 client.socketChangeManager._handlePatch({
-                    "operation": "patch",
+                    "operation": "update",
                     "object": {
                         "type": "Conversation",
                         "id": "layer:///conversations/conversation2",
@@ -327,7 +327,7 @@ describe("Websocket tests", function() {
 
                 // Run
                 client.socketChangeManager._handlePatch({
-                    "operation": "patch",
+                    "operation": "update",
                     "object": {
                         "type": "Conversation",
                         id: c1.id
@@ -377,7 +377,7 @@ describe("Websocket tests", function() {
 
                 // Run
                 client.socketChangeManager._handlePatch({
-                    "operation": "patch",
+                    "operation": "update",
                     "object": {
                         "type": "Conversation",
                         id: c1.id
@@ -425,7 +425,7 @@ describe("Websocket tests", function() {
                 // Run
 
                 client.socketChangeManager._handlePatch({
-                    "operation": "patch",
+                    "operation": "update",
                     "object": {
                         "type": "Conversation",
                         id: c1.id
@@ -480,7 +480,7 @@ describe("Websocket tests", function() {
 
                 // Run
                 client.socketChangeManager._handlePatch({
-                    "operation": "patch",
+                    "operation": "update",
                     "object": {
                         "type": "Conversation",
                         id: c1.id
@@ -515,7 +515,7 @@ describe("Websocket tests", function() {
 
                 // Run
                 client.socketChangeManager._handlePatch({
-                    "operation": "patch",
+                    "operation": "update",
                     "object": {
                         "type": "Conversation",
                         id: c2.id
@@ -626,7 +626,7 @@ describe("Websocket tests", function() {
 
             // Run
             client.socketChangeManager._handlePatch({
-                "operation": "patch",
+                "operation": "update",
                 "object": {
                     "type": "Message",
                     "id": m1.id
@@ -660,7 +660,7 @@ describe("Websocket tests", function() {
 
             // Run
             client.socketChangeManager._handlePatch({
-                "operation": "patch",
+                "operation": "update",
                 "object": {
                     "type": "Conversation",
                     "id": c2.id
@@ -691,7 +691,7 @@ describe("Websocket tests", function() {
 
             // Run
             client.socketChangeManager._handlePatch({
-                "operation": "patch",
+                "operation": "update",
                 "object": {
                     "type": "Conversation",
                     "id": c2.id
@@ -727,7 +727,7 @@ describe("Websocket tests", function() {
 
             // Run
             client.socketChangeManager._handlePatch({
-                "operation": "patch",
+                "operation": "update",
                 "object": {
                     "type": "Conversation",
                     "id": c2.id

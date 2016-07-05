@@ -150,7 +150,7 @@ describe("The Websocket Change Manager Class", function() {
               data: {
                 type: 'change',
                 body: {
-                  "operation": "patch",
+                  "operation": "update",
                   data: [],
                   object: {}
                 }
@@ -159,7 +159,7 @@ describe("The Websocket Change Manager Class", function() {
 
             // Posttest
             expect(changeManager._handlePatch).toHaveBeenCalledWith({
-                operation: "patch",
+                operation: "update",
                 data: [],
                 object: {}
             });
@@ -176,7 +176,7 @@ describe("The Websocket Change Manager Class", function() {
               data: {
                 type: 'change2',
                 body: {
-                  "operation": "patch",
+                  "operation": "update",
                   data: [],
                   object: {}
                 }
@@ -255,7 +255,7 @@ describe("The Websocket Change Manager Class", function() {
 
             // Run
             changeManager._handlePatch({
-                operation: "patch",
+                operation: "update",
                 object: {
                     id: m.id,
                     type: "Message"
@@ -287,7 +287,7 @@ describe("The Websocket Change Manager Class", function() {
 
             // Run
             changeManager._handlePatch({
-                operation: "patch",
+                operation: "update",
                 object: {
                     id: "layer:///conversations/fred"
                 },
@@ -316,7 +316,7 @@ describe("The Websocket Change Manager Class", function() {
 
             // Run
             changeManager._handlePatch({
-                operation: "patch",
+                operation: "update",
                 object: {
                     id: "layer:///conversations/fred"
                 },
@@ -344,7 +344,7 @@ describe("The Websocket Change Manager Class", function() {
 
             // Run
             changeManager._handlePatch({
-                operation: "patch",
+                operation: "update",
                 object: {
                     id: "layer:///messages/fred"
                 },
@@ -373,7 +373,7 @@ describe("The Websocket Change Manager Class", function() {
 
             // Run
             changeManager._handlePatch({
-                operation: "patch",
+                operation: "update",
                 object: {
                     id: "layer:///messages/fred"
                 },

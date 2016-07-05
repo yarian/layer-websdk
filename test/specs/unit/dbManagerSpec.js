@@ -1209,7 +1209,7 @@ describe("The DbManager Class", function() {
           new layer.XHRSyncEvent({
             target: conversation.id,
             depends: [],
-            operation: "PATCH",
+            operation: "update",
             id: "derf",
             data: {ho: "hey"},
             headers: {accept: 'ho'},
@@ -1221,7 +1221,7 @@ describe("The DbManager Class", function() {
           new layer.XHRSyncEvent({
             target: conversation.id + 'a',
             depends: [],
-            operation: "PATCH",
+            operation: "update",
             id: "derf",
             data: {ho: "hey"},
             headers: {accept: 'ho'},
