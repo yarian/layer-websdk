@@ -71,6 +71,14 @@ class SyncManager extends Root {
     this.socketManager.on('connected disconnected', this._onlineStateChange, this);
   }
 
+  /**
+   * Returns whether the Client is online/offline.
+   *
+   * For internal use; applications should use layer.Client.isOnline.
+   *
+   * @method isOnline
+   * @returns {Boolean}
+   */
   isOnline() {
     return this.onlineManager.isOnline;
   }
@@ -258,6 +266,7 @@ class SyncManager extends Root {
    * @param  {Object} result  - Response object returned by xhr call
    * @param  {layer.SyncEvent} requestEvt - Request object
    * @param  {boolean} isOnline - Is our app state set to online
+   * @returns {String}
    */
   _getErrorState(result, requestEvt, isOnline) {
     const errId = result.data ? result.data.id : '';

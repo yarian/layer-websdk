@@ -908,6 +908,16 @@ describe("The Conversation Class", function() {
             }).toThrowError(layer.LayerError.dictionary.moreParticipantsRequired);
             expect(layer.LayerError.dictionary.moreParticipantsRequired).toEqual(jasmine.any(String));
         });
+
+        it("Should return this", function() {
+            // Setup
+            conversation.participants = [userIdentity1, userIdentity2, userIdentity3];
+
+            // Run
+            expect(conversation.removeParticipants([userIdentity1])).toBe(conversation);
+            expect(conversation.removeParticipants([])).toBe(conversation);
+            expect(conversation.removeParticipants(["not present"])).toBe(conversation);
+        });
     });
 
     describe("The replaceParticipants() method", function() {
@@ -1809,7 +1819,7 @@ describe("The Conversation Class", function() {
         });
 
         it("Should return a clone of participants", function() {
-            expect(conversation.toObject().participants).toEqual(conversation.participants.map(participant => participant.toObject()));
+            expect(conversation.toObject().participants).toEqual(conversation.participants.map(function(participant) { return participant.toObject();}));
             expect(conversation.toObject().participants).not.toBe(conversation.participants);
         });
 
@@ -1819,269 +1829,5 @@ describe("The Conversation Class", function() {
         });
     });
 
-    describe("Static Methods", function() {
 
-        // NOTE: These tests go well beyond unit testing as I needed to verify how
-        // _createFromServer, _populateFromServer, and the same methods as applied to lastMessage
-        // all fit together.
-        describe("The _createFromServer() method", function() {
-            it("Should call _populateFromServer", function() {
-                // Setup
-                var c = JSON.parse(JSON.stringify(responses.conversation1));
-                c.id += "a";
-                var f = layer.Conversation.prototype._populateFromServer;
-                spyOn(layer.Conversation.prototype, "_populateFromServer");
-
-                // Run
-                layer.Conversation._createFromServer(c, client);
-
-                // Posttest
-                expect(layer.Conversation.prototype._populateFromServer).toHaveBeenCalledWith(c);
-
-                layer.Conversation.prototype._populateFromServer = f;
-            });
-
-            it("Should setup a client", function() {
-                 // Setup
-                var c = JSON.parse(JSON.stringify(responses.conversation1));
-
-                // Run
-                var result = layer.Conversation._createFromServer(c, client);
-
-                // Posttest
-                expect(result.clientId).toBe(client.appId);
-            });
-        });
-
-        describe("The _loaded() method", function() {
-            it("Should register the Conversation", function() {
-              // Setup
-              spyOn(client, "_addConversation");
-
-              // Run
-              conversation._loaded();
-
-              // Posttest
-              expect(client._addConversation).toHaveBeenCalledWith(conversation);
-            });
-        });
-
-        describe("The create() method", function() {
-            it("Should throw error if no client", function() {
-                expect(function() {
-                    layer.Conversation.create({});
-                }).toThrowError(layer.LayerError.dictionary.clientMissing);
-            });
-
-            it("Should call _createDistinct to get a conversation if distinct", function() {
-                // Setup
-                var createDistinct = layer.Conversation._createDistinct;
-                spyOn(layer.Conversation, "_createDistinct").and.returnValue("Yay");
-
-                var args = {
-                    distinct: true,
-                    client: client,
-                    participants: ["a", userIdentity1]
-                };
-
-                // Run
-                layer.Conversation.create(args);
-
-                // Posttest
-                expect(layer.Conversation._createDistinct.calls.allArgs()).toEqual([[{
-                    distinct: true,
-                    client: client,
-                    metadata: undefined,
-                    participants: [jasmine.objectContaining({__userId: 'a'}), userIdentity1]
-                }]]);
-
-                layer.Conversation._createDistinct = createDistinct;
-            });
-
-            it("Should return any conversation returned by _createDistinct", function() {
-                // Setup
-                var createDistinct = layer.Conversation._createDistinct;
-                var c = new layer.Conversation({
-                    client: client,
-                    participants: [client.user]
-                });
-                spyOn(layer.Conversation, "_createDistinct").and.returnValue(c);
-                spyOn(c, "send");
-
-                // Run
-                var result = layer.Conversation.create({
-                    distinct: true,
-                    client: client,
-                    participants: ["a", userIdentity1]
-                });
-
-                // Posttest
-                expect(result).toBe(c);
-
-                layer.Conversation._createDistinct = createDistinct;
-            });
-
-            it("Should create a new conversation if no conversation returned by _createDistinct", function() {
-                // Setup
-                var createDistinct = layer.Conversation._createDistinct;
-                spyOn(layer.Conversation, "_createDistinct").and.returnValue(null);
-
-                // Run
-                var result = layer.Conversation.create({
-                    distinct: true,
-                    client: client,
-                    participants: ["a", userIdentity1]
-                });
-
-                // Posttest
-                expect(result).toEqual(jasmine.any(layer.Conversation));
-
-                layer.Conversation._createDistinct = createDistinct;
-            });
-
-            it("Should NOT call _createDistinct if not distinct", function() {
-                // Setup
-                var createDistinct = layer.Conversation._createDistinct;
-                spyOn(layer.Conversation, "_createDistinct");
-
-                // Run
-                var result = layer.Conversation.create({
-                    distinct: false,
-                    client: client,
-                    participants: ["a", userIdentity1]
-                });
-
-                // Posttest
-                expect(layer.Conversation._createDistinct).not.toHaveBeenCalled();
-
-                layer.Conversation._createDistinct = createDistinct;
-            });
-
-        });
-
-        describe("The _createDistinct() method", function() {
-            it("Should return a matching distinct conversation", function() {
-                // Setup
-                var c = new layer.Conversation({
-                    client: client,
-                    fromServer: {
-                        participants: [userIdentity1, userIdentity2, client.user.userId],
-                        distinct: true,
-                        id:  "layer:///conversations/ " + layer.Util.generateUUID()
-                    }
-                });
-
-                // Run
-                var result = layer.Conversation._createDistinct({
-                    client: client,
-                    participants: [userIdentity1, userIdentity2],
-                    distinct: true
-                });
-
-                // Posttest
-                expect(result).toBe(c);
-            });
-
-            it("Should return undefined if not match is found", function() {
-                // Setup
-                var c = new layer.Conversation({
-                    client: client,
-                    fromServer: {
-                        participants: [userIdentity1, userIdentity2, client.user.userId],
-                        distinct: true,
-                        id:  "layer:///conversations/ " + layer.Util.generateUUID(),
-                    }
-                });
-
-                // Run
-                var result = layer.Conversation._createDistinct({
-                    client: client,
-                    participants: [userIdentity1, userIdentity2, userIdentity3],
-                    distinct: true
-                });
-
-                // Posttest
-                expect(result).toBe(undefined);
-            });
-
-            it("Should return prop with a FOUND event if no metadata requested", function() {
-                // Setup
-                var c = new layer.Conversation({
-                    client: client,
-                    fromServer: {
-                        participants: [userIdentity1, userIdentity2, client.user.userId],
-                        distinct: true,
-                        id:  "layer:///conversations/ " + layer.Util.generateUUID()
-                    }
-                });
-
-                // Run
-                var result = layer.Conversation._createDistinct({
-                    client: client,
-                    participants: [userIdentity1, userIdentity2],
-                    distinct: true
-                });
-
-                // Posttest
-                expect(c._sendDistinctEvent).toEqual(jasmine.objectContaining({
-                    target: c,
-                    result: layer.Conversation.FOUND
-                }));
-            });
-
-            it("Should return prop with a FOUND event if no metadat requested", function() {
-                // Setup
-                var c = new layer.Conversation({
-                    client: client,
-                    fromServer: {
-                        participants: [userIdentity1, userIdentity2, client.user.userId],
-                        distinct: true,
-                        id:  "layer:///conversations/ " + layer.Util.generateUUID(),
-                        metadata: {hey: "ho", there: "goes"}
-                    }
-                });
-
-                // Run
-                var result = layer.Conversation._createDistinct({
-                    client: client,
-                    participants: [userIdentity1, userIdentity2],
-                    distinct: true,
-                    metadata: {hey: "ho", there: "goes"}
-                });
-
-                // Posttest
-                expect(c._sendDistinctEvent).toEqual(jasmine.objectContaining({
-                    target: c,
-                    result: layer.Conversation.FOUND
-                }));
-            });
-
-            it("Should return prop with a FOUND_WITHOUT_REQUESTED_METADATA event if no metadat requested", function() {
-                // Setup
-                var c = new layer.Conversation({
-                    client: client,
-                    fromServer: {
-                        participants: [userIdentity1, userIdentity2, client.user.userId],
-                        distinct: true,
-                        id:  "layer:///conversations/ " + layer.Util.generateUUID(),
-                        metadata: {hey: "ho", there: "goes"}
-                    }
-                });
-
-                // Run
-                var result = layer.Conversation._createDistinct({
-                    client: client,
-                    participants: [userIdentity1, userIdentity2],
-                    distinct: true,
-                    metadata: {hey: "ho", there: "goes2"}
-                });
-
-                // Posttest
-                expect(c._sendDistinctEvent).toEqual(jasmine.objectContaining({
-                    target: c,
-                    result: layer.Conversation.FOUND_WITHOUT_REQUESTED_METADATA
-                }));
-            });
-        });
-    });
 });

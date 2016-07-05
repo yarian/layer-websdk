@@ -100,5 +100,44 @@ describe("The Announcement class", function() {
                 method: 'DELETE'
             }, jasmine.any(Function));
         });
+
+        it("Should load a new copy if deletion fails from something other than not_found", function() {
+            debugger;
+          var tmp = layer.Syncable.load;
+          spyOn(layer.Syncable, "load");
+          spyOn(announcement, "_xhr").and.callFake(function(args, callback) {
+            callback({success: false});
+          });
+
+
+          // Run
+          announcement.delete(layer.Constants.DELETION_MODE.ALL);
+
+          // Posttest
+          expect(announcement.isDestroyed).toBe(true);
+          expect(layer.Syncable.load).toHaveBeenCalledWith(announcement.id, client);
+
+          // Cleanup
+          layer.Syncable.load = tmp;
+        })
+
+        it("Should NOT load a new copy if deletion fails from not_found", function() {
+          var tmp = layer.Announcement.load;
+          spyOn(layer.Announcement, "load");
+          spyOn(announcement, "_xhr").and.callFake(function(args, callback) {
+            callback({success: false, data: {id: 'not_found'}});
+          });
+
+
+          // Run
+          announcement.delete(layer.Constants.DELETION_MODE.ALL);
+
+          // Posttest
+          expect(announcement.isDestroyed).toBe(true);
+          expect(layer.Announcement.load).not.toHaveBeenCalled();
+
+          // Cleanup
+          layer.Announcement.load = tmp;
+        })
     });
 });

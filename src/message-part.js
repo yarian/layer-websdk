@@ -157,6 +157,7 @@ class MessagePart extends Root {
    * @method fetchContent
    * @param {Function} [callback]
    * @param {Mixed} callback.data - Either a string (mimeType=text/plain) or a Blob (all other mimeTypes)
+   * @return {layer.Content} this
    */
   fetchContent(callback) {
     if (this._content && !this.isFiring) {
@@ -167,6 +168,15 @@ class MessagePart extends Root {
     return this;
   }
 
+  /**
+   * Callback with result or error from calling fetchContent.
+   *
+   * @private
+   * @method _fetchContentCallback
+   * @param {layer.Error} err
+   * @param {Object} result
+   * @param {Function} callback
+   */
   _fetchContentCallback(err, result, callback) {
     if (err) {
       this.trigger('content-loaded-error', err);
@@ -185,6 +195,14 @@ class MessagePart extends Root {
     }
   }
 
+  /**
+   * Callback with Part Body from _fetchContentCallback.
+   *
+   * @private
+   * @method _fetchContentComplete
+   * @param {Blob|String} body
+   * @param {Function} callback
+   */
   _fetchContentComplete(body, callback) {
     const message = this._getMessage();
 
@@ -213,6 +231,7 @@ class MessagePart extends Root {
    * @method fetchStream
    * @param {Function} [callback]
    * @param {Mixed} callback.url
+   * @return {layer.Content} this
    */
   fetchStream(callback) {
     if (!this._content) throw new Error(LayerError.dictionary.contentRequired);
@@ -221,6 +240,7 @@ class MessagePart extends Root {
     } else {
       this._fetchStreamComplete(this._content.downloadUrl, callback);
     }
+    return this;
   }
 
   // Does not set this.url; instead relies on fact that this._content.downloadUrl has been updated

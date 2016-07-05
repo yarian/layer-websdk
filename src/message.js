@@ -192,6 +192,7 @@ class Message extends Syncable {
     if (this.conversationId) {
       return ClientRegistry.get(this.clientId).getConversation(this.conversationId, load);
     }
+    return null;
   }
 
   /**
@@ -239,6 +240,7 @@ class Message extends Syncable {
    *
    * @method addPart
    * @param  {layer.MessagePart/Object} part - A layer.MessagePart instance or a `{mimeType: 'text/plain', body: 'Hello'}` formatted Object.
+   * @returns {layer.Message} this
    */
   addPart(part) {
     if (part) {
@@ -529,7 +531,8 @@ class Message extends Syncable {
 
 
     if (conversation.isLoading) {
-      return conversation.once('conversations:loaded', () => this.send(notification));
+      conversation.once('conversations:loaded', () => this.send(notification));
+      return this;
     }
 
     if (!this.parts || !this.parts.length) {
@@ -810,7 +813,8 @@ class Message extends Syncable {
    * @return {layer.MessagePart}
    */
   getPartById(partId) {
-    return this.parts ? this.parts.filter(part => part.id === partId)[0] : null;
+    const part = this.parts ? this.parts.filter(aPart => aPart.id === partId)[0] : null;
+    return part || null;
   }
 
   /**
@@ -828,6 +832,16 @@ class Message extends Syncable {
     this._inLayerParser = true;
   }
 
+  /**
+   * Returns absolute URL for this resource.
+   * Used by sync manager because the url may not be known
+   * at the time the sync request is enqueued.
+   *
+   * @method _getUrl
+   * @param {String} url - relative url and query string parameters
+   * @return {String} full url
+   * @private
+   */
   _getUrl(url) {
     return this.url + (url || '');
   }

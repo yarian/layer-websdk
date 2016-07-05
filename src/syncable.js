@@ -83,6 +83,14 @@ class Syncable extends Root {
     return this;
   }
 
+  /**
+   * Setup an object to pass in the `sync` parameter for any sync requests.
+   *
+   * @method _setupSyncObject
+   * @private
+   * @param {Object} sync - Known parameters of the sync object to be returned; or null.
+   * @return {Object} fleshed out sync object
+   */
   _setupSyncObject(sync) {
     if (sync !== false) {
       if (!sync) sync = {};

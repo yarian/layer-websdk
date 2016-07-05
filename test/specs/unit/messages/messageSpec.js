@@ -373,7 +373,7 @@ describe("The Message class", function() {
                 clientId: client.appId
             });
             m.clientId += 'a';
-            expect(m.getClient()).toEqual(undefined);
+            expect(m.getClient()).toEqual(null);
 
             // Restore
             m.clientId = client.appId;

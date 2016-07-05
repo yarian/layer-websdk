@@ -242,7 +242,6 @@ class Client extends ClientAuth {
    * @method _addConversation
    * @protected
    * @param  {layer.Conversation} c
-   * @returns {layer.Client} this
    */
   _addConversation(conversation) {
     const id = conversation.id;
@@ -256,7 +255,6 @@ class Client extends ClientAuth {
 
       this._scheduleCheckAndPurgeCache(conversation);
     }
-    return this;
   }
 
   /**
@@ -270,7 +268,6 @@ class Client extends ClientAuth {
    * @method _removeConversation
    * @protected
    * @param  {layer.Conversation} c
-   * @returns {layer.Client} this
    */
   _removeConversation(conversation) {
     // Insure we do not get any events, such as message:remove
@@ -287,8 +284,6 @@ class Client extends ClientAuth {
         this._messagesHash[id].destroy();
       }
     });
-
-    return this;
   }
 
   /**
@@ -362,6 +357,7 @@ class Client extends ClientAuth {
     const messageId = id.replace(/\/parts.*$/, '');
     const message = this.getMessage(messageId);
     if (message) return message.getPartById(id);
+    return null;
   }
 
   /**
@@ -467,10 +463,8 @@ class Client extends ClientAuth {
    * @return {layer.Identity}
    */
   getIdentity(id, canLoad) {
-    let userId;
     if (typeof id !== 'string') throw new Error(LayerError.dictionary.idParamRequired);
     if (!Identity.isValidId(id)) {
-      userId = id;
       id = Identity.prefixUUID + encodeURIComponent(id);
     }
 
@@ -479,7 +473,6 @@ class Client extends ClientAuth {
     } else if (canLoad) {
       return Identity.load(id, this);
     }
-
     return null;
   }
 
@@ -515,7 +508,6 @@ class Client extends ClientAuth {
    * @method _addIdentity
    * @protected
    * @param  {layer.Identity} identity
-   * @returns {layer.Client} this
    *
    * TODO: It should be possible to add an Identity whose userId is populated, but
    * other values are not yet loaded from the server.  Should add to _identitiesHash now
@@ -528,7 +520,6 @@ class Client extends ClientAuth {
       this._identitiesHash[id] = identity;
       this._triggerAsync('identities:add', { identities: [identity] });
     }
-    return this;
   }
 
   /**
@@ -542,7 +533,6 @@ class Client extends ClientAuth {
    * @method _removeIdentity
    * @protected
    * @param  {layer.Identity} identity
-   * @returns {layer.Client} this
    */
   _removeIdentity(identity) {
     // Insure we do not get any events, such as message:remove
@@ -553,7 +543,6 @@ class Client extends ClientAuth {
       delete this._identitiesHash[id];
       this._triggerAsync('identities:remove', { identities: [identity] });
     }
-    return this;
   }
 
   /**
@@ -657,6 +646,7 @@ class Client extends ClientAuth {
           return Identity._createFromServer(obj, this);
       }
     }
+    return null;
   }
 
   /**
@@ -760,6 +750,7 @@ class Client extends ClientAuth {
       const conversation = this._conversationsHash[key];
       if (test(conversation, index)) return conversation;
     }
+    return null;
   }
 
   /**
@@ -855,11 +846,7 @@ class Client extends ClientAuth {
    */
   getQuery(id) {
     if (typeof id !== 'string') throw new Error(LayerError.dictionary.idParamRequired);
-
-    if (this._queriesHash[id]) {
-      return this._queriesHash[id];
-    }
-    return null;
+    return this._queriesHash[id] || null;
   }
 
   /**
@@ -997,6 +984,7 @@ class Client extends ClientAuth {
       const query = this._queriesHash[list[i]];
       if (query._getItem(obj.id)) return true;
     }
+    return false;
   }
 
   /**

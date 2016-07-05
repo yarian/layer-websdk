@@ -644,7 +644,6 @@ class ClientAuthenticator extends Root {
    *
    * @method _resetSession
    * @private
-   * @returns {layer.ClientAuthenticator} this
    */
   _resetSession() {
     this.isReady = false;

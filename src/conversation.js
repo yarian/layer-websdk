@@ -435,7 +435,7 @@ class Conversation extends Syncable {
     const identities = client._fixIdentities(participants);
 
     const removing = identities.filter(participant => currentParticipants[participant.id]);
-    if (removing.length === 0) return;
+    if (removing.length === 0) return this;
     if (removing.length === this.participants.length) {
       throw new Error(LayerError.dictionary.moreParticipantsRequired);
     }
@@ -547,7 +547,6 @@ class Conversation extends Syncable {
    * Delete the Conversation from the server and removes this user as a participant.
    *
    * @method leave
-   * @return null
    */
   leave() {
     if (this.isDestroyed) throw new Error(LayerError.dictionary.isDestroyed);
@@ -579,7 +578,6 @@ class Conversation extends Syncable {
    *
    * @method delete
    * @param {number} deletionMode - layer.Constants.DELETION_MODE.ALL is only supported mode at this time
-   * @return null
    */
   delete(mode) {
     if (this.isDestroyed) throw new Error(LayerError.dictionary.isDestroyed);
@@ -834,8 +832,7 @@ class Conversation extends Syncable {
    *
    * @method deleteMetadataProperties
    * @param  {string[]} properties
-   * @return {layer.Conversation}
-   *
+   * @return {layer.Conversation} this
    */
   deleteMetadataProperties(props) {
     const layerPatchOperations = [];
@@ -1076,8 +1073,8 @@ class Conversation extends Syncable {
    * @protected
    * @static
    * @param  {Object} conversation - Server representation of a Conversation
-   * @param  {layer.Client} client [description]
-   * @return {layer.Conversation}        [description]
+   * @param  {layer.Client} client
+   * @return {layer.Conversation}
    */
   static _createFromServer(conversation, client) {
     return new Conversation({

@@ -197,7 +197,7 @@ class Query extends Root {
     }
 
     super(options);
-    this.predicate = this.fixPredicate(options.predicate || '');
+    this.predicate = this._fixPredicate(options.predicate || '');
 
     if ('paginationWindow' in options) {
       const paginationWindow = options.paginationWindow;
@@ -282,7 +282,7 @@ class Query extends Root {
     }
 
     if ('predicate' in optionsBuilt) {
-      const predicate = this.fixPredicate(optionsBuilt.predicate || '');
+      const predicate = this._fixPredicate(optionsBuilt.predicate || '');
       if (this.predicate !== predicate) {
         this.predicate = predicate;
         needsRecreate = true;
@@ -299,7 +299,14 @@ class Query extends Root {
     return this;
   }
 
-  fixPredicate(inValue) {
+  /**
+   * Normalizes the predicate.
+   *
+   * @method _fixPredicate
+   * @param {String} inValue
+   * @private
+   */
+  _fixPredicate(inValue) {
     if (inValue === '') return '';
     if (this.model === Query.Message) {
       let conversationId = inValue.match(findConvIdRegex) ? inValue.replace(findConvIdRegex, '$1') : null;
@@ -421,6 +428,7 @@ class Query extends Root {
    * * 'created_at' (Conversations only)
    * @method _getSortField
    * @private
+   * @return {String} sort key used by server
    */
   _getSortField() {
     if (this.model === MESSAGE || this.model === ANNOUNCEMENT) return 'position';
@@ -1029,6 +1037,7 @@ class Query extends Root {
       });
       return true;
     }
+    return false;
   }
 
   _handleMessageChangeEvent(evt) {

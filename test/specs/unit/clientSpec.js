@@ -127,7 +127,7 @@ describe("The Client class", function() {
             var appId = client.appId;
             expect(layer.Client.getClient(appId)).toBe(client);
             client.destroy();
-            expect(layer.Client.getClient(appId)).toBe(undefined);
+            expect(layer.Client.getClient(appId)).toBe(null);
         });
     });
 
@@ -515,7 +515,7 @@ describe("The Client class", function() {
             });
 
             it("Should fail by id", function() {
-                expect(client.getMessagePart(responses.message1.parts[1].id + "1")).toBe(undefined);
+                expect(client.getMessagePart(responses.message1.parts[1].id + "1")).toBe(null);
             });
         });
 
@@ -1434,7 +1434,7 @@ describe("The Client class", function() {
                 });
 
                 // Posttest
-                expect(result).toBe(undefined);
+                expect(result).toBe(null);
             });
 
             it("Should return matching Conversation", function() {
@@ -1951,7 +1951,7 @@ describe("The Client class", function() {
                 var client = new layer.Client({
                     appId: "test1"
                 });
-                expect(layer.Client.getClient("test2")).toBe(undefined);
+                expect(layer.Client.getClient("test2")).toBe(null);
             });
         });
     });

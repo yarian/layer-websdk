@@ -344,6 +344,7 @@ class Root extends EventClass {
    * Subscribe to the first occurance of the specified event.
    *
    * @method once
+   * @return {layer.Root} this
    */
   once(name, handler, context) {
     this._prepareOn(name, handler, context);
@@ -391,8 +392,8 @@ class Root extends EventClass {
    *
    * @method trigger
    * @private
-   * @param {string} eventName - Name of the event
-   * @return {Object} Return *this* for chaining
+   * @param {string} eventName    Name of the event that one should subscribe to in order to receive this event
+   * @param {Mixed} arg           Values that will be placed within a layer.LayerEvent
    */
   _trigger(...args) {
     if (!Utils.includes(this.constructor._supportedEvents, args[0])) {
