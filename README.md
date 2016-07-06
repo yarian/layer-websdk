@@ -44,7 +44,7 @@ var client = new layer.Client({
 
 ### NPM
 
-    npm install layer-websdk@2 --save
+    npm install layer-websdk@beta --save
 
 All classes can then be accessed via the layer module:
 
@@ -57,6 +57,8 @@ var client = new layer.Client({
 ```
 
 ### From source
+
+**This section does not apply to beta!**
 
 Download the latest SDK release [Source code](https://github.com/layerhq/layer-websdk/releases/latest) archive, extract the files and run the following commands from the extracted project folder:
 
