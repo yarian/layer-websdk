@@ -116,6 +116,12 @@ describe("The MessageParts class", function() {
             expect(new layer.MessagePart(b).url.length > 0).toBe(true);
         });
 
+        it("Should NOT set url if initialize with blob and a text mimeType", function() {
+            var text = new Array(layer.DbManager.MaxPartSize + 10).join('a');
+            var blob = new Blob([text], {type : 'text/plain'});
+            expect(new layer.MessagePart(blob).url).toEqual('');
+        });
+
         it("Should initialize with Content", function() {
             var c = new layer.Content({});
             expect(new layer.MessagePart({_content: c})._content).toBe(c);
@@ -201,6 +207,31 @@ describe("The MessageParts class", function() {
         });
     });
 
+    describe("The _fetchTextFromFile() method", function() {
+        var part, message, blob, text;
+        beforeEach(function() {
+            text = new Array(layer.DbManager.MaxPartSize + 10).join('a');
+            blob = new Blob([text], {type : 'text/plain'});
+            part = new layer.MessagePart(blob);
+            message = conversation.createMessage({parts: [part]});
+        });
+
+        it("Should return file if file is really a string", function() {
+            var result;
+            part._fetchTextFromFile(text, function(data) { result = data;});
+            expect(result).toEqual(text);
+        });
+
+        it("Should turn text blob to string", function(done) {
+            var result;
+            part._fetchTextFromFile(text, function(data) {
+                expect(data).toEqual(text);
+                done();
+            });
+        });
+
+    });
+
     describe("The _fetchContentCallback() method", function() {
         var part, message, content;
         beforeEach(function() {
@@ -222,7 +253,7 @@ describe("The MessageParts class", function() {
           expect(part.isFiring).toEqual(false);
         });
 
-        it("Should call _fetchContentComplete for non-text/plain", function() {
+        it("Should call _fetchContentComplete for non-text part", function() {
           spyOn(part, "_fetchContentComplete");
           part.mimeType = "image/png"
           var blob = generateBlob();
@@ -230,22 +261,18 @@ describe("The MessageParts class", function() {
           expect(part._fetchContentComplete).toHaveBeenCalledWith(blob, undefined);
         });
 
-        it("Should call readAsText for text/plain", function() {
-          var tmp = window.FileReader.prototype.readAsText;
-          spyOn(window.FileReader.prototype, "readAsText");
+        it("Should call _fetchTextFromFile for text/plain", function() {
+          var text = new Array(layer.DbManager.MaxPartSize + 10).join('a');
+          var blob = new Blob([text], {type : 'text/plain'});
+          part = new layer.MessagePart(blob);
+          spyOn(part, "_fetchTextFromFile").and.callFake(function(file, callback) {callback(text);});;
           spyOn(part, "_fetchContentComplete");
-
-          part.mimeType = "text/plain"
-          var blob = generateBlob();
-          part._fetchContentCallback(null, blob);
+          var spy = jasmine.createSpy('callback');
+          part._fetchContentCallback(null, blob, spy);
 
           // Posttest
-          expect(window.FileReader.prototype.readAsText).toHaveBeenCalledWith(blob);
-
-          expect(part._fetchContentComplete).not.toHaveBeenCalled();
-
-          // Cleanup
-          window.FileReader.prototype.readAsText = tmp;
+          expect(part._fetchTextFromFile).toHaveBeenCalledWith(blob, jasmine.any(Function));
+          expect(part._fetchContentComplete).toHaveBeenCalledWith(text, spy);
         });
 
         it("Should call read_fetchContentComplete for text/plain", function() {
@@ -763,6 +790,16 @@ describe("The MessageParts class", function() {
                 mimeType: "text/plain"
             });
             expect(part.getText()).toEqual("hey");
+        });
+
+        it("Should return part.body if in MessagePart.TextualMimeTypes", function() {
+            layer.MessagePart.TextualMimeTypes.push("hey/ho");
+            var part = new layer.MessagePart({
+                body: "hey",
+                mimeType: "hey/ho"
+            });
+            expect(part.getText()).toEqual("hey");
+            layer.MessagePart.TextualMimeTypes.pop();
         });
 
         it("Should return empty string if its not text/plain", function() {

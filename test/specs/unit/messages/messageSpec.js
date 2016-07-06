@@ -1271,6 +1271,68 @@ describe("The Message class", function() {
             // Posttest
             expect(m.trigger).toHaveBeenCalledWith("messages:sending");
         });
+
+        it("Should call _readAllBlobs and only add the Message after reading is done", function(done) {
+            spyOn(m, "_readAllBlobs").and.callFake(function(callback) {
+                expect(client.getMessage(m.id)).toBe(null);
+                callback();
+                expect(client.getMessage(m.id)).toBe(m);
+                done();
+            });
+            m.send();
+        });
+    });
+
+    describe("The _readAllBlobs() method", function() {
+        var m;
+        beforeEach(function() {
+            m = conversation.createMessage("hello");
+            m.addPart({body: "there", mimeType: "text/plain"});
+        });
+
+        it("Should call the callback if All parts are text", function() {
+            var isDone;
+            m._readAllBlobs(function() {
+                isDone = true;
+            });
+            expect(isDone).toBe(true);
+        });
+
+        it("Should call the _fetchTextFromFile on each Textual Blob", function(done) {
+            m = conversation.createMessage({
+                parts: [
+                    {
+                        body: new Blob([new Array(layer.DbManager.MaxPartSize + 10).join('a')], {type : 'text/plain'}),
+                        mimeType: 'text/plain'
+                    },
+                    {
+                        body: new Blob([new Array(layer.DbManager.MaxPartSize + 10).join('b')], {type : 'text/markdown'}),
+                        mimeType: 'text/markdown'
+                    },
+                    {
+                        body: new Blob([new Array(layer.DbManager.MaxPartSize + 10).join('c')], {type : 'image/png'}),
+                        mimeType: 'image/png'
+                    },
+                    {
+                        body: "hey",
+                        mimeType: "text/plain"
+                    }
+                ]
+            });
+
+            spyOn(m.parts[0], "_fetchTextFromFile").and.callThrough();
+            spyOn(m.parts[1], "_fetchTextFromFile").and.callThrough();
+            spyOn(m.parts[2], "_fetchTextFromFile").and.callThrough();
+            spyOn(m.parts[3], "_fetchTextFromFile").and.callThrough();
+
+            m._readAllBlobs(function() {
+                expect(m.parts[0]._fetchTextFromFile).toHaveBeenCalled();
+                expect(m.parts[1]._fetchTextFromFile).toHaveBeenCalled();
+                expect(m.parts[2]._fetchTextFromFile).not.toHaveBeenCalled();
+                expect(m.parts[3]._fetchTextFromFile).not.toHaveBeenCalled();
+                done();
+            });
+        });
     });
 
     describe("The _preparePartsForSending() method", function() {

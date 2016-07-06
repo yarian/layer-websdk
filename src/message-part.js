@@ -64,7 +64,7 @@ const Content = require('./content');
 const xhr = require('./xhr');
 const ClientRegistry = require('./client-registry');
 const LayerError = require('./layer-error');
-const HasBlob = typeof Blob !== 'undefined';
+const { isBlob } = require('./client-utils');
 const logger = require('./logger');
 
 /* istanbul ignore next */
@@ -94,7 +94,7 @@ class MessagePart extends Root {
       } else {
         newOptions.mimeType = 'text/plain';
       }
-    } else if (HasBlob && (options instanceof Blob || options.body instanceof Blob)) {
+    } else if (isBlob(options) || isBlob(options.body)) {
       const bodyBlob = options instanceof Blob ? options : options.body;
       newOptions = {
         mimeType: bodyBlob.type,
@@ -105,7 +105,7 @@ class MessagePart extends Root {
     }
     super(newOptions);
     if (!this.size && this.body) this.size = this.body.length;
-    if (HasBlob && this.body instanceof Blob) {
+    if (isBlob(this.body) && !MessagePart.isTextualMimeType(this.mimeType)) {
       this.url = URL.createObjectURL(this.body);
     }
   }
@@ -143,6 +143,24 @@ class MessagePart extends Root {
     return this._getClient().getMessage(this.id.replace(/\/parts.*$/, ''));
   }
 
+ /**
+  * Given a File/Blob return a string.
+  *
+  * @private
+  * @method _fetchTextFromFile
+  * @param {Blob} file
+  * @param {Function} callback
+  * @param {String} callback.result
+  */
+  _fetchTextFromFile(file, callback) {
+    if (typeof file === 'string') return callback(file);
+    const reader = new LocalFileReader();
+    reader.addEventListener('loadend', () => {
+      callback(reader.result);
+    });
+    reader.readAsText(file);
+  }
+
   /**
    * Download Rich Content from cloud server.
    *
@@ -168,6 +186,7 @@ class MessagePart extends Root {
     return this;
   }
 
+
   /**
    * Callback with result or error from calling fetchContent.
    *
@@ -181,15 +200,11 @@ class MessagePart extends Root {
     if (err) {
       this.trigger('content-loaded-error', err);
     } else {
-      this.url = URL.createObjectURL(result);
       this.isFiring = false;
-      if (this.mimeType === 'text/plain') {
-        const reader = new LocalFileReader();
-        reader.addEventListener('loadend', () => {
-          this._fetchContentComplete(reader.result, callback);
-        });
-        reader.readAsText(result);
+      if (MessagePart.isTextualMimeType(this.mimeType)) {
+        this._fetchTextFromFile(result, text => this._fetchContentComplete(text, callback));
       } else {
+        this.url = URL.createObjectURL(result);
         this._fetchContentComplete(result, callback);
       }
     }
@@ -406,7 +421,7 @@ class MessagePart extends Root {
    * @return {string}
    */
   getText() {
-    if (this.mimeType === 'text/plain') {
+    if (MessagePart.isTextualMimeType(this.mimeType)) {
       return this.body;
     } else {
       return '';
@@ -429,6 +444,10 @@ class MessagePart extends Root {
       this._content.downloadUrl = part.content.download_url;
       this._content.expiration = new Date(part.content.expiration);
     }
+  }
+
+  static isTextualMimeType(mimeType) {
+    return (this.TextualMimeTypes.indexOf(mimeType) !== -1);
   }
 
   /**
@@ -540,6 +559,21 @@ MessagePart.prototype.encoding = '';
  * @type {number}
  */
 MessagePart.prototype.size = 0;
+
+/**
+ * Array of mime types that should be treated as text.
+ *
+ * Treating a MessagePart as text means that even if the `body` gets a File or Blob,
+ * it will be transformed to a string before being delivered to your app.
+ *
+ * This value can be customized using:
+ *
+ *    layer.MessagePart.TextualMimeTypes = ['text/plain', 'text/mountain', 'text/ocean']
+ *
+ * @static
+ * @type {String[]}
+ */
+MessagePart.TextualMimeTypes = ['text/plain', 'application/json', 'text/markdown'];
 
 MessagePart._supportedEvents = [
   'parts:send',

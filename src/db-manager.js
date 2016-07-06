@@ -4,6 +4,8 @@
  * This class manages all indexedDB access.  It is not responsible for any localStorage access, though it may
  * receive configurations related to data stored in localStorage.  It will simply ignore those configurations.
  *
+ * Rich Content will be written to IndexedDB as long as its small; see layer.DbManager.MaxPartSize for more info.
+ *
  * TODO:
  * 0. Redesign this so that knowledge of the data is not hard-coded in
  * @class layer.DbManager
@@ -107,9 +109,7 @@ class DbManager extends Root {
    */
   _open() {
     // Abort if all tables are disabled
-    const enabledTables = TABLES.filter((tableDef) => {
-      return this['_permission_' + tableDef.name];
-    });
+    const enabledTables = TABLES.filter(tableDef => this['_permission_' + tableDef.name]);
     if (enabledTables.length === 0) {
       this._isOpenError = true;
       this.trigger('error', { error: 'Persistence is disabled by application' });
@@ -117,7 +117,8 @@ class DbManager extends Root {
     }
 
     // Open the database
-    const request = window.indexedDB.open('LayerWebSDK_' + this.client.appId + '_' + this.client.user.userId, DB_VERSION);
+    const client = this.client;
+    const request = window.indexedDB.open('LayerWebSDK_' + client.appId + '_' + client.user.userId, DB_VERSION);
 
     request.onerror = (evt) => {
       this._isOpenError = true;
@@ -342,19 +343,22 @@ class DbManager extends Root {
     }).map(message => ({
       id: message.id,
       url: message.url,
-      parts: message.parts.map(part => ({
-        id: part.id,
-        body: part.body,
-        encoding: part.encoding,
-        mime_type: part.mimeType,
-        content: !part._content ? null : {
-          id: part._content.id,
-          download_url: part._content.downloadUrl,
-          expiration: part._content.expiration,
-          refresh_url: part._content.refreshUrl,
-          size: part._content.size,
-        },
-      })),
+      parts: message.parts.map(part => {
+        const body = Util.isBlob(part.body) && part.body.size > DbManager.MaxPartSize ? null : part.body;
+        return {
+          body,
+          id: part.id,
+          encoding: part.encoding,
+          mime_type: part.mimeType,
+          content: !part._content ? null : {
+            id: part._content.id,
+            download_url: part._content.downloadUrl,
+            expiration: part._content.expiration,
+            refresh_url: part._content.refreshUrl,
+            size: part._content.size,
+          },
+        };
+      }),
       position: message.position,
       sender: this._getIdentityData([message.sender], true)[0],
       recipient_status: message.recipientStatus,
@@ -1078,6 +1082,18 @@ DbManager.prototype._permission_syncQueue = false;
  * @type IDBDatabase
  */
 DbManager.prototype.db = null;
+
+/**
+ * Rich Content may be written to indexeddb and persisted... if its size is less than this number of bytes.
+ *
+ * This value can be customized; this example only writes Rich Content that is less than 5000 bytes
+ *
+ *    layer.DbManager.MaxPartSize = 5000;
+ *
+ * @static
+ * @type {Number}
+ */
+DbManager.MaxPartSize = 250000;
 
 DbManager._supportedEvents = [
   'open', 'error',

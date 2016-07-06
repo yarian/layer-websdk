@@ -402,6 +402,81 @@ describe("The DbManager Class", function() {
         }]);
       });
 
+      // Tests won't run on server due to no Blob support
+      it("Should write small Blobs", function() {
+        // Setup
+        var text = new Array(1000).join('a');
+        var blob = new Blob([text], {type : 'unknown/unhandlable'});
+        var message = conversation.createMessage({
+          parts: [new layer.MessagePart(blob)]
+        });
+        message.receivedAt = new Date();
+
+        // Run
+        expect(dbManager._getMessageData([message])).toEqual([{
+          id: message.id,
+          url: message.url,
+          position: message.position,
+          recipient_status: message.recipientStatus,
+          sent_at: message.sentAt.toISOString(),
+          received_at: message.receivedAt.toISOString(),
+          conversation: message.conversationId,
+          is_unread: false,
+          sender: {
+            id: "layer:///identities/Frodo",
+            url: "https://huh.com/identities/Frodo",
+            user_id: message.sender.userId || '',
+            display_name: message.sender.displayName,
+            avatar_url: message.sender.avatarUrl
+          },
+          sync_state: message.syncState,
+          parts: [{
+            id: message.parts[0].id,
+            body: blob,
+            encoding: message.parts[0].encoding,
+            mime_type: message.parts[0].mimeType,
+            content: null
+          }]
+        }]);
+      });
+
+      it("Should write large Blobs", function() {
+        // Setup
+        var text = new Array(layer.DbManager.MaxPartSize + 10).join('a');
+        var blob = new Blob([text], {type : 'unknown/unhandlable'});
+        var message = conversation.createMessage({
+          parts: [new layer.MessagePart(blob)]
+        });
+        message.receivedAt = new Date();
+
+        // Run
+        expect(dbManager._getMessageData([message])).toEqual([{
+          id: message.id,
+          url: message.url,
+          position: message.position,
+          recipient_status: message.recipientStatus,
+          sent_at: message.sentAt.toISOString(),
+          received_at: message.receivedAt.toISOString(),
+          conversation: message.conversationId,
+          is_unread: false,
+          sender: {
+            id: "layer:///identities/Frodo",
+            url: "https://huh.com/identities/Frodo",
+            user_id: message.sender.userId || '',
+            display_name: message.sender.displayName,
+            avatar_url: message.sender.avatarUrl
+          },
+          sync_state: message.syncState,
+          parts: [{
+            id: message.parts[0].id,
+            body: null,
+            encoding: message.parts[0].encoding,
+            mime_type: message.parts[0].mimeType,
+            content: null
+          }]
+        }]);
+      });
+
       it("Should generate a proper Announcement object", function() {
         var data = JSON.parse(JSON.stringify(responses.announcement));
         delete client._identitiesHash[data.sender.id];

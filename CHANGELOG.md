@@ -57,6 +57,9 @@
 * layer.Client
   * Adds a `user` property containing a `layer.Identity` instance representing the authenticated user of this session.
 * layer.OnlineStateManager: Now starts managing isOnline state as soon as `client.connect()` or `client.connectWithSession()` are called.
+* layer.MessagePart
+  * Where once you would have received a Blob representing text that was greater than 2K and had to be sent as Rich Content, now that blob is converted to a string before delivering it to your application
+  * You can customize which Mime Types are treated as text with `layer.MessagePart.TextualMimeTypes`
 
 #### Bug Fixes
 

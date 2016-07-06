@@ -545,21 +545,53 @@ class Message extends Syncable {
     // and update the lastMessage property
     conversation.send(this);
 
-    // Calling this will add this to any listening Queries... so position needs to have been set first;
-    // handled in conversation.send(this)
-    client._addMessage(this);
+    // If we are sending any File/Blob objects, and their Mime Types match our test,
+    // wait until the body is updated to be a string rather than File before calling _addMessage
+    // which will add it to the Query Results and pass this on to a renderer that expects "text/plain" to be a string
+    // rather than a blob.
+    this._readAllBlobs(() => {
+      // Calling this will add this to any listening Queries... so position needs to have been set first;
+      // handled in conversation.send(this)
+      client._addMessage(this);
 
-    // allow for modification of message before sending
-    this.trigger('messages:sending');
+      // allow for modification of message before sending
+      this.trigger('messages:sending');
 
-    const data = {
-      parts: new Array(this.parts.length),
-      id: this.id,
-    };
-    if (notification) data.notification = notification;
+      const data = {
+        parts: new Array(this.parts.length),
+        id: this.id,
+      };
+      if (notification) data.notification = notification;
 
-    this._preparePartsForSending(data);
+      this._preparePartsForSending(data);
+    });
     return this;
+  }
+
+  /**
+   * Any MessagePart that contains a textual blob should contain a string before we send.
+   *
+   * If a MessagePart with a Blob or File as its body were to be added to the Client,
+   * The Query would receive this, deliver it to apps and the app would crash.
+   * Most rendering code expecting text/plain would expect a string not a File.
+   *
+   * When this user is sending a file, and that file is textual, make sure
+   * its actual text delivered to the UI.
+   *
+   * @method _readAllBlobs
+   * @private
+   */
+  _readAllBlobs(callback) {
+    let count = 0;
+    const parts = this.parts.filter(part => Util.isBlob(part.body) && MessagePart.isTextualMimeType(part.mimeType));
+    parts.forEach((part) => {
+      part._fetchTextFromFile(part.body, (text) => {
+        part.body = text;
+        count++;
+        if (count === parts.length) callback();
+      });
+    });
+    if (!parts.length) callback();
   }
 
   /**

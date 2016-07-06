@@ -171,6 +171,10 @@ exports.getExponentialBackoffSeconds = function getExponentialBackoffSeconds(max
   return secondsWaitTime + secondsOffset;
 };
 
+exports.isBlob = (value) => {
+  return typeof Blob !== 'undefined' && value instanceof Blob;
+};
+
 let parser;
 
 /**
