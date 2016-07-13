@@ -220,6 +220,14 @@ class Query extends Root {
    * @method destroy
    */
   destroy() {
+    this.data = [];
+    this._triggerChange({
+      type: 'data',
+      target: this.client,
+      query: this,
+      isChange: false,
+      data: [],
+    });
     this.client.off(null, null, this);
     this.client._removeQuery(this);
     this.data = null;

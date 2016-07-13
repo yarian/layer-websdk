@@ -1,5 +1,9 @@
 # Javascript SDK Change Log
 
+## 1.0.10
+
+* Destroying a Query now notifies any view using it that its data has been cleared. (WEB-1106)
+
 ## 1.0.9
 
 * Uses new server side support to retry any Query for Messages on a Conversation that is still syncing,
