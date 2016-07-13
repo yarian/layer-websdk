@@ -1,5 +1,10 @@
 # Javascript SDK Change Log
 
+## 1.0.9
+
+* Uses new server side support to retry any Query for Messages on a Conversation that is still syncing,
+and is delivering fewer than the requested number of Messages. (WEB-1053)
+
 ## 1.0.8
 
 * Disable Query Retry by default

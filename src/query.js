@@ -486,6 +486,9 @@ class Query extends Root {
         this._retryCount = 0;
         this._appendResults(results);
         this.totalSize = Number(results.xhr.getResponseHeader('Layer-Count') || 0);
+        if (results.xhr.getResponseHeader('Layer-Conversation-Is-Syncing') === 'true' && this.data.length < this.paginationWindow) {
+          setTimeout(() => this._run(), 1500);
+        }
       }
 
       // If there are no results, and we have no results, there may be data still syncing to the server; so poll for a bit
