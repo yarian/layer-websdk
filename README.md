@@ -533,7 +533,4 @@ Layer Web SDK is an Open Source project maintained by Layer, inc. Feedback and c
 
 ## Contact
 
-Layer Web SDK was developed in San Francisco by the Layer team. If you have any technical questions or concerns about this project feel free to reach out to engineers responsible for the development:
-
-* [Michael Kantor](mailto:michael@layer.com)
-* [Nil Gradisnik](mailto:nil@layer.com)
+Layer Web SDK was developed in San Francisco by the Layer team. If you have any technical questions or concerns about this project feel free to reach out [Layer Support](mailto:support@layer.com).
