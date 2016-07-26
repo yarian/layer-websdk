@@ -1,6 +1,6 @@
 # Javascript SDK Change Log
 
-## 1.0.10
+## Pending 1.0.10
 
 * Destroying a Query now notifies any view using it that its data has been cleared. (WEB-1106)
 
