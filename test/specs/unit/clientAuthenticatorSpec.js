@@ -70,6 +70,14 @@ describe("The Client Authenticator Class", function() {
             }).toThrowError(layer.LayerError.dictionary.appIdMissing);
             expect(layer.LayerError.dictionary.appIdMissing.length > 0).toBe(true);
         });
+
+         it("Should allow customization of the websocketUrl", function() {
+            expect( new layer.ClientAuthenticator({
+                appId: "",
+                url: "https://duh.com",
+                _websocketUrl: "https://frodo-the-dodo.dodocom"
+            }))._websocketUrl).toEqual("https://frodo-the-dodo.dodocom");
+        });
     });
 
     describe("The _initComponents() method", function() {

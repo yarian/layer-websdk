@@ -102,7 +102,6 @@ describe("The Announcement class", function() {
         });
 
         it("Should load a new copy if deletion fails from something other than not_found", function() {
-            debugger;
           var tmp = layer.Syncable.load;
           spyOn(layer.Syncable, "load");
           spyOn(announcement, "_xhr").and.callFake(function(args, callback) {
