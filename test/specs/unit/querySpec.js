@@ -231,6 +231,28 @@ describe("The Query Class", function() {
     });
 
     describe("The destroy() method", function() {
+        it("Should notify any views that its data has been cleared", function() {
+            var query = new layer.Query({
+                client: client
+            });
+            var changed = false;
+            query.on('change', function() {
+                changed = true;
+            });
+
+            var dataChanged = false;
+            query.on('change:data', function() {
+                dataChanged = true;
+            });
+
+            // Run
+            query.destroy();
+
+            // Posttest
+            expect(changed).toBe(true);
+            expect(dataChanged).toBe(true);
+        });
+
         it("Should call _removeQuery", function() {
             var query = new layer.Query({
                 client: client

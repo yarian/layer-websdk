@@ -95,11 +95,12 @@ class MessagePart extends Root {
         newOptions.mimeType = 'text/plain';
       }
     } else if (isBlob(options) || isBlob(options.body)) {
-      const bodyBlob = options instanceof Blob ? options : options.body;
+      const body = options instanceof Blob ? options : options.body;
+      const mimeType = isBlob(options.body) ? options.mimeType : body.type;
       newOptions = {
-        mimeType: bodyBlob.type,
-        body: bodyBlob,
-        size: bodyBlob.size,
+        mimeType,
+        body,
+        size: body.size,
         hasContent: true,
       };
     }

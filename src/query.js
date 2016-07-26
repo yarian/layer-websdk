@@ -226,6 +226,14 @@ class Query extends Root {
    * @method destroy
    */
   destroy() {
+    this.data = [];
+    this._triggerChange({
+      type: 'data',
+      target: this.client,
+      query: this,
+      isChange: false,
+      data: [],
+    });
     this.client.off(null, null, this);
     this.client._removeQuery(this);
     this.data = null;
@@ -1267,6 +1275,9 @@ class Query extends Root {
     else return '';
   }
 
+  /**
+   * If this is ever changed to be async, make sure that destroy() still triggers synchronous events
+   */
   _triggerChange(evt) {
     this.trigger('change', evt);
     this.trigger('change:' + evt.type, evt);

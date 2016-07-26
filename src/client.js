@@ -928,7 +928,7 @@ class Client extends ClientAuth {
     objects.forEach(obj => {
       if (!obj.isDestroyed && !this._isCachedObject(obj)) {
         if (obj instanceof Root === false) obj = this._getObject(obj.id);
-        obj.destroy();
+        if (obj) obj.destroy();
       }
     });
   }
@@ -1002,9 +1002,11 @@ class Client extends ClientAuth {
   _connectionRestored(evt) {
     if (evt.reset) {
       logger.debug('Client Connection Restored; Resetting all Queries');
-      Object.keys(this._queriesHash).forEach(id => {
-        const query = this._queriesHash[id];
-        if (query) query.reset();
+      this.dbManager.deleteTables(() => {
+        Object.keys(this._queriesHash).forEach(id => {
+          const query = this._queriesHash[id];
+          if (query) query.reset();
+        });
       });
     }
   }

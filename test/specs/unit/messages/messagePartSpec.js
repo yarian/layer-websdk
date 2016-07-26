@@ -122,6 +122,14 @@ describe("The MessageParts class", function() {
             expect(new layer.MessagePart(blob).url).toEqual('');
         });
 
+        it("Should initialize with Blob and custom mimeType", function() {
+            var b = generateBlob();
+            expect(new layer.MessagePart({
+                body: b,
+                mimeType: 'not/blob'
+            }).mimeType).toEqual('not/blob');
+        });
+
         it("Should initialize with Content", function() {
             var c = new layer.Content({});
             expect(new layer.MessagePart({_content: c})._content).toBe(c);

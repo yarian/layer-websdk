@@ -1879,14 +1879,28 @@ describe("The Client class", function() {
             q2 = client.createQuery({model: "Message", predicate: 'conversation.id = \'' + conversation.id + '\''});
         });
 
+        it("Should delete all database data if duration was large", function() {
+            spyOn(client.dbManager, "deleteTables");
+
+            // Run
+            client.trigger('online', {
+                isOnline: true,
+                reset: true
+            });
+
+            // Posttest
+            expect(client.dbManager.deleteTables).toHaveBeenCalledWith(jasmine.any(Function));
+        });
+
         it("Should call reset on all queries if duration was large", function() {
+            spyOn(client.dbManager, "deleteTables").and.callFake(function(callback) {callback();});
             spyOn(q1, "reset");
             spyOn(q2, "reset");
 
             // Run
             client.trigger('online', {
-            isOnline: true,
-            reset: true
+                isOnline: true,
+                reset: true
             });
 
             // Posttest
