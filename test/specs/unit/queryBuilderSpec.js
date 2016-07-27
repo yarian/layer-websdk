@@ -110,6 +110,7 @@ describe("The QueryBuilder Classes", function() {
                     model: 'Message',
                     returnType: 'object',
                     dataType: 'object',
+                    predicate: '',
                     paginationWindow: layer.Query.prototype.paginationWindow
                 });
             });
@@ -129,11 +130,14 @@ describe("The QueryBuilder Classes", function() {
         });
 
         describe("The build() method", function() {
-            it("Should throw an error if no conversationId", function() {
+            it("Should not require a conversationId", function() {
                 var builder = layer.QueryBuilder.messages();
-                expect(function() {
-                    builder.build();
-                }).toThrowError(layer.LayerError.dictionary.conversationMissing);
+                expect(builder.build()).toEqual({
+                    model: 'Message',
+                    returnType: 'object',
+                    dataType: 'object',
+                    paginationWindow: 100
+                });
             });
         });
     });

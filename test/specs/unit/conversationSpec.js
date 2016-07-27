@@ -786,6 +786,22 @@ describe("The Conversation Class", function() {
             expect(conversation.lastMessage.parts[0].body).toEqual(c.last_message.parts[0].body);
         });
 
+        it("Should setup lastMessage from string", function() {
+            // Setup
+            var mid = c.last_message.id;
+            client._messagesHash = {};
+            client._createObject(c.last_message);
+            c.last_message = mid;
+
+
+            // Run
+            conversation._populateFromServer(c);
+
+            // Posttest
+            expect(conversation.lastMessage).toEqual(jasmine.any(layer.Message));
+            expect(conversation.lastMessage).toBe(client._messagesHash[mid]);
+        });
+
         it("Should call client._addConversation", function() {
             // Setup
             spyOn(client, "_addConversation");

@@ -1085,12 +1085,6 @@ describe("The DbManager Class", function() {
         expect(dbManager._createConversation(dbManager._getConversationData([conversation])[0])._fromDB).toBe(true);
       });
 
-      it("Should clear lastMessage if the id is not found", function() {
-        delete client._conversationsHash[conversation.id];
-        delete client._messagesHash[conversation.lastMessage.id];
-        expect(dbManager._createConversation(dbManager._getConversationData([conversation])[0]).lastMessage).toBe(null);
-      });
-
       it("Should set lastMessage if the id is found", function() {
         delete client._conversationsHash[conversation.id];
         var message = conversation.lastMessage;

@@ -259,7 +259,8 @@ describe("The Client Authenticator Requests", function() {
 
     describe("The _syncXhr() method", function() {
         beforeEach(function() {
-           spyOn(client.syncManager, "isOnline").and.returnValue(true);
+            client.sessionToken = 'sessionToken';
+            spyOn(client.syncManager, "isOnline").and.returnValue(true);
         });
 
         it("Should fire a correct call to xhr", function() {
@@ -270,7 +271,9 @@ describe("The Client Authenticator Requests", function() {
             expect(requests.mostRecent()).toEqual(jasmine.objectContaining({
                 url: "fred",
                 method: "POST",
-                requestHeaders: {}
+                requestHeaders: {
+                    authorization: 'Layer session-token="sessionToken"'
+                }
             }));
 
         });

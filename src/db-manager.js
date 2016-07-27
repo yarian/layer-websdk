@@ -497,34 +497,38 @@ class DbManager extends Root {
    * @param {layer.Conversation[]} callback.result
    */
   loadConversations(sortBy, fromId, pageSize, callback) {
-    let sortIndex,
-      range = null;
-    const fromConversation = fromId ? this.client.getConversation(fromId) : null;
-    if (sortBy === 'last_message') {
-      sortIndex = 'last_message_sent';
-      if (fromConversation) {
-        range = window.IDBKeyRange.upperBound([fromConversation.lastMessage ?
-          getDate(fromConversation.lastMessage.sentAt) : getDate(fromConversation.createdAt)]);
+    try {
+      let sortIndex,
+        range = null;
+      const fromConversation = fromId ? this.client.getConversation(fromId) : null;
+      if (sortBy === 'last_message') {
+        sortIndex = 'last_message_sent';
+        if (fromConversation) {
+          range = window.IDBKeyRange.upperBound([fromConversation.lastMessage ?
+            getDate(fromConversation.lastMessage.sentAt) : getDate(fromConversation.createdAt)]);
+        }
+      } else {
+        sortIndex = 'created_at';
+        if (fromConversation) {
+          range = window.IDBKeyRange.upperBound([getDate(fromConversation.createdAt)]);
+        }
       }
-    } else {
-      sortIndex = 'created_at';
-      if (fromConversation) {
-        range = window.IDBKeyRange.upperBound([getDate(fromConversation.createdAt)]);
-      }
-    }
 
-    // Step 1: Get all Conversations
-    this._loadByIndex('conversations', sortIndex, range, Boolean(fromId), pageSize, (data) => {
-      // Step 2: Gather all Message IDs needed to initialize these Conversation's lastMessage properties.
-      const messagesToLoad = data
-        .map(item => item.last_message)
-        .filter(messageId => messageId && !this.client.getMessage(messageId));
+      // Step 1: Get all Conversations
+      this._loadByIndex('conversations', sortIndex, range, Boolean(fromId), pageSize, (data) => {
+        // Step 2: Gather all Message IDs needed to initialize these Conversation's lastMessage properties.
+        const messagesToLoad = data
+          .map(item => item.last_message)
+          .filter(messageId => messageId && !this.client.getMessage(messageId));
 
-      // Step 3: Load all Messages needed to initialize these Conversation's lastMessage properties.
-      this.getObjects('messages', messagesToLoad, (messages) => {
-        this._loadConversationsResult(data, messages, callback);
+        // Step 3: Load all Messages needed to initialize these Conversation's lastMessage properties.
+        this.getObjects('messages', messagesToLoad, (messages) => {
+          this._loadConversationsResult(data, messages, callback);
+        });
       });
-    });
+    } catch (e) {
+      // Noop -- handle browsers like IE that don't like these IDBKeyRanges
+    }
   }
 
   /**
@@ -563,12 +567,16 @@ class DbManager extends Root {
    * @param {layer.Message[]} callback.result
    */
   loadMessages(conversationId, fromId, pageSize, callback) {
-    const fromMessage = fromId ? this.client.getMessage(fromId) : null;
-    const query = window.IDBKeyRange.bound([conversationId, 0],
-      [conversationId, fromMessage ? fromMessage.position : MAX_SAFE_INTEGER]);
-    this._loadByIndex('messages', 'conversation', query, Boolean(fromId), pageSize, (data) => {
-      this._loadMessagesResult(data, callback);
-    });
+    try {
+      const fromMessage = fromId ? this.client.getMessage(fromId) : null;
+      const query = window.IDBKeyRange.bound([conversationId, 0],
+        [conversationId, fromMessage ? fromMessage.position : MAX_SAFE_INTEGER]);
+      this._loadByIndex('messages', 'conversation', query, Boolean(fromId), pageSize, (data) => {
+        this._loadMessagesResult(data, callback);
+      });
+    } catch (e) {
+      // Noop -- handle browsers like IE that don't like these IDBKeyRanges
+    }
   }
 
   /**
@@ -581,12 +589,16 @@ class DbManager extends Root {
    * @param {layer.Announcement[]} callback.result
    */
   loadAnnouncements(fromId, pageSize, callback) {
-    const fromMessage = fromId ? this.client.getMessage(fromId) : null;
-    const query = window.IDBKeyRange.bound(['announcement', 0],
-      ['announcement', fromMessage ? fromMessage.position : MAX_SAFE_INTEGER]);
-    this._loadByIndex('messages', 'conversation', query, Boolean(fromId), pageSize, (data) => {
-      this._loadMessagesResult(data, callback);
-    });
+    try {
+      const fromMessage = fromId ? this.client.getMessage(fromId) : null;
+      const query = window.IDBKeyRange.bound(['announcement', 0],
+        ['announcement', fromMessage ? fromMessage.position : MAX_SAFE_INTEGER]);
+      this._loadByIndex('messages', 'conversation', query, Boolean(fromId), pageSize, (data) => {
+        this._loadMessagesResult(data, callback);
+      });
+    } catch (e) {
+      // Noop -- handle browsers like IE that don't like these IDBKeyRanges
+    }
   }
 
   /**
@@ -660,11 +672,8 @@ class DbManager extends Root {
   _createConversation(conversation) {
     if (!this.client.getConversation(conversation.id)) {
       conversation._fromDB = true;
-      const lastMessage = conversation.last_message;
-      conversation.last_message = '';
       const newConversation = this.client._createObject(conversation);
       newConversation.syncState = conversation.sync_state;
-      if (lastMessage) newConversation.lastMessage = this.client.getMessage(lastMessage) || null;
       return newConversation;
     }
   }

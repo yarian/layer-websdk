@@ -379,7 +379,9 @@ class Conversation extends Syncable {
 
     client._addConversation(this);
 
-    if (conversation.last_message) {
+    if (typeof conversation.last_message === 'string') {
+      this.lastMessage = client.getMessage(conversation.last_message);
+    } else if (conversation.last_message) {
       this.lastMessage = client._createObject(conversation.last_message);
     } else {
       this.lastMessage = null;
@@ -803,7 +805,7 @@ class Conversation extends Syncable {
         'content-type': 'application/vnd.layer-patch+json',
       },
     }, result => {
-      if (!result.success) this._load();
+      if (!result.success && !this.isDestroyed) this._load();
     });
 
     return this;

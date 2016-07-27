@@ -169,7 +169,7 @@ class SyncManager extends Root {
    * @private
    */
   _processNextRequest() {
-    if (this.isDestroyed) return;
+    if (this.isDestroyed || !this.client.isAuthenticated) return;
     const requestEvt = this.queue[0];
     if (this.isOnline() && requestEvt && !requestEvt.isFiring && !requestEvt._isValidating) {
       requestEvt._isValidating = true;
@@ -190,6 +190,8 @@ class SyncManager extends Root {
             logger.debug('Sync Manager Websocket Request skipped; socket closed');
           }
         } else {
+          if (!requestEvt.headers) requestEvt.headers = {};
+          requestEvt.headers.authorization = "Layer session-token=\"" + this.client.sessionToken + "\""
           logger.debug(`Sync Manager XHR Request Firing ${requestEvt.operation} ${requestEvt.target}`,
             requestEvt.toObject());
           xhr(requestEvt._getRequestData(this.client), result => this._xhrResult(result, requestEvt));

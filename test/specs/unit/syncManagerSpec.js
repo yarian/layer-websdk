@@ -371,6 +371,62 @@ describe("The SyncManager Class", function() {
             expect(syncManager._validateRequest.calls.count()).toEqual(1);
 
         });
+
+        it("Should call abort if isDestroyed", function() {
+            var data = {name: "fred"}
+            syncManager.queue = [new layer.WebsocketSyncEvent({
+                data: data
+            })];
+            spyOn(syncManager.requestManager, "sendRequest");
+            syncManager.isDestroyed = true;
+
+            // Run
+            syncManager._processNextRequest();
+
+            // Posttest
+            expect(syncManager.requestManager.sendRequest).not.toHaveBeenCalled();
+            syncManager.isDestroyed = false;
+        });
+
+        it("Should call abort if not authenticated", function() {
+            var data = {name: "fred"}
+            syncManager.queue = [new layer.WebsocketSyncEvent({
+                data: data
+            })];
+            spyOn(syncManager.requestManager, "sendRequest");
+            client.isAuthenticated = false;
+
+            // Run
+            syncManager._processNextRequest();
+
+            // Posttest
+            expect(syncManager.requestManager.sendRequest).not.toHaveBeenCalled();
+        });
+
+        it("Should call xhr with forced update of auth header", function() {
+            var token = client.sessionToken
+            client.xhr({
+                url: "fred",
+                method: "POST",
+                sync: {}
+            });
+            syncManager.queue = [new layer.XHRSyncEvent({
+                data: "fred",
+                url: "fred2",
+                method: "PATCH"
+            })];
+
+            client.sessionToken = "fred";
+            expect(token).not.toEqual("fred");
+
+            // Run
+            syncManager._processNextRequest();
+
+            // Posttest
+            expect(requests.mostRecent().requestHeaders.authorization).toEqual("Layer session-token=\"fred\"");
+            expect(requests.mostRecent().method).toEqual("PATCH");
+            expect(requests.mostRecent().params).toEqual("fred");
+        });
     });
 
     describe("The _xhrResult() method", function() {

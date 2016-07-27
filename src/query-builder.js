@@ -66,7 +66,7 @@ class MessagesQuery {
       this._query.predicate = `conversation.id = '${conversationId}'`;
       this._conversationIdSet = true;
     } else {
-      delete this._query.predicate;
+      this._query.predicate = '';
       this._conversationIdSet = false;
     }
     return this;
@@ -93,10 +93,6 @@ class MessagesQuery {
    * @method build
    */
   build() {
-    if (!this._conversationIdSet) {
-      throw new Error(LayerError.dictionary.conversationMissing);
-    }
-
     return this._query;
   }
 }
@@ -312,10 +308,6 @@ const QueryBuilder = {
    */
   messages() {
     return new MessagesQuery();
-  },
-
-  announcements() {
-    return new AnnouncementQuery();
   },
 
   /**
