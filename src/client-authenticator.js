@@ -942,6 +942,12 @@ ClientAuthenticator.prototype.sessionToken = '';
 ClientAuthenticator.prototype.url = 'https://api.layer.com';
 
 /**
+ * URL to Layer's Web websocket server.
+ * @type {String}
+ */
+ClientAuthenticator.prototype.websocketUrl = 'wss://websockets.layer.com';
+
+/**
  * Web Socket Manager
  * @type {layer.Websockets.SocketManager}
  */

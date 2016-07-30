@@ -1,8 +1,9 @@
 # Javascript SDK Change Log
 
-## Pending 1.0.10
+## 1.0.10
 
 * Destroying a Query now notifies any view using it that its data has been cleared. (WEB-1106)
+* Websocket URL can now be customized via client.websocketUrl property
 
 ## 1.0.9
 

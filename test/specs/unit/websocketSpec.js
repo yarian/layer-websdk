@@ -203,14 +203,10 @@ describe("The Websocket Socket Manager Class", function() {
         });
 
         it("Should use the correct url", function() {
+            client.websocketUrl = 'wss:frodo.the.dodo.com';
            websocketManager._socket = null;
            websocketManager.connect();
-           if (client.url === 'https://api.layer.com') {
-               expect(websocketManager._socket.url).toEqual('wss://websockets.layer.com/?session_token=sessionToken');
-           } else {
-               expect(websocketManager._socket.url).toEqual('wss://staging-websockets.layer.com/?session_token=sessionToken');
-           }
-
+           expect(websocketManager._socket.url).toEqual('wss:frodo.the.dodo.com/?session_token=sessionToken');
         });
 
         it("Should be subscribed to websocket events", function(done) {
