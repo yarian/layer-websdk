@@ -1,5 +1,10 @@
 # Javascript SDK Change Log
 
+## 1.0.11
+
+* Fixes bug in Query retry when server is syncing
+* Adds `server-syncing-state` event to layer.Query to notify app when Query is waiting for more data, and when it is done getting more data.
+
 ## 1.0.10
 
 * Destroying a Query now notifies any view using it that its data has been cleared. (WEB-1106)

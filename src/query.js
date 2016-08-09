@@ -489,35 +489,39 @@ class Query extends Root {
     this._firingRequest = '';
     if (results.success) {
 
+      const isSyncing = results.xhr.getResponseHeader('Layer-Conversation-Is-Syncing') === 'true';
+
       // If there are results, use them
       if (results.data.length) {
-        this._retryCount = 0;
         this._appendResults(results);
         this.totalSize = Number(results.xhr.getResponseHeader('Layer-Count') || 0);
-        if (results.xhr.getResponseHeader('Layer-Conversation-Is-Syncing') === 'true' && this.data.length < this.paginationWindow) {
-          setTimeout(() => this._run(), 1500);
-        }
       }
 
-      // If there are no results, and we have no results, there may be data still syncing to the server; so poll for a bit
-      else if (this.size === 0) {
-        if (this._retryCount < Query.MaxRetryCount) {
-          setTimeout(() => {
-            this._retryCount++;
-            this._run();
-          }, 1500);
+      // If the server is syncing, and the query needs more data, keep polling the server,
+      // and notify the client that we're polling.
+      if (isSyncing && this.data.length < this.paginationWindow) {
+        if (!this._isServerSyncing) {
+          this._isServerSyncing = true;
+          this.trigger('server-syncing-state', { syncing: true });
         }
+        setTimeout(() => this._run(), 1500);
+      }
 
-        // We've polled for a bit.  No data.  Presume there is in fact no data
-        else {
-          this._retryCount = 0;
-          this._triggerChange({
-            type: 'data',
-            data: [],
-            query: this,
-            target: this.client,
-          });
-        }
+      // If we're done polling the server (isSyncing is false OR we have enough data) notify the client that we're done.
+      else if (this._isServerSyncing) {
+        this._isServerSyncing = false;
+        this.trigger('server-syncing-state', { syncing: false });
+      }
+
+      // If we're not syncing, and have no data, notify the client of our results.
+      // Had there been results, _appendResults() would have triggered this result.
+      if (!isSyncing && this.data.length === 0) {
+        this._triggerChange({
+          type: 'data',
+          data: [],
+          query: this,
+          target: this.client,
+        });
       }
     } else {
       this.trigger('error', { error: results.data });
@@ -1216,25 +1220,7 @@ Query.prototype.isFiring = false;
  */
 Query.prototype._firingRequest = '';
 
-Query.prototype._retryCount = 0;
-
-/**
- * In the event that a new Query gets no data, retry the query a few times.
- *
- * Why use this?  Lets say a user has been added to a long running Conversation.
- * The conversation arrives, but the server is still syncing Messages for this user,
- * and it may take a few tries before the server has finished populating the Messages of the new Conversation.
- * How many retries is up to each developer; but 10 is a good number to start with.
- * After 10 retries, if no data shows up, then the query will assume that there is no data,
- * and trigger its `change` event with `data: []`.
- *
- * Why not use this? Because it delays the completion event, and is not a common occurance
- * for most applications.
- *
- * @type {Number}
- * @static
- */
-Query.MaxRetryCount = 0;
+Query.prototype._isServerSyncing = false;
 
 Query._supportedEvents = [
   /**
@@ -1281,6 +1267,14 @@ Query._supportedEvents = [
    * @event error
    */
   'error',
+
+  /**
+   * The server needs to sync more data to provide all the requested data.
+   *
+   * Only occurs for querying Messages.  Comes with a parameter `syncing` set to true
+   * when we are syncing, and false when done.
+   */
+  'server-syncing-state',
 ].concat(Root._supportedEvents);
 
 Root.initClass.apply(Query, [Query, 'Query']);
