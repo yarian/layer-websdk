@@ -1269,10 +1269,15 @@ Query._supportedEvents = [
   'error',
 
   /**
-   * The server needs to sync more data to provide all the requested data.
+   * The server needs to sync more data before it can provide the client all the requested data.
+   *
+   *     query.on('server-syncing-state', function(evt) {
+   *       alert('syncing is ' + evt.syncing ? 'running' : 'completed');
+   *     });
    *
    * Only occurs for querying Messages.  Comes with a parameter `syncing` set to true
    * when we are syncing, and false when done.
+   * @event server-syncing-state
    */
   'server-syncing-state',
 ].concat(Root._supportedEvents);
