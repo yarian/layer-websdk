@@ -506,9 +506,14 @@ class Message extends Syncable {
    *
    * Message must have parts and a valid conversation to send successfully.
    *
+   * The send method takes a `notification` object; in normal uses it provides the same notification to ALL
+   * recipients, but you can customize notifications on a per recipient basis, as well as embed actions into the notification.
+   * For the Full API, see https://developer.layer.com/docs/platform/messages#notification-customization.
+   *
    * @method send
    * @param {Object} [notification] - Parameters for controling how the phones manage notifications of the new Message.
    *                          See IOS and Android docs for details.
+   * @param {string} [notification.title] - Title to show on lock screen and notification bar
    * @param {string} [notification.text] - Text of your notification
    * @param {string} [notification.sound] - Name of an audio file or other sound-related hint
    * @return {layer.Message} this

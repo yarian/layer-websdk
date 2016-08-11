@@ -1236,14 +1236,16 @@ describe("The Message class", function() {
             spyOn(m, "_preparePartsForSending");
             m.send({
                 sound: "doh.aiff",
-                text: "Doh!"
+                text: "Doh!",
+                title: "um?"
             });
             expect(m._preparePartsForSending).toHaveBeenCalledWith({
                 parts: new Array(1),
                 id: m.id,
                 notification: {
                     sound: "doh.aiff",
-                    text: "Doh!"
+                    text: "Doh!",
+                    title: "um?"
                 }
             });
         });
