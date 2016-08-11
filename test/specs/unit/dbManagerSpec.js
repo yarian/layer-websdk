@@ -321,45 +321,61 @@ describe("The DbManager Class", function() {
     describe("The _getMessageData() method", function() {
       it("Should ignore anything that just came out of the database and clear _fromDB", function() {
         message._fromDB = true;
-        expect(dbManager._getMessageData([message])).toEqual([]);
-        expect(message._fromDB).toBe(false);
+        var isDone = false;
+        dbManager._getMessageData([message], function(result) {
+          expect(result).toEqual([]);
+          expect(message._fromDB).toBe(false);
+          isDone = true;
+        });
+        expect(isDone).toBe(true);
       });
 
       it("Should ignore loading messages", function() {
         message.syncState = layer.Constants.SYNC_STATE.LOADING;
-        expect(dbManager._getMessageData([message])).toEqual([]);
+        var isDone = false;
+
+        dbManager._getMessageData([message], function(result) {
+          expect(result).toEqual([]);
+          isDone = true;
+        });
+        expect(isDone).toBe(true);
       });
 
       it("Should generate a proper Message object", function() {
         message = conversation.createMessage("hey ho");
         message.receivedAt = new Date();
-        expect(dbManager._getMessageData([message])).toEqual([{
-          id: message.id,
-          url: message.url,
-          position: message.position,
-          recipient_status: message.recipientStatus,
-          sent_at: message.sentAt.toISOString(),
-          received_at: message.receivedAt.toISOString(),
-          conversation: message.conversationId,
-          is_unread: false,
-          sender: {
-            id: "layer:///identities/Frodo",
-            url: "https://huh.com/identities/Frodo",
-            user_id: message.sender.userId || '',
-            display_name: message.sender.displayName,
-            avatar_url: message.sender.avatarUrl
-          },
-          sync_state: message.syncState,
-          parts: [{
-            id: message.parts[0].id,
-            body: message.parts[0].body,
-            encoding: message.parts[0].encoding,
-            mime_type: message.parts[0].mimeType,
-            content: null
-          }]
-        }]);
-        expect(message.sender.displayName.length > 0).toBe(true);
-        expect(message.sender.avatarUrl.length > 0).toBe(true);
+        var isDone = false;
+        dbManager._getMessageData([message], function(result) {
+          expect(result).toEqual([{
+            id: message.id,
+            url: message.url,
+            position: message.position,
+            recipient_status: message.recipientStatus,
+            sent_at: message.sentAt.toISOString(),
+            received_at: message.receivedAt.toISOString(),
+            conversation: message.conversationId,
+            is_unread: false,
+            sender: {
+              id: "layer:///identities/Frodo",
+              url: "https://huh.com/identities/Frodo",
+              user_id: message.sender.userId || '',
+              display_name: message.sender.displayName,
+              avatar_url: message.sender.avatarUrl
+            },
+            sync_state: message.syncState,
+            parts: [{
+              id: message.parts[0].id,
+              body: message.parts[0].body,
+              encoding: message.parts[0].encoding,
+              mime_type: message.parts[0].mimeType,
+              content: null
+            }]
+          }]);
+          expect(message.sender.displayName.length > 0).toBe(true);
+          expect(message.sender.avatarUrl.length > 0).toBe(true);
+          isDone = true;
+        });
+        expect(isDone).toBe(true);
       });
 
       it("Should generate a proper Announcement object", function() {
@@ -375,72 +391,93 @@ describe("The DbManager Class", function() {
           },
           client: client
         });
-        expect(dbManager._getMessageData([message])).toEqual([{
-          id: message.id,
-          url: message.url,
-          position: message.position,
-          recipient_status: message.recipientStatus,
-          sent_at: message.sentAt.toISOString(),
-          received_at: message.receivedAt.toISOString(),
-          is_unread: true,
-          conversation: 'announcement',
-          sender: {
-            user_id: '',
-            id: '',
-            url: '',
-            display_name: 'Hey ho',
-            avatar_url: ''
-          },
-          sync_state: message.syncState,
-          parts: [{
-            id: message.parts[0].id,
-            body: message.parts[0].body,
-            encoding: message.parts[0].encoding,
-            mime_type: message.parts[0].mimeType,
-            content: null
-          }]
-        }]);
+        var isDone = false;
+
+        dbManager._getMessageData([message], function(result) {
+          expect(result).toEqual([{
+            id: message.id,
+            url: message.url,
+            position: message.position,
+            recipient_status: message.recipientStatus,
+            sent_at: message.sentAt.toISOString(),
+            received_at: message.receivedAt.toISOString(),
+            is_unread: true,
+            conversation: 'announcement',
+            sender: {
+              user_id: '',
+              id: '',
+              url: '',
+              display_name: 'Hey ho',
+              avatar_url: ''
+            },
+            sync_state: message.syncState,
+            parts: [{
+              id: message.parts[0].id,
+              body: message.parts[0].body,
+              encoding: message.parts[0].encoding,
+              mime_type: message.parts[0].mimeType,
+              content: null
+            }]
+          }]);
+          isDone = true;
+        });
+        expect(isDone).toBe(true);
       });
 
       // Tests won't run on server due to no Blob support
-      it("Should write small Blobs", function() {
+      it("Should write small Blobs as base64 data", function(done) {
         // Setup
         var text = new Array(1000).join('a');
         var blob = new Blob([text], {type : 'unknown/unhandlable'});
         var message = conversation.createMessage({
-          parts: [new layer.MessagePart(blob)]
+          parts: [new layer.MessagePart(blob), new layer.MessagePart(blob)]
         });
         message.receivedAt = new Date();
 
         // Run
-        expect(dbManager._getMessageData([message])).toEqual([{
-          id: message.id,
-          url: message.url,
-          position: message.position,
-          recipient_status: message.recipientStatus,
-          sent_at: message.sentAt.toISOString(),
-          received_at: message.receivedAt.toISOString(),
-          conversation: message.conversationId,
-          is_unread: false,
-          sender: {
-            id: "layer:///identities/Frodo",
-            url: "https://huh.com/identities/Frodo",
-            user_id: message.sender.userId || '',
-            display_name: message.sender.displayName,
-            avatar_url: message.sender.avatarUrl
-          },
-          sync_state: message.syncState,
-          parts: [{
-            id: message.parts[0].id,
-            body: blob,
-            encoding: message.parts[0].encoding,
-            mime_type: message.parts[0].mimeType,
-            content: null
-          }]
-        }]);
+        dbManager._getMessageData([message], function(result) {
+          expect(result).toEqual([{
+            id: message.id,
+            url: message.url,
+            position: message.position,
+            recipient_status: message.recipientStatus,
+            sent_at: message.sentAt.toISOString(),
+            received_at: message.receivedAt.toISOString(),
+            conversation: message.conversationId,
+            is_unread: false,
+            sender: {
+              id: "layer:///identities/Frodo",
+              url: "https://huh.com/identities/Frodo",
+              user_id: message.sender.userId || '',
+              display_name: message.sender.displayName,
+              avatar_url: message.sender.avatarUrl
+            },
+            sync_state: message.syncState,
+            parts: [{
+              id: message.parts[0].id,
+              body: jasmine.any(String),
+              encoding: message.parts[0].encoding,
+              mime_type: message.parts[0].mimeType,
+              useBlob: true,
+              content: null
+            },
+            {
+              id: message.parts[1].id,
+              body: jasmine.any(String),
+              encoding: message.parts[1].encoding,
+              mime_type: message.parts[1].mimeType,
+              useBlob: true,
+              content: null
+            }]
+          }]);
+
+          expect(result[0].parts[0].body.length > 500).toBe(true);
+          expect(result[0].parts[1].body.length > 500).toBe(true);
+          done();
+        });
       });
 
-      it("Should write large Blobs", function() {
+      it("Should not write large Blobs", function() {
         // Setup
         var text = new Array(layer.DbManager.MaxPartSize + 10).join('a');
         var blob = new Blob([text], {type : 'unknown/unhandlable'});
@@ -448,33 +485,38 @@ describe("The DbManager Class", function() {
           parts: [new layer.MessagePart(blob)]
         });
         message.receivedAt = new Date();
+        var isDone = false;
 
         // Run
-        expect(dbManager._getMessageData([message])).toEqual([{
-          id: message.id,
-          url: message.url,
-          position: message.position,
-          recipient_status: message.recipientStatus,
-          sent_at: message.sentAt.toISOString(),
-          received_at: message.receivedAt.toISOString(),
-          conversation: message.conversationId,
-          is_unread: false,
-          sender: {
-            id: "layer:///identities/Frodo",
-            url: "https://huh.com/identities/Frodo",
-            user_id: message.sender.userId || '',
-            display_name: message.sender.displayName,
-            avatar_url: message.sender.avatarUrl
-          },
-          sync_state: message.syncState,
-          parts: [{
-            id: message.parts[0].id,
-            body: null,
-            encoding: message.parts[0].encoding,
-            mime_type: message.parts[0].mimeType,
-            content: null
-          }]
-        }]);
+        dbManager._getMessageData([message], function(result) {
+          expect(result).toEqual([{
+            id: message.id,
+            url: message.url,
+            position: message.position,
+            recipient_status: message.recipientStatus,
+            sent_at: message.sentAt.toISOString(),
+            received_at: message.receivedAt.toISOString(),
+            conversation: message.conversationId,
+            is_unread: false,
+            sender: {
+              id: "layer:///identities/Frodo",
+              url: "https://huh.com/identities/Frodo",
+              user_id: message.sender.userId || '',
+              display_name: message.sender.displayName,
+              avatar_url: message.sender.avatarUrl
+            },
+            sync_state: message.syncState,
+            parts: [{
+              id: message.parts[0].id,
+              body: null,
+              encoding: message.parts[0].encoding,
+              mime_type: message.parts[0].mimeType,
+              content: null
+            }]
+          }]);
+          isDone = true;
+        });
+        expect(isDone).toBe(true);
       });
 
       it("Should generate a proper Announcement object", function() {
@@ -482,76 +524,86 @@ describe("The DbManager Class", function() {
         delete client._identitiesHash[data.sender.id];
         message = client._createObject(data);
         message.receivedAt = new Date();
-        expect(dbManager._getMessageData([message])).toEqual([{
-          id: message.id,
-          url: message.url,
-          position: message.position,
-          recipient_status: message.recipientStatus,
-          sent_at: message.sentAt.toISOString(),
-          received_at: message.receivedAt.toISOString(),
-          conversation: 'announcement',
-          is_unread: message.isUnread,
-          sender: {
-            user_id: 'admin',
-            id: 'layer:///identities/admin',
-            url: client.url + '/identities/admin',
-            display_name: 'Lord Master the Admin',
-            avatar_url: ''
-          },
-          sync_state: message.syncState,
-          parts: [{
-            id: message.parts[0].id,
-            body: message.parts[0].body,
-            encoding: message.parts[0].encoding,
-            mime_type: message.parts[0].mimeType,
-            content: null
-          }]
-        }]);
+        var isDone = false;
+
+        dbManager._getMessageData([message], function(result) {
+          expect(result).toEqual([{
+            id: message.id,
+            url: message.url,
+            position: message.position,
+            recipient_status: message.recipientStatus,
+            sent_at: message.sentAt.toISOString(),
+            received_at: message.receivedAt.toISOString(),
+            conversation: 'announcement',
+            is_unread: message.isUnread,
+            sender: {
+              user_id: 'admin',
+              id: 'layer:///identities/admin',
+              url: client.url + '/identities/admin',
+              display_name: 'Lord Master the Admin',
+              avatar_url: ''
+            },
+            sync_state: message.syncState,
+            parts: [{
+              id: message.parts[0].id,
+              body: message.parts[0].body,
+              encoding: message.parts[0].encoding,
+              mime_type: message.parts[0].mimeType,
+              content: null
+            }]
+          }]);
+          isDone = true;
+        });
+        expect(isDone).toBe(true);
       });
 
       it("Should generate a proper Content object", function() {
-        expect(dbManager._getMessageData([message])[0]).toEqual(jasmine.objectContaining({
-          parts: [{
-            id: message.parts[0].id,
-            body: message.parts[0].body,
-            encoding: message.parts[0].encoding,
-            mime_type: message.parts[0].mimeType,
-            content: null
-          }, {
-            id: message.parts[1].id,
-            body: message.parts[1].body,
-            encoding: message.parts[1].encoding,
-            mime_type: message.parts[1].mimeType,
-            content: {
-              download_url: message.parts[1]._content.downloadUrl,
-              expiration:   message.parts[1]._content.expiration,
-              id:  message.parts[1]._content.id,
-              refresh_url:  message.parts[1]._content.refreshUrl,
-              size:  message.parts[1]._content.size
-            }
-          }]
-        }));
+        var isDone = false;
+        dbManager._getMessageData([message], function(result) {
+          expect(result[0]).toEqual(jasmine.objectContaining({
+            parts: [{
+              id: message.parts[0].id,
+              body: message.parts[0].body,
+              encoding: message.parts[0].encoding,
+              mime_type: message.parts[0].mimeType,
+              content: null
+            }, {
+              id: message.parts[1].id,
+              body: message.parts[1].body,
+              encoding: message.parts[1].encoding,
+              mime_type: message.parts[1].mimeType,
+              content: {
+                download_url: message.parts[1]._content.downloadUrl,
+                expiration:   message.parts[1]._content.expiration,
+                id:  message.parts[1]._content.id,
+                refresh_url:  message.parts[1]._content.refreshUrl,
+                size:  message.parts[1]._content.size
+              }
+            }]
+          }));
+          isDone = true;
       });
+      expect(isDone).toBe(true);
     });
 
     describe("The writeMessages() method", function() {
       it("Should forward isUpdate true to writeMessages", function() {
         spyOn(dbManager, "_writeObjects");
-        spyOn(dbManager, "_getMessageData").and.returnValue([{id: 'fred'}]);
+        spyOn(dbManager, "_getMessageData").and.callFake(function(data, callback) {callback([{id: 'fred'}])});
         dbManager.writeMessages([message], false);
         expect(dbManager._writeObjects).toHaveBeenCalledWith('messages', jasmine.any(Object), false, undefined);
       });
 
       it("Should forward isUpdate true to writeMessages", function() {
         spyOn(dbManager, "_writeObjects");
-        spyOn(dbManager, "_getMessageData").and.returnValue([{id: 'fred'}]);
+        spyOn(dbManager, "_getMessageData").and.callFake(function(data, callback) {callback([{id: 'fred'}])});
         dbManager.writeMessages([message], true);
         expect(dbManager._writeObjects).toHaveBeenCalledWith('messages', jasmine.any(Object), true, undefined);
       });
 
       it("Should feed data from _getMessageData to _writeObjects", function() {
         spyOn(dbManager, "_writeObjects");
-        spyOn(dbManager, "_getMessageData").and.returnValue([{id: 'fred'}]);
+        spyOn(dbManager, "_getMessageData").and.callFake(function(data, callback) {callback([{id: 'fred'}])});
         dbManager.writeMessages([message], false);
         expect(dbManager._writeObjects).toHaveBeenCalledWith('messages', [{id: 'fred'}], jasmine.any(Boolean), undefined);
       });
@@ -811,7 +863,7 @@ describe("The DbManager Class", function() {
           callback(dbManager._getConversationData([conversation]));
         });
         spyOn(dbManager, "getObjects").and.callFake(function(tableName, ids, callback) {
-          callback(dbManager._getMessageData([]));
+          callback([]);
         });
         spyOn(dbManager, "_loadConversationsResult");
 
@@ -836,7 +888,7 @@ describe("The DbManager Class", function() {
           callback(dbManager._getConversationData([conversation]));
         });
         spyOn(dbManager, "getObjects").and.callFake(function(tableName, ids, callback) {
-          callback(dbManager._getMessageData([]));
+          callback([]);
         });
         spyOn(dbManager, "_loadConversationsResult");
 
@@ -861,7 +913,9 @@ describe("The DbManager Class", function() {
           callback(dbManager._getConversationData([conversation]));
         });
         spyOn(dbManager, "getObjects").and.callFake(function(tableName, ids, callback) {
-          callback(dbManager._getMessageData([message]));
+          dbManager._getMessageData([message], function(result) {
+            callback(result);
+          });
         });
         spyOn(dbManager, "_loadConversationsResult");
 
@@ -871,11 +925,13 @@ describe("The DbManager Class", function() {
         dbManager.loadConversations('created_at', null, null, f);
 
         // Posttest
+        var getMessageData;
+        dbManager._getMessageData([message], function(result) {getMessageData = result;});
         expect(dbManager._loadByIndex).toHaveBeenCalledWith('conversations', 'created_at', null, false, null, jasmine.any(Function));
         expect(dbManager.getObjects).toHaveBeenCalledWith('messages', [message.id], jasmine.any(Function));
         expect(dbManager._loadConversationsResult).toHaveBeenCalledWith(
           dbManager._getConversationData([conversation]),
-          dbManager._getMessageData([message]),
+          getMessageData,
           f
         );
       });
@@ -897,13 +953,20 @@ describe("The DbManager Class", function() {
         spyOn(dbManager, "_createMessage");
         var m1 = conversation.createMessage("m1").send();
         var m2 = conversation.createMessage("m2").send();
+        var m1Data, m2Data;
+        dbManager._getMessageData([m1, m2], function(result) {
+          m1Data = result[0];
+          m2Data = result[1];
+        });
 
         // Run
-        dbManager._loadConversationsResult([], dbManager._getMessageData([m1, m2]));
+        dbManager._getMessageData([m1, m2], function(result) {
+          dbManager._loadConversationsResult([], result);
+        });
 
         // Posttest
-        expect(dbManager._createMessage).toHaveBeenCalledWith(dbManager._getMessageData([m1])[0]);
-        expect(dbManager._createMessage).toHaveBeenCalledWith(dbManager._getMessageData([m2])[0]);
+        expect(dbManager._createMessage).toHaveBeenCalledWith(m1Data);
+        expect(dbManager._createMessage).toHaveBeenCalledWith(m2Data);
       });
 
       it("Should call _createConversation for each Conversation", function() {
@@ -1004,14 +1067,21 @@ describe("The DbManager Class", function() {
       it("Calls createMessage on each message", function() {
         var m1 = conversation.createMessage("m1").send();
         var m2 = conversation.createMessage("m2").send();
+        var m1Data, m2Data;
+        dbManager._getMessageData([m1, m2], function(result) {
+          m1Data = result[0];
+          m2Data = result[1];
+        });
         spyOn(dbManager, "_createMessage");
 
         // Run
-        dbManager._loadMessagesResult(dbManager._getMessageData([m1, m2]));
+        dbManager._getMessageData([m1, m2], function(result) {
+          dbManager._loadMessagesResult(result);
+        });
 
         // Posttest
-        expect(dbManager._createMessage).toHaveBeenCalledWith(dbManager._getMessageData([m1])[0]);
-        expect(dbManager._createMessage).toHaveBeenCalledWith(dbManager._getMessageData([m2])[0]);
+        expect(dbManager._createMessage).toHaveBeenCalledWith(m1Data);
+        expect(dbManager._createMessage).toHaveBeenCalledWith(m2Data);
       });
 
       it("Returns new and existing messages", function() {
@@ -1019,10 +1089,13 @@ describe("The DbManager Class", function() {
         var m2 = conversation.createMessage("m2");
         client._messagesHash = {}
         client._messagesHash[m2.id] = m2;
+
         var spy = jasmine.createSpy('spy');
 
         // Run
-        dbManager._loadMessagesResult(dbManager._getMessageData([m1, m2]), spy);
+        dbManager._getMessageData([m1, m2], function(result) {
+          dbManager._loadMessagesResult(result, spy);
+        });
 
         // Posttest
         expect(spy).toHaveBeenCalledWith([jasmine.objectContaining({id: m1.id}), m2]);
@@ -1100,17 +1173,35 @@ describe("The DbManager Class", function() {
     describe("The _createMessage() method", function() {
       it("Should return a Message", function() {
         delete client._messagesHash[message.id];
-        expect(dbManager._createMessage(dbManager._getMessageData([message])[0])).toEqual(jasmine.any(layer.Message));
+        isDone = false;
+        dbManager._getMessageData([message], function(result) {
+          var m = dbManager._createMessage(result[0]);
+          expect(m).toEqual(jasmine.any(layer.Message));
+          isDone = true;
+        });
+        expect(isDone).toBe(true);
       });
 
       it("Should flag Message with _fromDB property", function() {
         delete client._messagesHash[message.id];
-        expect(dbManager._createMessage(dbManager._getMessageData([message])[0])._fromDB).toBe(true);
+        isDone = false;
+        dbManager._getMessageData([message], function(result) {
+          var m = dbManager._createMessage(result[0]);
+          expect(m._fromDB).toBe(true);
+          isDone = true;
+        });
+        expect(isDone).toBe(true);
       });
 
       it("Should do nothing if the Message already is instantiated", function() {
         client._messagesHash[message.id] = message;
-        expect(dbManager._createMessage(dbManager._getMessageData([message])[0])).toBe(undefined);
+        isDone = false;
+        dbManager._getMessageData([message], function(result) {
+          var m = dbManager._createMessage(result[0]);
+          expect(m).toBe(undefined);
+          isDone = true;
+        });
+        expect(isDone).toBe(true);
       });
     });
 
@@ -1175,7 +1266,10 @@ describe("The DbManager Class", function() {
       });
 
       it("Should call _createMessage for all messageIds", function() {
-        var rawMessage = dbManager._getMessageData([message])[0];
+        var rawMessage;
+        dbManager._getMessageData([message], function(result) {
+           rawMessage = result[0];
+        });
         spyOn(dbManager, "getObjects").and.callFake(function(tableName, ids, callback) {
           if (tableName === 'messages') {
             callback([rawMessage]);
@@ -1358,19 +1452,23 @@ describe("The DbManager Class", function() {
 
     describe("The _loadAll() method", function() {
       var m1, m2, m3, m4;
+      var writtenData;
       beforeEach(function(done) {
         dbManager.deleteTables(function() {
           m1 = conversation.createMessage("m1").send();
           m2 = conversation.createMessage("m2").send();
           m3 = conversation.createMessage("m3").send();
           m4 = conversation.createMessage("m4").send();
-          dbManager._writeObjects('messages', dbManager._getMessageData([message, m4, m2, m3, m1]), false, done);
+          dbManager._getMessageData([message, m4, m2, m3, m1], function(result) {
+            writtenData = result;
+            dbManager._writeObjects('messages', result, false, done);
+          });
         });
       });
 
       it("Should load everything in the table", function(done) {
         dbManager._loadAll('messages', function(result) {
-          var sortedExpect =  layer.Util.sortBy(dbManager._getMessageData([message, m4, m3, m2, m1]), function(item) {return item.id});
+          var sortedExpect = layer.Util.sortBy(writtenData, function(item) {return item.id});
           expect(result).toEqual(sortedExpect);
           done();
         });
@@ -1390,6 +1488,7 @@ describe("The DbManager Class", function() {
 
     describe("The _loadByIndex() method", function() {
       var m1, m2, m3, m4;
+      var writtenData;
       beforeEach(function(done) {
         dbManager.deleteTables(function() {
           var c2 = client.createConversation({participants: ["c2"]});
@@ -1399,25 +1498,32 @@ describe("The DbManager Class", function() {
           m3 = c2.createMessage("m3").send();
           m4 = c2.createMessage("m4").send();
           setTimeout(function() {
-            dbManager._writeObjects('messages', dbManager._getMessageData([m1, m2, m3, m4]), false, done);
+            dbManager._getMessageData([m1, m2, m3, m4], function(result) {
+              writtenData = result;
+              dbManager._writeObjects('messages', result, false, done);
+            });
           }, 200);
         });
       });
 
       it("Should get only items matching the index", function(done) {
+        var expectedResult;
+        dbManager._getMessageData([m2, m1, message], function(result) { expectedResult = result; });
         const query = window.IDBKeyRange.bound([conversation.id, 0], [conversation.id, MAX_SAFE_INTEGER]);
         dbManager._loadByIndex('messages', 'conversation', query, false, null, function(result) {
-          var sortedExpect =  layer.Util.sortBy(dbManager._getMessageData([m2, m1, message]), function(item) {return item.position}).reverse();
-
+          var sortedExpect =  layer.Util.sortBy(expectedResult, function(item) {return item.position}).reverse();
           expect(result).toEqual(sortedExpect);
           done();
         });
       });
 
       it("Should apply pageSize", function(done) {
+        var expectedResult;
+        dbManager._getMessageData([m2, m1, message], function(result) { expectedResult = result; });
+
         const query = window.IDBKeyRange.bound([conversation.id, 0], [conversation.id, MAX_SAFE_INTEGER]);
         dbManager._loadByIndex('messages', 'conversation', query, false, 2, function(result) {
-          var sortedExpect =  layer.Util.sortBy(dbManager._getMessageData([message, m2, m1]), function(item) {return item.position}).reverse();
+          var sortedExpect =  layer.Util.sortBy(expectedResult, function(item) {return item.position}).reverse();
 
           expect(result).toEqual([sortedExpect[0], sortedExpect[1]]);
           done();
@@ -1425,9 +1531,12 @@ describe("The DbManager Class", function() {
       });
 
       it("Should skip first result if isFromId", function() {
+        var expectedResult;
+        dbManager._getMessageData([m2, m1, message], function(result) { expectedResult = result; });
+
         const query = window.IDBKeyRange.bound([conversation.id, 0], [conversation.id, MAX_SAFE_INTEGER]);
         dbManager._loadByIndex('messages', 'conversation', query, true, null, function(result) {
-          var sortedExpect =  layer.Util.sortBy(dbManager._getMessageData([message, m2, m1]), function(item) {return item.position}).reverse();
+          var sortedExpect =  layer.Util.sortBy(expectedResult, function(item) {return item.position}).reverse();
 
           expect(result).toEqual([sortedExpect[1], sortedExpect[2]]);
           done();
@@ -1452,22 +1561,28 @@ describe("The DbManager Class", function() {
     describe("The deleteObjects() method", function() {
 
       var m1, m2, m3, m4;
+      var writtenData;
       beforeEach(function(done) {
         dbManager.deleteTables(function() {
           m1 = conversation.createMessage("m1").send();
           m2 = conversation.createMessage("m2").send();
           m3 = conversation.createMessage("m3").send();
           m4 = conversation.createMessage("m4").send();
-          dbManager._writeObjects('messages', dbManager._getMessageData([m1, m2, m3, m4]), false, function() {
-            setTimeout(done, 200);
+          dbManager._getMessageData([m1, m2, m3, m4], function(result) {
+            writtenData = result;
+            dbManager._writeObjects('messages', result, false, function() {
+              setTimeout(done, 200);
+            });
           });
         });
       });
 
       it("Should delete all of the specified items", function(done) {
+        var expectedResult;
+        dbManager._getMessageData([m4, m2], function(result) {expectedResult = result;});
         dbManager.deleteObjects('messages', [m1, m3], function() {
           dbManager._loadAll('messages', function(result) {
-            var sortedExpect =  layer.Util.sortBy(dbManager._getMessageData([m4, m2]), function(item) {return item.id});
+            var sortedExpect =  layer.Util.sortBy(expectedResult, function(item) {return item.id});
             expect(result).toEqual(sortedExpect);
             done();
           });
@@ -1482,12 +1597,15 @@ describe("The DbManager Class", function() {
         m2 = conversation.createMessage("m2").send();
         m3 = conversation.createMessage("m3").send();
         m4 = conversation.createMessage("m4").send();
-        dbManager._writeObjects('messages', dbManager._getMessageData([m1, m2, m3, m4]), false, done);
+        dbManager._getMessageData([m1, m2, m3, m4], function(result) {
+          dbManager._writeObjects('messages', result, false, done);
+        });
       });
       it("Should get the specified objects", function(done) {
+        var expectedResult;
+        dbManager._getMessageData([m2, m4, m1], function(result) {expectedResult = result;});
         dbManager.getObjects('messages', [m2.id, m4.id, m1.id], function(result) {
-          var sortedExpect =  layer.Util.sortBy(dbManager._getMessageData([m2, m4, m1]), function(item) {return item.id});
-
+          var sortedExpect =  layer.Util.sortBy(expectedResult, function(item) {return item.id});
           expect(result).toEqual(sortedExpect);
           done();
         });
@@ -1498,15 +1616,22 @@ describe("The DbManager Class", function() {
       var m1;
       beforeEach(function(done) {
         m1 = conversation.createMessage("m1").send();
-        dbManager._writeObjects('messages', dbManager._getMessageData([m1]), false, done);
+        dbManager._getMessageData([m1], function(result) {
+          dbManager._writeObjects('messages', result, false, done);
+        });
       });
       it("Should get the specified object", function(done) {
+        var expectedResult;
+        dbManager._getMessageData([m1], function(result) {expectedResult = result;});
+        expectedResult[0].conversation = {
+          id: expectedResult[0].conversation
+        };
         dbManager.getObject('messages', m1.id, function(result) {
-          expect(result).toEqual(dbManager._getMessageData([m1])[0]);
+          expect(result).toEqual(expectedResult[0]);
           done();
         });
       });
     });
-
-
+  });
 });
+

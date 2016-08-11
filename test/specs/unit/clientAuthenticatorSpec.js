@@ -73,10 +73,10 @@ describe("The Client Authenticator Class", function() {
 
          it("Should allow customization of the websocketUrl", function() {
             expect( new layer.ClientAuthenticator({
-                appId: "",
+                appId: appId,
                 url: "https://duh.com",
-                _websocketUrl: "https://frodo-the-dodo.dodocom"
-            }))._websocketUrl).toEqual("https://frodo-the-dodo.dodocom");
+                websocketUrl: "https://frodo-the-dodo.dodocom"
+            }).websocketUrl).toEqual("https://frodo-the-dodo.dodocom");
         });
     });
 
@@ -1383,12 +1383,13 @@ describe("The Client Authenticator Class", function() {
             it("Should call _clearStoredData", function () {
                 // Setup
                 spyOn(client, "_clearStoredData");
+                var spy = jasmine.createSpy('callback');
 
                 // Run
-                client.logout();
+                client.logout(spy);
 
                 // POsttest
-                expect(client._clearStoredData).toHaveBeenCalledWith();
+                expect(client._clearStoredData).toHaveBeenCalledWith(spy);
             });
         });
 
@@ -1397,12 +1398,13 @@ describe("The Client Authenticator Class", function() {
                 // Setup
                 client._clientAuthenticated();
                 spyOn(client.dbManager, "deleteTables");
+                var spy = jasmine.createSpy('callback');
 
                 // Run
-                client._clearStoredData();
+                client._clearStoredData(spy);
 
                 // Posttest
-                expect(client.dbManager.deleteTables).toHaveBeenCalledWith();
+                expect(client.dbManager.deleteTables).toHaveBeenCalledWith(spy);
             });
 
             it("Should clear localStorage", function () {

@@ -65,8 +65,8 @@ describe("The MessageParts class", function() {
         jasmine.Ajax.uninstall();
     });
 
+    var imgBase64 = "iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAAECElEQVR4Xu2ZO44TURREa0SAWBASKST8xCdDQMAq+OyAzw4ISfmLDBASISERi2ADEICEWrKlkYWny6+77fuqalJfz0zVOXNfv/ER8mXdwJF1+oRHBDCXIAJEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8waWjX8OwHcAv5f9Me3fPRugvbuxd14C8B7AVwA3q0oQAcYwtr2+hn969faPVSWIAG2AT3rXJvz17CcAN6ptgggwrwDb4JeVIALMJ8AY/JISRIB5BGDhr3/aZwDXKxwHEWC6AJcBvAOwfuBjvuNfABcBfGGGl5yJANPabYV/B8DLaT96nndHgPYeu4c/RI8AbQJIwO9FgDMAfrVxWuRdMvB7EOA+gHsALgD4uQjO3b6pFPzqAjwA8HTF5weA8weWQA5+ZQGOw1//jR5SAkn4VQV4CODJls18CAmuAHjbcM8vc9U76ZSrdgt4BODxyLG8Twla4P8BcLfKPX/sEaeSAAz8fR4H8vArHQHXAHwYs3Xj9SU3gQX8SgKcAvBitTp38WAJCWzgVxJg+F0qSGAFv5oAh5bADn5FAQ4lwVUAb3a86nX1tL/tXK10Czj+O+7zOLCFX3UDrEXYhwTW8KsLsPRx0Ap/+A/fq12uKpVnqx4BSx8Hgb9quAcB5t4EgX/sz6sXAeaSIPA3zqOeBJgqwTMAzxuuelJn/ubzSG8CTJFg12ex4Z4vDb+HW8A2aK1XRFYCC/g9C7DkJrCB37sAS0hgBV9BgDklGODfBvCaPScU5np8CPxf71OfCSzhq2yAqZ8d2MJXE6DlOLCGryjALhLYw1cVgJEg8Dv7MKjlgXvbg2Hgd/ph0BwSBH7nHwZNkeCW4z1/rDCV/wOM5RyOg7MAvo0Nur3uIoAbVzpvBKCr0hyMAJpc6VQRgK5KczACaHKlU0UAuirNwQigyZVOFQHoqjQHI4AmVzpVBKCr0hyMAJpc6VQRgK5KczACaHKlU0UAuirNwQigyZVOFQHoqjQHI4AmVzpVBKCr0hyMAJpc6VQRgK5KczACaHKlU0UAuirNwQigyZVOFQHoqjQHI4AmVzpVBKCr0hyMAJpc6VQRgK5KczACaHKlU0UAuirNwQigyZVOFQHoqjQHI4AmVzpVBKCr0hyMAJpc6VQRgK5KczACaHKlU0UAuirNwQigyZVOFQHoqjQHI4AmVzpVBKCr0hz8BzIXtYE3VcPnAAAAAElFTkSuQmCC";
     function generateBlob(large) {
-        var imgBase64 = "iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAAECElEQVR4Xu2ZO44TURREa0SAWBASKST8xCdDQMAq+OyAzw4ISfmLDBASISERi2ADEICEWrKlkYWny6+77fuqalJfz0zVOXNfv/ER8mXdwJF1+oRHBDCXIAJEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8waWjX8OwHcAv5f9Me3fPRugvbuxd14C8B7AVwA3q0oQAcYwtr2+hn969faPVSWIAG2AT3rXJvz17CcAN6ptgggwrwDb4JeVIALMJ8AY/JISRIB5BGDhr3/aZwDXKxwHEWC6AJcBvAOwfuBjvuNfABcBfGGGl5yJANPabYV/B8DLaT96nndHgPYeu4c/RI8AbQJIwO9FgDMAfrVxWuRdMvB7EOA+gHsALgD4uQjO3b6pFPzqAjwA8HTF5weA8weWQA5+ZQGOw1//jR5SAkn4VQV4CODJls18CAmuAHjbcM8vc9U76ZSrdgt4BODxyLG8Twla4P8BcLfKPX/sEaeSAAz8fR4H8vArHQHXAHwYs3Xj9SU3gQX8SgKcAvBitTp38WAJCWzgVxJg+F0qSGAFv5oAh5bADn5FAQ4lwVUAb3a86nX1tL/tXK10Czj+O+7zOLCFX3UDrEXYhwTW8KsLsPRx0Ap/+A/fq12uKpVnqx4BSx8Hgb9quAcB5t4EgX/sz6sXAeaSIPA3zqOeBJgqwTMAzxuuelJn/ubzSG8CTJFg12ex4Z4vDb+HW8A2aK1XRFYCC/g9C7DkJrCB37sAS0hgBV9BgDklGODfBvCaPScU5np8CPxf71OfCSzhq2yAqZ8d2MJXE6DlOLCGryjALhLYw1cVgJEg8Dv7MKjlgXvbg2Hgd/ph0BwSBH7nHwZNkeCW4z1/rDCV/wOM5RyOg7MAvo0Nur3uIoAbVzpvBKCr0hyMAJpc6VQRgK5KczACaHKlU0UAuirNwQigyZVOFQHoqjQHI4AmVzpVBKCr0hyMAJpc6VQRgK5KczACaHKlU0UAuirNwQigyZVOFQHoqjQHI4AmVzpVBKCr0hyMAJpc6VQRgK5KczACaHKlU0UAuirNwQigyZVOFQHoqjQHI4AmVzpVBKCr0hyMAJpc6VQRgK5KczACaHKlU0UAuirNwQigyZVOFQHoqjQHI4AmVzpVBKCr0hyMAJpc6VQRgK5KczACaHKlU0UAuirNwQigyZVOFQHoqjQHI4AmVzpVBKCr0hz8BzIXtYE3VcPnAAAAAElFTkSuQmCC";
         if (large) imgBase64 += imgBase64;
         if (window.isPhantomJS) {
             var b = new Blob([atob(imgBase64)], {type: "image/png"});
@@ -133,6 +133,16 @@ describe("The MessageParts class", function() {
         it("Should initialize with Content", function() {
             var c = new layer.Content({});
             expect(new layer.MessagePart({_content: c})._content).toBe(c);
+        });
+
+        it("Should initialize with blob and url if base64 encoded", function() {
+            var part = layer.MessagePart._createFromServer({
+                body: imgBase64,
+                mimeType: 'not/blob',
+                encoding: 'base64'
+            });
+            expect(part.body instanceof Blob).toBe(true);
+            expect(part.url.length > 0).toBe(true);
         });
 
     });
@@ -215,31 +225,6 @@ describe("The MessageParts class", function() {
         });
     });
 
-    describe("The _fetchTextFromFile() method", function() {
-        var part, message, blob, text;
-        beforeEach(function() {
-            text = new Array(layer.DbManager.MaxPartSize + 10).join('a');
-            blob = new Blob([text], {type : 'text/plain'});
-            part = new layer.MessagePart(blob);
-            message = conversation.createMessage({parts: [part]});
-        });
-
-        it("Should return file if file is really a string", function() {
-            var result;
-            part._fetchTextFromFile(text, function(data) { result = data;});
-            expect(result).toEqual(text);
-        });
-
-        it("Should turn text blob to string", function(done) {
-            var result;
-            part._fetchTextFromFile(text, function(data) {
-                expect(data).toEqual(text);
-                done();
-            });
-        });
-
-    });
-
     describe("The _fetchContentCallback() method", function() {
         var part, message, content;
         beforeEach(function() {
@@ -252,7 +237,7 @@ describe("The MessageParts class", function() {
         it("Should set the URL property", function() {
           expect(part.url).toEqual("");
           part._fetchContentCallback(null, generateBlob());
-          expect(part.url).toMatch(/^blob:(http%3A|file:\/\/\/)/);
+          expect(part.url.length > 0).toBe(true);
         });
 
         it("Should clear the isFiring property", function() {
@@ -273,14 +258,18 @@ describe("The MessageParts class", function() {
           var text = new Array(layer.DbManager.MaxPartSize + 10).join('a');
           var blob = new Blob([text], {type : 'text/plain'});
           part = new layer.MessagePart(blob);
-          spyOn(part, "_fetchTextFromFile").and.callFake(function(file, callback) {callback(text);});;
+          var fetchTextFromFile = layer.Util.fetchTextFromFile;
+          spyOn(layer.Util, "fetchTextFromFile").and.callFake(function(file, callback) {callback(text);});
           spyOn(part, "_fetchContentComplete");
           var spy = jasmine.createSpy('callback');
           part._fetchContentCallback(null, blob, spy);
 
           // Posttest
-          expect(part._fetchTextFromFile).toHaveBeenCalledWith(blob, jasmine.any(Function));
+          expect(layer.Util.fetchTextFromFile).toHaveBeenCalledWith(blob, jasmine.any(Function));
           expect(part._fetchContentComplete).toHaveBeenCalledWith(text, spy);
+
+          // Cleanup
+          layer.Util.fetchTextFromFile = fetchTextFromFile;
         });
 
         it("Should call read_fetchContentComplete for text/plain", function() {

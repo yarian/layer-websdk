@@ -614,10 +614,16 @@ class ClientAuthenticator extends Root {
    * Deletes your sessionToken from the server, and removes all user data from the Client.
    * Call `client.connect()` to restart the authentication process.
    *
+   * This call is asynchronous; some browsers (ahem, safari...) may not have completed the deletion of
+   * persisted data if you
+   * navigate away from the page.  Use the callback to determine when all necessary cleanup has completed
+   * prior to navigating away
+   *
    * @method logout
+   * @param {Function} callback
    * @return {layer.ClientAuthenticator} this
    */
-  logout() {
+  logout(callback) {
     if (this.isAuthenticated) {
       this.xhr({
         method: 'DELETE',
@@ -628,13 +634,17 @@ class ClientAuthenticator extends Root {
     // Clear data even if isAuthenticated is false
     // Session may have expired, but data still cached.
     this._resetSession();
-    this._clearStoredData();
+    this._clearStoredData(callback);
     return this;
   }
 
-  _clearStoredData() {
-    if (this.dbManager) this.dbManager.deleteTables();
+  _clearStoredData(callback) {
     if (global.localStorage) localStorage.removeItem(LOCALSTORAGE_KEYS.SESSIONDATA + this.appId);
+    if (this.dbManager) {
+      this.dbManager.deleteTables(callback);
+    } else if (callback) {
+      callback();
+    }
   }
 
   /**
@@ -1052,16 +1062,19 @@ ClientAuthenticator.prototype.sessionToken = '';
 
 /**
  * URL to Layer's Web API server.
+ *
+ * Only muck with this if told to by Layer Staff.
  * @type {String}
  */
 ClientAuthenticator.prototype.url = 'https://api.layer.com';
 
 /**
  * URL to Layer's Websocket server.
+ *
+ * Only muck with this if told to by Layer Staff.
  * @type {String}
- * @protected
  */
-ClientAuthenticator.prototype._websocketUrl = 'wss://websockets.layer.com';
+ClientAuthenticator.prototype.websocketUrl = 'wss://websockets.layer.com';
 
 /**
  * Web Socket Manager

@@ -12,14 +12,15 @@
  * @protected
  */
 
-const DB_VERSION = 18;
-const MAX_SAFE_INTEGER = 9007199254740991;
 const Root = require('./root');
 const logger = require('./logger');
 const SyncEvent = require('./sync-event');
 const Constants = require('./const');
-const SYNC_NEW = Constants.SYNC_STATE.NEW;
 const Util = require('./client-utils');
+
+const DB_VERSION = 18;
+const MAX_SAFE_INTEGER = 9007199254740991;
+const SYNC_NEW = Constants.SYNC_STATE.NEW;
 
 function getDate(inDate) {
   return inDate ? inDate.toISOString() : null;
@@ -328,10 +329,11 @@ class DbManager extends Root {
    * @method _getMessageData
    * @private
    * @param {layer.Message[]} messages
+   * @param {Function} callback
    * @return {Object[]} messages
    */
-  _getMessageData(messages) {
-    return messages.filter(message => {
+  _getMessageData(messages, callback) {
+    const dbMessages = messages.filter(message => {
       if (message._fromDB) {
         message._fromDB = false;
         return false;
@@ -368,6 +370,27 @@ class DbManager extends Root {
       sync_state: message.syncState,
       is_unread: message.isUnread,
     }));
+
+    // Find all blobs and convert them to base64... because Safari 9.1 doesn't support writing blobs those Frelling Smurfs.
+    let count = 0;
+    const parts = [];
+    dbMessages.forEach((message) => {
+      message.parts.forEach((part) => {
+        if (Util.isBlob(part.body)) parts.push(part);
+      });
+    });
+    if (parts.length === 0) {
+      callback(dbMessages);
+    } else {
+      parts.forEach((part) => {
+        Util.blobToBase64(part.body, (base64) => {
+          part.body = base64;
+          part.useBlob = true;
+          count++;
+          if (count === parts.length) callback(dbMessages);
+        });
+      });
+    }
   }
 
   /**
@@ -383,8 +406,10 @@ class DbManager extends Root {
    * @param {Function} [callback]
    */
   writeMessages(messages, isUpdate, callback) {
-    this._writeObjects('messages', this._getMessageData(messages.filter(message => !message.isDestroyed)),
-      isUpdate, callback);
+    this._getMessageData(
+      messages.filter(message => !message.isDestroyed),
+      dbMessageData => this._writeObjects('messages', dbMessageData, isUpdate, callback)
+    );
   }
 
   /**
@@ -467,21 +492,27 @@ class DbManager extends Root {
       const store = transaction.objectStore(tableName);
       transaction.oncomplete = transaction.onerror = transactionComplete;
 
-      data.forEach(item => {
-        const req = isUpdate ? store.put(item) : store.add(item);
+      // If the request fails, and we were doing an insert, try an update instead.
+      // This will create one transaction per error.
+      // TODO: Investigate capturing all errors and then using a single transaction to update all failed items.
+      const onError = function onError(item) {
+        if (!isUpdate) {
+          transactionCount++;
+          const transaction2 = this.db.transaction([tableName], 'readwrite');
+          const store2 = transaction2.objectStore(tableName);
+          transaction2.oncomplete = transaction2.onerror = transactionComplete;
+          store2.put(item);
+        }
+      }.bind(this);
 
-        // If the request fails, and we were doing an insert, try an update instead.
-        // This will create one transaction per error.
-        // TODO: Investigate capturing all errors and then using a single transaction to update all failed items.
-        req.onerror = () => {
-          if (!isUpdate) {
-            transactionCount++;
-            const transaction2 = this.db.transaction([tableName], 'readwrite');
-            const store2 = transaction2.objectStore(tableName);
-            transaction2.oncomplete = transaction2.onerror = transactionComplete;
-            store2.put(item);
-          }
-        };
+      data.forEach(item => {
+        try {
+          const req = isUpdate ? store.put(item) : store.add(item);
+          req.onerror = () => onError(item);
+        } catch (e) {
+          // Safari throws an error rather than use the onerror event.
+          onError(item);
+        }
       });
     });
   }
@@ -601,6 +632,13 @@ class DbManager extends Root {
     }
   }
 
+  _blobifyPart(part) {
+    if (part.useBlob) {
+      part.body = Util.base64ToBlob(part.body);
+      delete part.useBlob;
+    }
+  }
+
   /**
    * Registers and sorts the message objects from the database.
    *
@@ -614,6 +652,9 @@ class DbManager extends Root {
    * @param {layer.Message} callback.result - Message instances created from the database
    */
   _loadMessagesResult(messages, callback) {
+    // Convert base64 to blob before sending it along...
+    messages.forEach(message => message.parts.forEach(part => this._blobifyPart(part)));
+
     // Instantiate and Register each Message
     const newData = messages
       .map(message => this._createMessage(message) || this.client.getMessage(message.id))
@@ -846,8 +887,8 @@ class DbManager extends Root {
         if (cursor) {
           data.push(cursor.value);
           cursor.continue();
-        } else {
-          if (!this.isDestroyed) callback(data);
+        } else if (!this.isDestroyed) {
+          callback(data);
         }
       };
     });
@@ -890,8 +931,8 @@ class DbManager extends Root {
               } else {
                 cursor.continue();
               }
-            } else {
-              if (!this.isDestroyed) callback(data);
+            } else if (!this.isDestroyed) {
+              callback(data);
             }
           };
     });
@@ -994,6 +1035,12 @@ class DbManager extends Root {
 
           switch (tableName) {
             case 'messages':
+              cursor.value.conversation = {
+                id: cursor.value.conversation,
+              };
+              // Convert base64 to blob before sending it along...
+              cursor.value.parts.forEach(part => this._blobifyPart(part));
+              return callback(cursor.value);
             case 'identities':
               return callback(cursor.value);
             case 'conversations':
@@ -1041,12 +1088,20 @@ class DbManager extends Root {
   deleteTables(callback) {
     this.onOpen(() => {
       try {
+        // Damned safari 9 throws errors on transactions across multiple tables.  So one at a time:
+        let count = 0;
         const tableNames = TABLES.map(tableDef => tableDef.name);
-        const transaction = this.db.transaction(tableNames, 'readwrite');
-        tableNames.forEach(tableName => transaction.objectStore(tableName).clear());
-        transaction.oncomplete = callback;
+        tableNames.forEach((name) => {
+          const transaction = this.db.transaction([name], 'readwrite');
+          transaction.objectStore(name).clear();
+          transaction.oncomplete = () => {
+            count++;
+            if (count === tableNames.length) callback();
+          };
+        });
       } catch (e) {
         logger.error('Failed to delete table', e);
+        callback(e);
       }
     });
   }

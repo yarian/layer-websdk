@@ -125,7 +125,7 @@ class SocketManager extends Root {
     const WS = typeof WebSocket === 'undefined' ? require('websocket').w3cwebsocket : WebSocket;
 
     // Get the URL and connect to it
-    const url = `${this.client._websocketUrl}/?session_token=${this.client.sessionToken}`;
+    const url = `${this.client.websocketUrl}/?session_token=${this.client.sessionToken}`;
 
     this._socket = new WS(url, WEBSOCKET_PROTOCOL);
 

@@ -92,7 +92,7 @@ describe("The Identity Class", function() {
         jasmine.Ajax.uninstall();
     });
 
-    describe("The UserIdentity class", function() {
+    describe("The Identity class", function() {
 
       describe("The constructor() method", function() {
         it("Should call populateFromServer if fromServer", function() {

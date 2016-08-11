@@ -237,7 +237,7 @@ describe("The Websocket Socket Manager Class", function() {
         });
 
         it("Should allow customization of the websocket url", function() {
-            client._websocketUrl = 'wss://staging-websockets.layer.com';
+            client.websocketUrl = 'wss://staging-websockets.layer.com';
             websocketManager._socket = null;
             websocketManager.connect();
             expect(websocketManager._socket.url).toEqual('wss://staging-websockets.layer.com/?session_token=sessionToken');

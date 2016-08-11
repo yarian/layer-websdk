@@ -8,6 +8,9 @@ const LayerParser = require('layer-patch');
 const uuid = require('uuid');
 const atob = typeof window === 'undefined' ? require('atob') : window.atob;
 
+/* istanbul ignore next */
+const LocalFileReader = typeof window === 'undefined' ? require('filereader') : FileReader;
+
 /**
  * Generate a random UUID
  *
@@ -171,9 +174,85 @@ exports.getExponentialBackoffSeconds = function getExponentialBackoffSeconds(max
   return secondsWaitTime + secondsOffset;
 };
 
-exports.isBlob = (value) => {
-  return typeof Blob !== 'undefined' && value instanceof Blob;
+/**
+ * Is this data a blob?
+ *
+ * @method isBlob
+ * @param {Mixed} value
+ * @returns {Boolan} - True if its a blob, false if not.
+ */
+exports.isBlob = (value) => typeof Blob !== 'undefined' && value instanceof Blob;
+
+/**
+ * Given a blob return a base64 string.
+ *
+ * @method blobToBase64
+ * @param {Blob} blob - data to convert to base64
+ * @param {Function} callback
+ * @param {String} callback.result - Your base64 string result
+ */
+exports.blobToBase64 = (blob, callback) => {
+  const reader = new LocalFileReader();
+  reader.readAsDataURL(blob);
+  reader.onloadend = () => callback(reader.result.replace(/^.*?,/, ''));
 };
+
+
+/**
+ * Given a base64 string return a blob.
+ *
+ * @method base64ToBlob
+ * @param {String} b64Data - base64 string data without any type prefixes
+ * @param {String} contentType - mime type of the data
+ * @returns {Blob}
+ */
+exports.base64ToBlob = (b64Data, contentType) => {
+  try {
+    const sliceSize = 512;
+    const byteCharacters = atob(b64Data);
+    const byteArrays = [];
+    let offset;
+
+    for (offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+      let i;
+      const slice = byteCharacters.slice(offset, offset + sliceSize);
+      const byteNumbers = new Array(slice.length);
+      for (i = 0; i < slice.length; i++) {
+        byteNumbers[i] = slice.charCodeAt(i);
+      }
+
+      const byteArray = new Uint8Array(byteNumbers);
+
+      byteArrays.push(byteArray);
+    }
+
+    const blob = new Blob(byteArrays, { type: contentType });
+    return blob;
+  } catch (e) {
+    // noop
+  }
+  return null;
+};
+
+/**
+ * Given a File/Blob return a string.
+ *
+ * Assumes blob represents textual data.
+ *
+ * @method fetchTextFromFile
+ * @param {Blob} file
+ * @param {Function} callback
+ * @param {String} callback.result
+ */
+exports.fetchTextFromFile = (file, callback) => {
+  if (typeof file === 'string') return callback(file);
+  const reader = new LocalFileReader();
+  reader.addEventListener('loadend', () => {
+    callback(reader.result);
+  });
+  reader.readAsText(file);
+};
+
 
 let parser;
 

@@ -1301,18 +1301,22 @@ describe("The Message class", function() {
         });
 
         it("Should call the _fetchTextFromFile on each Textual Blob", function(done) {
+            var blob0 = new Blob([new Array(layer.DbManager.MaxPartSize + 10).join('a')], {type : 'text/plain'});
+            var blob1 = new Blob([new Array(layer.DbManager.MaxPartSize + 10).join('b')], {type : 'text/markdown'});
+            var blob2 = new Blob([new Array(layer.DbManager.MaxPartSize + 10).join('c')], {type : 'image/png'});
+
             m = conversation.createMessage({
                 parts: [
                     {
-                        body: new Blob([new Array(layer.DbManager.MaxPartSize + 10).join('a')], {type : 'text/plain'}),
+                        body: blob0,
                         mimeType: 'text/plain'
                     },
                     {
-                        body: new Blob([new Array(layer.DbManager.MaxPartSize + 10).join('b')], {type : 'text/markdown'}),
+                        body: blob1,
                         mimeType: 'text/markdown'
                     },
                     {
-                        body: new Blob([new Array(layer.DbManager.MaxPartSize + 10).join('c')], {type : 'image/png'}),
+                        body: blob2,
                         mimeType: 'image/png'
                     },
                     {
@@ -1322,16 +1326,18 @@ describe("The Message class", function() {
                 ]
             });
 
-            spyOn(m.parts[0], "_fetchTextFromFile").and.callThrough();
-            spyOn(m.parts[1], "_fetchTextFromFile").and.callThrough();
-            spyOn(m.parts[2], "_fetchTextFromFile").and.callThrough();
-            spyOn(m.parts[3], "_fetchTextFromFile").and.callThrough();
+            var fetchTextFromFile  = layer.Util.fetchTextFromFile;
+            spyOn(layer.Util, "fetchTextFromFile").and.callThrough();
+
 
             m._readAllBlobs(function() {
-                expect(m.parts[0]._fetchTextFromFile).toHaveBeenCalled();
-                expect(m.parts[1]._fetchTextFromFile).toHaveBeenCalled();
-                expect(m.parts[2]._fetchTextFromFile).not.toHaveBeenCalled();
-                expect(m.parts[3]._fetchTextFromFile).not.toHaveBeenCalled();
+                layer.Util.fetchTextFromFile.calls.allArgs().forEach(function(callData) {
+                    expect(callData[1]).toEqual(jasmine.any(Function));
+                });
+                expect(layer.Util.fetchTextFromFile.calls.allArgs()[0][0].type).toEqual('text/plain');
+                expect(layer.Util.fetchTextFromFile.calls.allArgs()[1][0].type).toEqual('text/markdown');
+                expect(layer.Util.fetchTextFromFile.calls.allArgs().length).toEqual(2);
+                layer.Util.fetchTextFromFile = fetchTextFromFile;
                 done();
             });
         });

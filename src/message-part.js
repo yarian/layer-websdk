@@ -64,12 +64,8 @@ const Content = require('./content');
 const xhr = require('./xhr');
 const ClientRegistry = require('./client-registry');
 const LayerError = require('./layer-error');
-const { isBlob } = require('./client-utils');
+const Util = require('./client-utils');
 const logger = require('./logger');
-
-/* istanbul ignore next */
-const LocalFileReader = typeof window === 'undefined' ? require('filereader') : FileReader;
-
 
 class MessagePart extends Root {
 
@@ -94,9 +90,9 @@ class MessagePart extends Root {
       } else {
         newOptions.mimeType = 'text/plain';
       }
-    } else if (isBlob(options) || isBlob(options.body)) {
+    } else if (Util.isBlob(options) || Util.isBlob(options.body)) {
       const body = options instanceof Blob ? options : options.body;
-      const mimeType = isBlob(options.body) ? options.mimeType : body.type;
+      const mimeType = Util.isBlob(options.body) ? options.mimeType : body.type;
       newOptions = {
         mimeType,
         body,
@@ -106,7 +102,10 @@ class MessagePart extends Root {
     }
     super(newOptions);
     if (!this.size && this.body) this.size = this.body.length;
-    if (isBlob(this.body) && !MessagePart.isTextualMimeType(this.mimeType)) {
+    if (options.encoding === 'base64') {
+      this.body = Util.base64ToBlob(this.body);
+    }
+    if (Util.isBlob(this.body) && !MessagePart.isTextualMimeType(this.mimeType)) {
       this.url = URL.createObjectURL(this.body);
     }
   }
@@ -144,23 +143,6 @@ class MessagePart extends Root {
     return this._getClient().getMessage(this.id.replace(/\/parts.*$/, ''));
   }
 
- /**
-  * Given a File/Blob return a string.
-  *
-  * @private
-  * @method _fetchTextFromFile
-  * @param {Blob} file
-  * @param {Function} callback
-  * @param {String} callback.result
-  */
-  _fetchTextFromFile(file, callback) {
-    if (typeof file === 'string') return callback(file);
-    const reader = new LocalFileReader();
-    reader.addEventListener('loadend', () => {
-      callback(reader.result);
-    });
-    reader.readAsText(file);
-  }
 
   /**
    * Download Rich Content from cloud server.
@@ -203,7 +185,7 @@ class MessagePart extends Root {
     } else {
       this.isFiring = false;
       if (MessagePart.isTextualMimeType(this.mimeType)) {
-        this._fetchTextFromFile(result, text => this._fetchContentComplete(text, callback));
+        Util.fetchTextFromFile(result, text => this._fetchContentComplete(text, callback));
       } else {
         this.url = URL.createObjectURL(result);
         this._fetchContentComplete(result, callback);
@@ -333,9 +315,7 @@ class MessagePart extends Root {
 
   _sendBlob(client) {
     /* istanbul ignore else */
-    const reader = new LocalFileReader();
-    reader.onloadend = () => {
-      const base64data = reader.result;
+    Util.blobToBase64(this.body, (base64data) => {
       if (base64data.length < 2048) {
         this.body = base64data;
         this.body = this.body.substring(this.body.indexOf(',') + 1);
@@ -344,8 +324,7 @@ class MessagePart extends Root {
       } else {
         this._generateContentAndSend(client);
       }
-    };
-    reader.readAsDataURL(this.body); // encodes to base64
+    });
   }
 
   /**
@@ -400,7 +379,7 @@ class MessagePart extends Root {
       if (!client.onlineManager.isOnline) {
         client.onlineManager.once('connected', this._processContentResponse.bind(this, contentResponse, client), this);
       } else {
-        console.error('We don\'t yet handle this!');
+        logger.error('We don\'t yet handle this!');
       }
     } else {
       this.trigger('parts:send', {

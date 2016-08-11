@@ -240,6 +240,29 @@ describe("The Util Library", function() {
         });
     });
 
+    describe("The fetchTextFromFile() method", function() {
+        var  blob, text;
+        beforeEach(function() {
+            text = new Array(layer.DbManager.MaxPartSize + 10).join('a');
+            blob = new Blob([text], {type : 'text/plain'});
+        });
+
+        it("Should return file if file is really a string", function() {
+            var result;
+            layer.Util.fetchTextFromFile(text, function(data) { result = data;});
+            expect(result).toEqual(text);
+        });
+
+        it("Should turn text blob to string", function(done) {
+            var result;
+            layer.Util.fetchTextFromFile(text, function(data) {
+                expect(data).toEqual(text);
+                done();
+            });
+        });
+
+    });
+
     describe("The layerParse() method", function() {
         var client, conversation, config, message;
         beforeEach(function() {
