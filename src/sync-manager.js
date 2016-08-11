@@ -27,6 +27,8 @@ const xhr = require('./xhr');
 const logger = require('./logger');
 const Utils = require('./client-utils');
 
+const MAX_RECEIPT_CONNECTIONS = 4;
+
 class SyncManager extends Root {
   /**
    * Creates a new SyncManager.
@@ -66,6 +68,7 @@ class SyncManager extends Root {
       }, this);
     }
     this.queue = [];
+    this.receiptQueue = [];
 
     this.onlineManager.on('disconnected', this._onlineStateChange, this);
     this.socketManager.on('connected disconnected', this._onlineStateChange, this);
@@ -119,7 +122,11 @@ class SyncManager extends Root {
     // do not add it to the queue.
     if (requestEvt.operation !== 'PATCH' || !this._findUnfiredCreate(requestEvt)) {
       logger.info(`Sync Manager Request ${requestEvt.operation} on target ${requestEvt.target}`, requestEvt.toObject());
-      this.queue.push(requestEvt);
+      if (requestEvt.operation === 'RECEIPT') {
+        this.receiptQueue.push(requestEvt);
+      } else {
+        this.queue.push(requestEvt);
+      }
       this.trigger('sync:add', {
         request: requestEvt,
         target: requestEvt.target,
@@ -134,10 +141,14 @@ class SyncManager extends Root {
     }
 
     // Fire the request if there aren't any existing requests already being processed.
-    // If this isn't the first item, assume that all necessary logic exists to fire the
-    // existing requests and then it will move onto this request.
-    if (this.queue.length === 1 || !this.queue[0].isFiring) {
+    // If there is an existing request in the queue and its not firing, (re)fire it now.
+    if ((this.queue.length === 1 && this.queue[0] === requestEvt) || (this.queue.length && !this.queue[0].isFiring)) {
       this._processNextRequest();
+    }
+
+    // If we have anything in the receipts queue, fire it
+    if (this.receiptQueue.length) {
+      this._processNextReceiptRequest();
     }
   }
 
@@ -178,29 +189,95 @@ class SyncManager extends Root {
         if (!isValid) {
           this._removeRequest(requestEvt);
           return this._processNextRequest();
-        }
-        if (requestEvt instanceof WebsocketSyncEvent) {
-          if (this.socketManager && this.socketManager._isOpen()) {
-            logger.debug(`Sync Manager Websocket Request Firing ${requestEvt.operation} on target ${requestEvt.target}`,
-              requestEvt.toObject());
-            this.requestManager.sendRequest(requestEvt._getRequestData(this.client),
-                result => this._xhrResult(result, requestEvt));
-            requestEvt.isFiring = true;
-          } else {
-            logger.debug('Sync Manager Websocket Request skipped; socket closed');
-          }
         } else {
-          if (!requestEvt.headers) requestEvt.headers = {};
-          requestEvt.headers.authorization = "Layer session-token=\"" + this.client.sessionToken + "\""
-          logger.debug(`Sync Manager XHR Request Firing ${requestEvt.operation} ${requestEvt.target}`,
-            requestEvt.toObject());
-          xhr(requestEvt._getRequestData(this.client), result => this._xhrResult(result, requestEvt));
-          requestEvt.isFiring = true;
+          this._fireRequest(requestEvt);
         }
       });
-    } else if (requestEvt && requestEvt.isFiring) {
-      logger.debug(`Sync Manager processNext skipped; request still firing ${requestEvt.operation} ` +
-        `on target ${requestEvt.target}`, requestEvt.toObject());
+    }
+  }
+
+  /**
+   * Process up to MAX_RECEIPT_CONNECTIONS worth of receipts.
+   *
+   * These requests have no interdependencies. Just fire them all
+   * as fast as we can, in parallel.
+   *
+   * @method _processNextReceiptRequest
+   * @private
+   */
+  _processNextReceiptRequest() {
+    let firingReceipts = 0;
+    this.receiptQueue.forEach((receiptEvt) => {
+      if (this.isOnline() && receiptEvt) {
+        if (receiptEvt.isFiring || receiptEvt._isValidating) {
+          firingReceipts++;
+        } else if (firingReceipts < MAX_RECEIPT_CONNECTIONS) {
+          firingReceipts++;
+          receiptEvt._isValidating = true;
+          this._validateRequest(receiptEvt, (isValid) => {
+            receiptEvt._isValidating = false;
+            if (!isValid) {
+              const index = this.receiptQueue.indexOf(receiptEvt);
+              if (index !== -1) this.receiptQueue.splice(index, 1);
+            } else {
+              this._fireRequest(receiptEvt);
+            }
+          });
+        }
+      }
+    });
+  }
+
+  /**
+   * Directly fire this sync request.
+   *
+   * This is intended to be called only after careful analysis of our state to make sure its safe to send the request.
+   * See `_processNextRequest()`
+   *
+   * @method _fireRequest
+   * @private
+   * @param {layer.SyncEvent} requestEvt
+   */
+  _fireRequest(requestEvt) {
+    if (requestEvt instanceof WebsocketSyncEvent) {
+      this._fireRequestWebsocket(requestEvt);
+    } else {
+      this._fireRequestXHR(requestEvt);
+    }
+  }
+
+  /**
+   * Directly fire this XHR Sync request.
+   *
+   * @method _fireRequestXHR
+   * @private
+   * @param {layer.XHRSyncEvent} requestEvt
+   */
+  _fireRequestXHR(requestEvt) {
+    requestEvt.isFiring = true;
+    if (!requestEvt.headers) requestEvt.headers = {};
+    requestEvt.headers.authorization = "Layer session-token=\"" + this.client.sessionToken + "\"";
+    logger.debug(`Sync Manager XHR Request Firing ${requestEvt.operation} ${requestEvt.target}`,
+      requestEvt.toObject());
+    xhr(requestEvt._getRequestData(this.client), result => this._xhrResult(result, requestEvt));
+  }
+
+  /**
+   * Directly fire this Websocket Sync request.
+   *
+   * @method _fireRequestWebsocket
+   * @private
+   * @param {layer.WebsocketSyncEvent} requestEvt
+   */
+  _fireRequestWebsocket(requestEvt) {
+    if (this.socketManager && this.socketManager._isOpen()) {
+      logger.debug(`Sync Manager Websocket Request Firing ${requestEvt.operation} on target ${requestEvt.target}`,
+        requestEvt.toObject());
+      requestEvt.isFiring = true;
+      this.requestManager.sendRequest(requestEvt._getRequestData(this.client),
+          result => this._xhrResult(result, requestEvt));
+    } else {
+      logger.debug('Sync Manager Websocket Request skipped; socket closed');
     }
   }
 
@@ -636,6 +713,14 @@ SyncManager.prototype.onlineManager = null;
  * @type {layer.SyncEvent[]}
  */
 SyncManager.prototype.queue = null;
+
+/**
+ * The array of layer.SyncEvent instances awaiting to be fired.
+ *
+ * Receipts can generally just be fired off all at once without much fretting about ordering or dependencies.
+ * @type {layer.SyncEvent[]}
+ */
+SyncManager.prototype.receiptQueue = null;
 
 /**
  * Reference to the Client so that we can pass it to SyncEvents  which may need to lookup their targets

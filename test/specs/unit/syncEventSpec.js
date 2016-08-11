@@ -217,7 +217,7 @@ describe("The SyncEvent Classes", function() {
     });
 
     describe("The firing property", function() {
-      it("Should reset to false after 2 minutes", function() {
+      it("Should reset to false after 15 seconds", function() {
         var evt = new layer.XHRSyncEvent({
             url: "hey"
         });
@@ -231,13 +231,38 @@ describe("The SyncEvent Classes", function() {
         evt.isFiring = true;
         expect(evt.isFiring).toBe(true);
 
-        d.setSeconds(d.getSeconds() + 119);
+        d.setSeconds(d.getSeconds() + 14);
         jasmine.clock().mockDate(d);
         expect(evt.isFiring).toBe(true);
 
         d.setSeconds(d.getSeconds() + 2);
         jasmine.clock().mockDate(d);
         expect(evt.isFiring).toBe(false);
+      });
+    });
+
+    describe("The _isValidating property", function() {
+      it("Should reset to false after half a second", function() {
+        var evt = new layer.XHRSyncEvent({
+            url: "hey"
+        });
+        expect(evt._isValidating).toBe(false);
+        var d = new Date();
+        jasmine.clock().mockDate(d);
+
+
+
+        // Run
+        evt._isValidating = true;
+        expect(evt._isValidating).toBe(true);
+
+        d.setSeconds(d.getSeconds() + 0.4);
+        jasmine.clock().mockDate(d);
+        expect(evt._isValidating).toBe(true);
+
+        d.setSeconds(d.getSeconds() + 1);
+        jasmine.clock().mockDate(d);
+        expect(evt._isValidating).toBe(false);
       });
     });
 });

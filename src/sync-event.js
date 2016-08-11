@@ -103,11 +103,26 @@ Object.defineProperty(SyncEvent.prototype, 'isFiring', {
     if (value) this.__firedAt = Date.now();
   },
   get: function get() {
-    return Boolean(this.__isFiring && Date.now() - this.__firedAt < SyncEvent.FIRING_EXPIRIATION);
+    return Boolean(this.__isFiring && Date.now() - this.__firedAt < SyncEvent.FIRING_EXPIRATION);
   },
 });
 
-SyncEvent.prototype._isValidating = false;
+/**
+ * Indicates whether this request currently being validated to insure it wasn't read
+ * from IndexedDB and fired by another tab.
+ *
+ * @property {Boolean}
+ */
+Object.defineProperty(SyncEvent.prototype, '_isValidating', {
+  enumerable: true,
+  set: function set(value) {
+    this.__isValidating = value;
+    if (value) this.__validatedAt = Date.now();
+  },
+  get: function get() {
+    return Boolean(this.__isValidating && Date.now() - this.__validatedAt < SyncEvent.VALIDATION_EXPIRATION);
+  },
+});
 
 SyncEvent.prototype.id = '';
 
@@ -174,7 +189,15 @@ SyncEvent.prototype.data = null;
  * @type {number}
  * @static
  */
-SyncEvent.FIRING_EXPIRIATION = 1000 * 60 * 2;
+SyncEvent.FIRING_EXPIRATION = 1000 * 15;
+
+/**
+ * After checking the database to see if this event has been claimed by another browser tab,
+ * how long to wait before flagging it as failed, in the event of no-response.  Measured in ms.
+ * @type {number}
+ * @static
+ */
+SyncEvent.VALIDATION_EXPIRATION = 500;
 
 /**
  * A layer.SyncEvent intended to be fired as an XHR request.

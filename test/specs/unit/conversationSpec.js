@@ -793,7 +793,6 @@ describe("The Conversation Class", function() {
             client._createObject(c.last_message);
             c.last_message = mid;
 
-
             // Run
             conversation._populateFromServer(c);
 

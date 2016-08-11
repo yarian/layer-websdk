@@ -304,6 +304,41 @@ describe("The SyncManager Class", function() {
             syncManager.request(evt);
             expect(syncManager._processNextRequest).toHaveBeenCalledWith();
         });
+
+        it("Should add a receipt request to the receipts queue", function() {
+            var receiptEvt = new layer.XHRSyncEvent({
+                operation: "RECEIPT"
+            });
+
+            // Run
+            syncManager.request(receiptEvt);
+
+            // Posttest
+            expect(syncManager.receiptQueue).toEqual([receiptEvt]);
+        });
+
+        it("Should call _processNextReceiptRequest if there are ANY requests in the receipts queue", function() {
+            syncManager.queue = [];
+            syncManager.receiptQueue = [
+                new layer.XHRSyncEvent({
+                    operation: "RECEIPT"
+                }),
+                new layer.XHRSyncEvent({
+                    operation: "RECEIPT"
+                })
+            ];
+            syncManager.receiptQueue.isFiring = true;
+            spyOn(syncManager, "_processNextReceiptRequest");
+
+            // Run
+            syncManager.request(new layer.XHRSyncEvent({
+                operation: "RECEIPT"
+            }));
+
+            // Posttest
+            expect(syncManager.receiptQueue.length).toEqual(3);
+            expect(syncManager._processNextReceiptRequest).toHaveBeenCalledWith();
+        });
     });
 
 
@@ -369,7 +404,33 @@ describe("The SyncManager Class", function() {
             // Posttest
             expect(syncManager.queue[0]._isValidating).toBe(true);
             expect(syncManager._validateRequest.calls.count()).toEqual(1);
+        });
 
+        it("Should fire up to 5 receiptRequests", function() {
+            syncManager.receiptQueue = [
+                new layer.XHRSyncEvent({operation: "RECEIPT"}),
+                new layer.XHRSyncEvent({operation: "RECEIPT"}),
+                new layer.XHRSyncEvent({operation: "RECEIPT"}),
+                new layer.XHRSyncEvent({operation: "RECEIPT"}),
+                new layer.XHRSyncEvent({operation: "RECEIPT"}),
+                new layer.XHRSyncEvent({operation: "RECEIPT"}),
+                new layer.XHRSyncEvent({operation: "RECEIPT"}),
+                new layer.XHRSyncEvent({operation: "RECEIPT"})
+            ];
+
+            // Run
+            syncManager._processNextReceiptRequest();
+
+            // Posttest
+            expect(syncManager.receiptQueue[0].isFiring).toBe(true);
+            expect(syncManager.receiptQueue[1].isFiring).toBe(true);
+            expect(syncManager.receiptQueue[2].isFiring).toBe(true);
+            expect(syncManager.receiptQueue[3].isFiring).toBe(true);
+            expect(syncManager.receiptQueue[4].isFiring).toBe(false);
+            expect(syncManager.receiptQueue[5].isFiring).toBe(false);
+            expect(syncManager.receiptQueue[6].isFiring).toBe(false);
+            expect(syncManager.receiptQueue[7].isFiring).toBe(false);
+            expect(requests.count()).toEqual(4);
         });
 
         it("Should call abort if isDestroyed", function() {
