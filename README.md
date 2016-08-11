@@ -368,7 +368,7 @@ var message = conversation.createMessage({
         mimeType: 'text/plain'
     })]
 }).send({
-    title: 'New Message from World'
+    title: 'New Message from World',
     text: 'World Says "Hello World"; its a very self involved planet',
     sound: 'ding.aiff'
 });
@@ -389,7 +389,7 @@ Also note that the send method takes an optional parameter for push notification
 
 ```javascript
 message.send({
-    title: 'New Message from World'
+    title: 'New Message from World',
     text: 'World Says "Hello World"; its a very self involved planet',
     sound: 'ding.aiff'
 });
