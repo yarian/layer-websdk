@@ -637,6 +637,7 @@ class DbManager extends Root {
     if (part.useBlob) {
       part.body = Util.base64ToBlob(part.body);
       delete part.useBlob;
+      part.encoding = null;
     }
   }
 

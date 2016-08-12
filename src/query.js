@@ -3,7 +3,7 @@
  *
  *      // 1. Using a Query Builder
  *      var queryBuilder = QueryBuilder.conversations().sortBy('lastMessage');
- *      var query = client.createQuery(client, queryBuilder);
+ *      var query = client.createQuery(queryBuilder);
  *
  *      // 2. Passing properties directly
  *      var query = client.createQuery({
