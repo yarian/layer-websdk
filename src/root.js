@@ -223,7 +223,7 @@ class Root extends EventClass {
     // Iterate over all formally defined properties
     try {
       const keys = [];
-      for (let key in this.constructor.prototype) if (!(key in layer.Root.prototype)) keys.push(key);
+      for (let key in this.constructor.prototype) if (!(key in Root.prototype)) keys.push(key);
 
       keys.forEach(key => {
         const v = this[key];

@@ -1305,6 +1305,7 @@ describe("The Message class", function() {
             var blob1 = new Blob([new Array(layer.DbManager.MaxPartSize + 10).join('b')], {type : 'text/markdown'});
             var blob2 = new Blob([new Array(layer.DbManager.MaxPartSize + 10).join('c')], {type : 'image/png'});
 
+
             m = conversation.createMessage({
                 parts: [
                     {

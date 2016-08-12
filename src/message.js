@@ -588,7 +588,7 @@ class Message extends Syncable {
    */
   _readAllBlobs(callback) {
     let count = 0;
-    const parts = this.parts.filter(part => Util.isBlob(part.body) && MessagePart.isTextualMimeType(part.mimeType));
+    const parts = this.parts.filter(part => Util.isBlob(part.body) && part.isTextualMimeType());
     parts.forEach((part) => {
       Util.fetchTextFromFile(part.body, (text) => {
         part.body = text;

@@ -89,7 +89,6 @@ describe("The MessageParts class", function() {
         it("Should initialize with an object", function() {
             expect(new layer.MessagePart({body: "hey"}).body).toEqual("hey");
             expect(new layer.MessagePart({mimeType: "text/hey"}).mimeType).toEqual("text/hey");
-            expect(new layer.MessagePart({encoding: "base64"}).encoding).toEqual("base64");
             expect(new layer.MessagePart({id: "Impart"}).id).toEqual("Impart");
         });
 
@@ -122,12 +121,12 @@ describe("The MessageParts class", function() {
             expect(new layer.MessagePart(blob).url).toEqual('');
         });
 
-        it("Should initialize with Blob and custom mimeType", function() {
-            var b = generateBlob();
+
+        it("Should convert the body to Blob if non-textual mimeType and non-blob body", function() {
             expect(new layer.MessagePart({
-                body: b,
-                mimeType: 'not/blob'
-            }).mimeType).toEqual('not/blob');
+                body: "hey",
+                mimeType: "ho/hum"
+            }).body).toEqual(jasmine.any(Blob));
         });
 
         it("Should initialize with Content", function() {
@@ -138,7 +137,7 @@ describe("The MessageParts class", function() {
         it("Should initialize with blob and url if base64 encoded", function() {
             var part = layer.MessagePart._createFromServer({
                 body: imgBase64,
-                mimeType: 'not/blob',
+                mime_type: 'not/blob',
                 encoding: 'base64'
             });
             expect(part.body instanceof Blob).toBe(true);
@@ -229,7 +228,7 @@ describe("The MessageParts class", function() {
         var part, message, content;
         beforeEach(function() {
             content = new layer.Content({expiration: new Date()});
-            part = new layer.MessagePart({mimeType: "text/dog", _content: content});
+            part = new layer.MessagePart({mimeType: "food/dog", _content: content});
             message = conversation.createMessage({parts: [part]}).send();
             part.id = message.id + "/parts/0";
         });
@@ -254,7 +253,7 @@ describe("The MessageParts class", function() {
           expect(part._fetchContentComplete).toHaveBeenCalledWith(blob, undefined);
         });
 
-        it("Should call _fetchTextFromFile for text/plain", function() {
+        it("Should call _fetchTextFromBlob for text/plain", function() {
           var text = new Array(layer.DbManager.MaxPartSize + 10).join('a');
           var blob = new Blob([text], {type : 'text/plain'});
           part = new layer.MessagePart(blob);
@@ -342,7 +341,7 @@ describe("The MessageParts class", function() {
           part = layer.MessagePart._createFromServer({
               id: message.id + "/parts/3",
               body: "jane",
-              encoding: "john",
+              mime_type: 'dog/food',
               content: {
                   id: "jill",
                   download_url: "fred",
@@ -390,7 +389,7 @@ describe("The MessageParts class", function() {
           part = layer.MessagePart._createFromServer({
               id: "joe",
               body: "jane",
-              encoding: "john",
+              mime_type: 'dog/food',
               content: {
                   id: "jill",
                   download_url: "fred",
@@ -461,7 +460,8 @@ describe("The MessageParts class", function() {
 
         it("Should call _sendBlob", function() {
             var part = new layer.MessagePart({
-                body: generateBlob()
+                body: generateBlob(),
+                mimeType: 'not/here'
             });
             spyOn(part, "_sendBlob");
 
@@ -490,7 +490,7 @@ describe("The MessageParts class", function() {
         it("Should trigger with body and mime_type", function() {
             var part = new layer.MessagePart({
                 body: "hey",
-                mimeType: "ho"
+                mimeType: "text/ho"
             });
             spyOn(part, "trigger");
 
@@ -500,34 +500,15 @@ describe("The MessageParts class", function() {
             // Posttest
             expect(part.trigger).toHaveBeenCalledWith("parts:send", {
                 body: "hey",
-                mime_type: "ho"
+                mime_type: "text/ho"
             });
         });
 
-        it("Should trigger with encoding", function() {
-            var part = new layer.MessagePart({
-                body: "hey",
-                mimeType: "ho",
-                encoding: "fred"
-            });
-            spyOn(part, "trigger");
-
-            // Run
-            part._sendBody();
-
-            // Posttest
-            expect(part.trigger).toHaveBeenCalledWith("parts:send", {
-                body: "hey",
-                mime_type: "ho",
-                encoding: "fred"
-            });
-        });
 
         it("Should throw error on non-string", function() {
            var part = new layer.MessagePart({
                 body: {hey: "ho"},
-                mimeType: "ho",
-                encoding: "fred"
+                mimeType: "text/ho"
             });
 
             // Run
@@ -566,12 +547,18 @@ describe("The MessageParts class", function() {
     describe("The _sendBlob() method", function() {
         it("Should send small blobs", function(done) {
             var part = new layer.MessagePart({
-                body: new Blob([atob("abc")], {type: "text/plain"}),
+                body: new Blob([atob("abc")], {type: "fred"}),
                 mimeType: "fred"
             });
 
-            spyOn(part, "_sendBody").and.callFake(function() {
-                expect(true).toBe(true);
+            spyOn(part, "trigger").and.callFake(function(eventName, data) {
+                expect(eventName).toEqual("parts:send");
+                expect(data).toEqual({
+                    encoding: "base64",
+                    mime_type: "fred",
+                    body: jasmine.any(String)
+                });
+                expect(data.body.length > 0).toBe(true);
                 done();
             });
 
@@ -804,6 +791,7 @@ describe("The MessageParts class", function() {
                 body: "hey",
                 mimeType: "text/plain2"
             });
+            spyOn(part, "isTextualMimeType").and.returnValue(false);
             expect(part.getText()).toEqual("");
         });
     });
@@ -832,7 +820,7 @@ describe("The MessageParts class", function() {
             part = layer.MessagePart._createFromServer({
                 id: "joe",
                 body: "jane",
-                encoding: "john",
+                mime_type: 'text/plain',
                 content: {
                     id: "jill"
                 }
@@ -851,10 +839,6 @@ describe("The MessageParts class", function() {
             expect(part.body).toEqual("jane");
         });
 
-        it("Should have a correct encoding", function() {
-            expect(part.encoding).toEqual("john");
-        });
-
         it("Should have a correct content", function() {
             expect(part._content instanceof layer.Content).toBe(true);
             expect(part._content.id).toEqual("jill");
@@ -868,6 +852,7 @@ describe("The MessageParts class", function() {
           part = layer.MessagePart._createFromServer({
                 id: "joe",
                 body: "jane",
+                mime_type: "text/plain",
                 encoding: "john"
             });
             expect(part.hasContent).toEqual(false);
@@ -881,6 +866,7 @@ describe("The MessageParts class", function() {
               id: "joe",
               body: "jane",
               encoding: "john",
+              mime_type: "text/plain",
               content: {
                   id: "jill",
                   download_url: "fred",

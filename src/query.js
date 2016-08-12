@@ -341,6 +341,8 @@ class Query extends Root {
     this._predicate = null;
     this._nextDBFromId = '';
     this._nextServerFromId = '';
+    this._isServerSyncing = false;
+    this.pagedToEnd = false;
     this.paginationWindow = this._initialPaginationWindow;
     this._triggerChange({
       data: [],
@@ -377,8 +379,9 @@ class Query extends Root {
       const removedData = this.data.slice(this.paginationWindow);
       this.data = this.data.slice(0, this.paginationWindow);
       this.client._checkAndPurgeCache(removedData);
+      this.pagedToEnd = false;
       this._triggerAsync('change', { data: [] });
-    } else if (pageSize === 0) {
+    } else if (pageSize === 0 || this.pagedToEnd) {
       // No need to load 0 results.
     } else {
       switch (this.model) {
@@ -422,7 +425,7 @@ class Query extends Root {
         url: this._firingRequest,
         method: 'GET',
         sync: false,
-      }, results => this._processRunResults(results, this._firingRequest));
+      }, results => this._processRunResults(results, this._firingRequest, pageSize));
     }
   }
 
@@ -500,7 +503,7 @@ class Query extends Root {
           url: newRequest,
           method: 'GET',
           sync: false,
-        }, results => this._processRunResults(results, newRequest));
+        }, results => this._processRunResults(results, newRequest, pageSize));
       }
 
       // If there are no results, then its a new query; automatically populate it with the Conversation's lastMessage.
@@ -545,7 +548,7 @@ class Query extends Root {
         url: newRequest,
         method: 'GET',
         sync: false,
-      }, results => this._processRunResults(results, newRequest));
+      }, results => this._processRunResults(results, newRequest, pageSize));
     }
   }
 
@@ -576,7 +579,7 @@ class Query extends Root {
         url: newRequest,
         method: 'GET',
         sync: false,
-      }, results => this._processRunResults(results, newRequest));
+      }, results => this._processRunResults(results, newRequest, pageSize));
     }
   }
 
@@ -587,15 +590,36 @@ class Query extends Root {
    * @method _processRunResults
    * @private
    * @param  {Object} results - Full xhr response object with server results
+   * @param {Number} pageSize - Number of entries that were requested
    */
-  _processRunResults(results, requestUrl) {
+  _processRunResults(results, requestUrl, pageSize) {
     if (requestUrl !== this._firingRequest || this.isDestroyed) return;
+    const isSyncing = results.xhr.getResponseHeader('Layer-Conversation-Is-Syncing') === 'true';
+
 
     this.isFiring = false;
     this._firingRequest = '';
     if (results.success) {
       this._appendResults(results, false);
       this.totalSize = Number(results.xhr.getResponseHeader('Layer-Count'));
+
+      if (results.data.length < pageSize) this.pagedToEnd = true;
+
+      // If the server is syncing, and the query needs more data, keep polling the server,
+      // and notify the client that we're polling.
+      if (isSyncing && this.data.length < this.paginationWindow) {
+        if (!this._isServerSyncing) {
+          this._isServerSyncing = true;
+          this.trigger('server-syncing-state', { syncing: true });
+        }
+        setTimeout(() => this._run(), 1500);
+      }
+
+       // If we're done polling the server (isSyncing is false OR we have enough data) notify the client that we're done.
+      else if (this._isServerSyncing) {
+        this._isServerSyncing = false;
+        this.trigger('server-syncing-state', { syncing: false });
+      }
     } else {
       this.trigger('error', { error: results.data });
     }
@@ -622,7 +646,9 @@ class Query extends Root {
     const resultLength = results.data.length;
     if (resultLength) {
       if (fromDb) this._nextDBFromId = results.data[resultLength - 1].id;
-      else this._nextServerFromId = results.data[resultLength - 1].id;
+      else if (results.xhr.getResponseHeader('Layer-Conversation-Is-Syncing') !== 'true') {
+        this._nextServerFromId = results.data[resultLength - 1].id;
+      }
     }
 
     // Update this.data
@@ -1512,6 +1538,13 @@ Query.prototype.predicate = null;
 Query.prototype.isFiring = false;
 
 /**
+ * True if we have reached the last result, and further paging will just return []
+ *
+ * @type {Boolean}
+ */
+Query.prototype.pagedToEnd = false;
+
+/**
  * The last request fired.
  *
  * If multiple requests are inflight, the response
@@ -1520,6 +1553,14 @@ Query.prototype.isFiring = false;
  * @private
  */
 Query.prototype._firingRequest = '';
+
+/**
+ * Query is waiting for data from a syncing server
+ *
+ * @type {Boolean}
+ * @private
+ */
+Query.prototype._isServerSyncing = false;
 
 /**
  * The ID to use in paging the server.
@@ -1593,6 +1634,19 @@ Query._supportedEvents = [
    * @event error
    */
   'error',
+
+  /**
+   * The server needs to sync more data before it can provide the client all the requested data.
+   *
+   *     query.on('server-syncing-state', function(evt) {
+   *       alert('syncing is ' + evt.syncing ? 'running' : 'completed');
+   *     });
+   *
+   * Only occurs for querying Messages.  Comes with a parameter `syncing` set to true
+   * when we are syncing, and false when done.
+   * @event server-syncing-state
+   */
+  'server-syncing-state',
 ].concat(Root._supportedEvents);
 
 Root.initClass.apply(Query, [Query, 'Query']);

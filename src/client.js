@@ -80,7 +80,7 @@
 const ClientAuth = require('./client-authenticator');
 const Conversation = require('./conversation');
 const Query = require('./query');
-const LayerError = require('./layer-error');
+const ErrorDictionary = require('./layer-error').dictionary;
 const Syncable = require('./syncable');
 const Message = require('./message');
 const Announcement = require('./announcement');
@@ -189,6 +189,10 @@ class Client extends ClientAuth {
     this._inCleanup = false;
   }
 
+  __adjustAppId() {
+    if (this.appId) throw new Error(ErrorDictionary.appIdImmutable);
+  }
+
   /**
    * Retrieve a conversation by Identifier.
    *
@@ -216,7 +220,7 @@ class Client extends ClientAuth {
    * @return {layer.Conversation}
    */
   getConversation(id, canLoad) {
-    if (typeof id !== 'string') throw new Error(LayerError.dictionary.idParamRequired);
+    if (typeof id !== 'string') throw new Error(ErrorDictionary.idParamRequired);
     if (this._conversationsHash[id]) {
       return this._conversationsHash[id];
     } else if (canLoad) {
@@ -336,7 +340,7 @@ class Client extends ClientAuth {
    * @return {layer.Message}
    */
   getMessage(id, canLoad) {
-    if (typeof id !== 'string') throw new Error(LayerError.dictionary.idParamRequired);
+    if (typeof id !== 'string') throw new Error(ErrorDictionary.idParamRequired);
 
     if (this._messagesHash[id]) {
       return this._messagesHash[id];
@@ -352,7 +356,7 @@ class Client extends ClientAuth {
    * @param {String} id - ID of the Message Part; layer:///messages/uuid/parts/5
    */
   getMessagePart(id) {
-    if (typeof id !== 'string') throw new Error(LayerError.dictionary.idParamRequired);
+    if (typeof id !== 'string') throw new Error(ErrorDictionary.idParamRequired);
 
     const messageId = id.replace(/\/parts.*$/, '');
     const message = this.getMessage(messageId);
@@ -463,7 +467,7 @@ class Client extends ClientAuth {
    * @return {layer.Identity}
    */
   getIdentity(id, canLoad) {
-    if (typeof id !== 'string') throw new Error(LayerError.dictionary.idParamRequired);
+    if (typeof id !== 'string') throw new Error(ErrorDictionary.idParamRequired);
     if (!Identity.isValidId(id)) {
       id = Identity.prefixUUID + encodeURIComponent(id);
     }
@@ -845,7 +849,7 @@ class Client extends ClientAuth {
    * @return {layer.Query}
    */
   getQuery(id) {
-    if (typeof id !== 'string') throw new Error(LayerError.dictionary.idParamRequired);
+    if (typeof id !== 'string') throw new Error(ErrorDictionary.idParamRequired);
     return this._queriesHash[id] || null;
   }
 

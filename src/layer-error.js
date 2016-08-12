@@ -159,6 +159,7 @@ LayerError.dictionary = {
   invalidUserIdChange: 'The prn field in the Identity Token must match the requested UserID',
   predicateNotSupported: 'The predicate is not supported for this value of model',
   invalidPredicate: 'The predicate does not match the expected format',
+  appIdImmutable: 'The appId property cannot be changed',
 };
 
 module.exports = LayerError;

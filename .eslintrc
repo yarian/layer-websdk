@@ -11,7 +11,8 @@
     "consistent-return": 0,
     "prefer-template": 0,
     "no-underscore-dangle": 0,
-    "no-unused-vars": [2, {"args": "none"}]
+    "no-unused-vars": [2, {"args": "none"}],
+    "operator-assignment": 0
   },
   "env": {
       "browser": true,

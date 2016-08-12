@@ -6,6 +6,12 @@
 * No longer writes Blobs to indexedDB as the Evil Safari Smurfs (v9.1.2) have decided not to support that.  Now writes base64.
 * Client.logout() now provides a callback notifying you when its safe to navigate away from the page.  Failure to use this may cause
   data to not be deleted on logging out.  Especially problematic in Safari.
+* Simplified access to MessagePart data; `MessagePart.body` will be either a string or Blob, never a base64 string
+  * Adds static property `layer.MessagePart.TextualMimeTypes` which stores an array of strings and regular expressions used to test if a MIME Type represents textual data.
+  * Any textual MessagePart will have a `body` that is `null` (Rich Content which hasn't been fetched via `part.fetchContent()`) or a String.
+  * Any non-textual MessagePart will have a `body` that is `null` (Rich Content which hasn't been fetched via `part.fetchContent()`) or a Blob)
+  * Note that these rules apply regardless of whether the MessagePart size is less than or greater than 2KB, and regardless of whether its transmitted
+    as base64 data.  This means any renderer has only to test for `null` or a value to handle its content.
 
 ## 2.0.0 Beta 1
 
@@ -32,6 +38,7 @@
 * No more `temp_layer:///` IDs, no more ID change events
   * Sending a Message will no longer result in a `messages:change` event that contains a change to the Message ID; the Message ID that is assigned when creating the Message will be accepted by the server.
   * Conversations may still get an ID change event in the case where a Distinct Conversation is created, and a matching Distinct Conversation is found on the server.
+* Querys on Messages in a Conversation still syncing its data will retry until syncing is done or a full page of data is loaded.  (WEB-1053)
 
 #### Breaking Changes
 
