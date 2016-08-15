@@ -1,5 +1,9 @@
 # Javascript SDK Change Log
 
+## 1.0.12
+
+* JSDuck fixes
+
 ## 1.0.11
 
 * Fixes bug in Query retry when server is syncing
