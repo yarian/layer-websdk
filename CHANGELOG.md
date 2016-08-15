@@ -1,6 +1,6 @@
 # Web SDK Change Log
 
-## 2.0.0 Beta 2
+## 2.0.0 Beta 3
 
 * layer.Client.websocketUrl is now a public property
 * No longer writes Blobs to indexedDB as the Evil Safari Smurfs (v9.1.2) have decided not to support that.  Now writes base64.
