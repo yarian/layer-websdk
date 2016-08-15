@@ -32,7 +32,7 @@ Simplest approach to install the Web SDK is to add the following script tag:
 <script src='//cdn.layer.com/sdk/2.0.0-beta/layer-websdk.min.js'></script>
 ```
 
-* For stricter code control, use `//cdn.layer.com/sdk/2.0.0-beta.1/layer-websdk.min.js` instead.
+* For stricter code control, use `//cdn.layer.com/sdk/2.0.0-beta.2/layer-websdk.min.js` instead.
 
 All classes can then be accessed via the `layer` namespace:
 
@@ -654,4 +654,3 @@ Layer Web SDK is an Open Source project maintained by Layer, inc. Feedback and c
 ## Contact
 
 Layer Web SDK was developed in San Francisco by the Layer team. If you have any technical questions or concerns about this project feel free to reach out to [Layer Support](mailto:support@layer.com).
-
