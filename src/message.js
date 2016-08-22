@@ -725,9 +725,10 @@ class Message extends Syncable {
    *
    * * layer.Constants.DELETION_MODE.ALL: This deletes the local copy immediately, and attempts to also
    *   delete the server's copy.
+   * * layer.Constants.DELETION_MODE.MY_DEVICES: Deletes this Message from all of my devices; no effect on other users.
    *
    * @method delete
-   * @param {number} deletionMode - layer.Constants.DELETION_MODE.ALL is only supported mode at this time
+   * @param {String} deletionMode
    */
   delete(mode) {
     if (this.isDestroyed) throw new Error(LayerError.dictionary.isDestroyed);

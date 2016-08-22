@@ -579,7 +579,7 @@ class Conversation extends Syncable {
    *    triggering a conversations:add event.
    *
    * @method delete
-   * @param {number} deletionMode - layer.Constants.DELETION_MODE.ALL is only supported mode at this time
+   * @param {String} deletionMode
    */
   delete(mode) {
     if (this.isDestroyed) throw new Error(LayerError.dictionary.isDestroyed);
