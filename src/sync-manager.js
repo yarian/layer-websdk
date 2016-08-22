@@ -105,6 +105,9 @@ class SyncManager extends Root {
       if (this.queue.length) {
         this.queue[0].isFiring = false;
       }
+      if (this.receiptQueue.length) {
+        this.receiptQueue.forEach(syncEvt => { syncEvt.isFiring = false; });
+      }
     }
   }
 
@@ -140,10 +143,13 @@ class SyncManager extends Root {
       this._purgeOnDelete(requestEvt);
     }
 
-    // Fire the request if there aren't any existing requests already being processed.
-    // If there is an existing request in the queue and its not firing, (re)fire it now.
-    if ((this.queue.length === 1 && this.queue[0] === requestEvt) || (this.queue.length && !this.queue[0].isFiring)) {
-      this._processNextRequest();
+    this._processNextRequest();
+  }
+
+  _processNextRequest() {
+    // Fire the request if there aren't any existing requests already firing
+    if (this.queue.length && !this.queue[0].isFiring) {
+      this._processNextStandardRequest();
     }
 
     // If we have anything in the receipts queue, fire it
@@ -179,7 +185,7 @@ class SyncManager extends Root {
    * @method _processNextRequest
    * @private
    */
-  _processNextRequest() {
+  _processNextStandardRequest() {
     if (this.isDestroyed || !this.client.isAuthenticated) return;
     const requestEvt = this.queue[0];
     if (this.isOnline() && requestEvt && !requestEvt.isFiring && !requestEvt._isValidating) {
@@ -188,7 +194,7 @@ class SyncManager extends Root {
         requestEvt._isValidating = false;
         if (!isValid) {
           this._removeRequest(requestEvt);
-          return this._processNextRequest();
+          return this._processNextStandardRequest();
         } else {
           this._fireRequest(requestEvt);
         }
@@ -256,7 +262,7 @@ class SyncManager extends Root {
   _fireRequestXHR(requestEvt) {
     requestEvt.isFiring = true;
     if (!requestEvt.headers) requestEvt.headers = {};
-    requestEvt.headers.authorization = "Layer session-token=\"" + this.client.sessionToken + "\"";
+    requestEvt.headers.authorization = 'Layer session-token="' + this.client.sessionToken + '"';
     logger.debug(`Sync Manager XHR Request Firing ${requestEvt.operation} ${requestEvt.target}`,
       requestEvt.toObject());
     xhr(requestEvt._getRequestData(this.client), result => this._xhrResult(result, requestEvt));
@@ -414,7 +420,7 @@ class SyncManager extends Root {
       case 'validateOnlineAndRetry':
         // Server appears to be hung but will eventually recover.
         // Retry a few times and then error out.
-        this._xhrValidateIsOnline();
+        this._xhrValidateIsOnline(requestEvt);
         break;
       case 'serverUnavailable':
         // Server is in a bad state but will eventually recover;
@@ -444,7 +450,7 @@ class SyncManager extends Root {
     }
 
     // Write the sync event back to the database if we haven't completed processing it
-    if (this.queue.indexOf(requestEvt) !== -1) {
+    if (this.queue.indexOf(requestEvt) !== -1 || this.receiptQueue.indexOf(requestEvt) !== -1) {
       this.client.dbManager.writeSyncEvents([requestEvt], false);
     }
   }
@@ -550,9 +556,9 @@ class SyncManager extends Root {
    * @method _xhrValidateIsOnline
    * @private
    */
-  _xhrValidateIsOnline() {
+  _xhrValidateIsOnline(requestEvt) {
     logger.debug('Sync Manager verifying online state');
-    this.onlineManager.checkOnlineStatus(isOnline => this._xhrValidateIsOnlineCallback(isOnline));
+    this.onlineManager.checkOnlineStatus(isOnline => this._xhrValidateIsOnlineCallback(isOnline, requestEvt));
   }
 
   /**
@@ -568,8 +574,9 @@ class SyncManager extends Root {
    * @method _xhrValidateIsOnlineCallback
    * @private
    * @param  {boolean} isOnline  - Response object returned by xhr call
+   * @param {layer.SyncEvent} requestEvt - The request that failed triggering this call
    */
-  _xhrValidateIsOnlineCallback(isOnline) {
+  _xhrValidateIsOnlineCallback(isOnline, requestEvt) {
     logger.debug('Sync Manager online check result is ' + isOnline);
     if (!isOnline) {
       // Treat this as a Connection Error
@@ -577,7 +584,7 @@ class SyncManager extends Root {
     } else {
       // Retry the request in case we were offline, but are now online.
       // Of course, if this fails, give it up entirely.
-      this.queue[0].retryCount++;
+      requestEvt.retryCount++;
       this._processNextRequest();
     }
   }
@@ -621,8 +628,9 @@ class SyncManager extends Root {
    * @param  {layer.SyncEvent} requestEvt - SyncEvent Request to remove
    */
   _removeRequest(requestEvt) {
-    const index = this.queue.indexOf(requestEvt);
-    if (index !== -1) this.queue.splice(index, 1);
+    const queue = requestEvt.operation === 'RECEIPT' ? this.receiptQueue : this.queue;
+    const index = queue.indexOf(requestEvt);
+    if (index !== -1) queue.splice(index, 1);
   }
 
   /**
@@ -641,6 +649,7 @@ class SyncManager extends Root {
    */
   _purgeDependentRequests(request) {
     this.queue = this.queue.filter(evt => evt.depends.indexOf(request.target) === -1 || evt === request);
+    this.receiptQueue = this.receiptQueue.filter(evt => evt.depends.indexOf(request.target) === -1 || evt === request);
   }
 
 
@@ -666,6 +675,8 @@ class SyncManager extends Root {
   destroy() {
     this.queue.forEach(evt => evt.destroy());
     this.queue = null;
+    this.receiptQueue.forEach(evt => evt.destroy());
+    this.receiptQueue = null;
     super.destroy();
   }
 

@@ -1,5 +1,9 @@
 # Web SDK Change Log
 
+## 2.0.0 Beta 4
+
+* Fixes streamlined receipts sync queue
+
 ## 2.0.0 Beta 3
 
 * layer.Client.websocketUrl is now a public property
