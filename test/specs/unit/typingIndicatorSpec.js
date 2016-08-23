@@ -503,7 +503,7 @@ describe("The Typing Indicator Classes", function() {
 
             it("Should destroy the publisher", function() {
                 listener.destroy();
-                expect(listener.publisher.isDestroyed);
+                expect(listener.publisher.isDestroyed).toBe(true);
             });
 
             it("Should remove references to the dom", function() {
