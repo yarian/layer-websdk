@@ -1530,7 +1530,7 @@ describe("The DbManager Class", function() {
         });
       });
 
-      it("Should skip first result if isFromId", function() {
+      it("Should skip first result if isFromId", function(done) {
         var expectedResult;
         dbManager._getMessageData([m2, m1, message], function(result) { expectedResult = result; });
 
