@@ -184,6 +184,9 @@ module.exports = function (grunt) {
     remove: {
       build: {
         fileList: ['build/client.build.js']
+      },
+      lib: {
+        dirList: ['lib']
       }
     },
     uglify: {
@@ -291,13 +294,13 @@ module.exports = function (grunt) {
   grunt.loadNpmTasks('grunt-contrib-uglify');
   grunt.loadNpmTasks('grunt-remove');
   grunt.registerTask('debug', ['browserify:debug']);
-  grunt.registerTask('buildmin', ['browserify:build', 'uglify', 'remove:build']);
-  grunt.registerTask('build', ['debug', 'buildmin', 'babel:dist']);
-  grunt.registerTask('prepublish', ['babel:dist']);
+  grunt.registerTask('buildmin', ['remove:lib', 'browserify:build', 'uglify', 'remove:build']);
+  grunt.registerTask('build', ['remove:lib', 'debug', 'buildmin', 'babel:dist']);
+  grunt.registerTask('prepublish', ['remove:lib', 'babel:dist']);
 
   // Documentation
   grunt.loadNpmTasks('grunt-jsduck');
-  grunt.registerTask('docs', ['babel:dist', 'jsduck']);
+  grunt.registerTask('docs', ['remove:lib', 'babel:dist', 'jsduck']);
 
   // Testing
   grunt.loadNpmTasks('grunt-contrib-jasmine');
@@ -313,3 +316,4 @@ module.exports = function (grunt) {
   grunt.loadNpmTasks('grunt-contrib-connect');
   grunt.registerTask('sauce', ['connect', 'saucelabs-jasmine']);
 };
+
