@@ -90,6 +90,7 @@ describe("The QueryBuilder Classes", function() {
             });
         });
 
+
         describe("The forConversation() method", function() {
             it("Should update the predicate if it has a value", function() {
                 var builder = layer.QueryBuilder.messages().forConversation("hey");
@@ -109,6 +110,7 @@ describe("The QueryBuilder Classes", function() {
                     model: 'Message',
                     returnType: 'object',
                     dataType: 'object',
+                    predicate: '',
                     paginationWindow: layer.Query.prototype.paginationWindow
                 });
             });
@@ -128,16 +130,61 @@ describe("The QueryBuilder Classes", function() {
         });
 
         describe("The build() method", function() {
-            it("Should throw an error if no conversationId", function() {
+            it("Should not require a conversationId", function() {
                 var builder = layer.QueryBuilder.messages();
-                expect(function() {
-                    builder.build();
-                }).toThrowError(layer.LayerError.dictionary.conversationMissing);
+                expect(builder.build()).toEqual({
+                    model: 'Message',
+                    returnType: 'object',
+                    dataType: 'object',
+                    paginationWindow: 100
+                });
             });
-
         });
     });
 
+    describe("The AnnouncementsQuery Class", function() {
+
+        describe("The constructor() method", function() {
+            it("Should not require parameters", function() {
+                var builder = layer.QueryBuilder.announcements();
+                expect(builder.build()).toEqual({
+                    model: 'Announcement',
+                    returnType: 'object',
+                    dataType: 'object',
+                    paginationWindow: layer.Query.prototype.paginationWindow
+                });
+            });
+
+            it("Should initialize from a Query", function() {
+                var query = new layer.Query({
+                    client: client,
+                    model: "Announcement",
+                    dataType: "instance",
+                    returnType: "object"
+                });
+                var builder = layer.QueryBuilder.fromQueryObject(query);
+                expect(builder.build()).toEqual({
+                    model: 'Announcement',
+                    returnType: 'object',
+                    dataType: 'instance',
+                    paginationWindow: layer.Query.prototype.paginationWindow
+                });
+            });
+        });
+
+        describe("The paginationWindow() method", function() {
+            it("Should update the paginationWindow property", function() {
+                var builder = layer.QueryBuilder.announcements().paginationWindow(5);
+                builder._conversationIdSet = true;
+                expect(builder.build()).toEqual({
+                    model: 'Announcement',
+                    returnType: 'object',
+                    dataType: 'object',
+                    paginationWindow: 5
+                });
+            });
+        });
+    });
 
     describe("The ConversationsQuery Class", function() {
         describe("The constructor() method", function() {

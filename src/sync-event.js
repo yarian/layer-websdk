@@ -15,7 +15,8 @@
  * @class  layer.SyncEvent
  * @extends layer.Root
  */
-class SyncEvent  {
+const Utils = require('./client-utils');
+class SyncEvent {
   /**
    * Create a layer.SyncEvent.  See layer.ClientAuthenticator for examples of usage.
    *
@@ -31,6 +32,8 @@ class SyncEvent  {
       }
     }
     if (!this.depends) this.depends = [];
+    if (!this.id) this.id = 'layer:///syncevents/' + Utils.generateUUID();
+    if (!this.createdAt) this.createdAt = Date.now();
   }
 
   /**
@@ -51,9 +54,11 @@ class SyncEvent  {
    * @method _updateData
    * @private
    */
-  _updateData() {
-    if (typeof this.data === 'function') {
-      this.data = this.data();
+  _updateData(client) {
+    if (!this.target) return;
+    const target = client._getObject(this.target);
+    if (target && this.operation === 'POST' && target._getSendData) {
+      this.data = target._getSendData(this.data);
     }
   }
 
@@ -77,6 +82,10 @@ class SyncEvent  {
  */
 SyncEvent.prototype.operation = '';
 
+SyncEvent.prototype.fromDB = false;
+
+SyncEvent.prototype.createdAt = 0;
+
 
 /**
  * Indicates whether this request currently in-flight.
@@ -94,9 +103,29 @@ Object.defineProperty(SyncEvent.prototype, 'isFiring', {
     if (value) this.__firedAt = Date.now();
   },
   get: function get() {
-    return Boolean(this.__isFiring && Date.now() - this.__firedAt < SyncEvent.FIRING_EXPIRIATION);
+    return Boolean(this.__isFiring && Date.now() - this.__firedAt < SyncEvent.FIRING_EXPIRATION);
   },
 });
+
+/**
+ * Indicates whether this request currently being validated to insure it wasn't read
+ * from IndexedDB and fired by another tab.
+ *
+ * @property {Boolean}
+ */
+Object.defineProperty(SyncEvent.prototype, '_isValidating', {
+  enumerable: true,
+  set: function set(value) {
+    this.__isValidating = value;
+    if (value) this.__validatedAt = Date.now();
+  },
+  get: function get() {
+    return Boolean(this.__isValidating && Date.now() - this.__validatedAt < SyncEvent.VALIDATION_EXPIRATION);
+  },
+});
+
+SyncEvent.prototype.id = '';
+
 
 /**
  * Indicates whether the request completed successfully.
@@ -160,7 +189,15 @@ SyncEvent.prototype.data = null;
  * @type {number}
  * @static
  */
-SyncEvent.FIRING_EXPIRIATION = 1000 * 60 * 2;
+SyncEvent.FIRING_EXPIRATION = 1000 * 15;
+
+/**
+ * After checking the database to see if this event has been claimed by another browser tab,
+ * how long to wait before flagging it as failed, in the event of no-response.  Measured in ms.
+ * @type {number}
+ * @static
+ */
+SyncEvent.VALIDATION_EXPIRATION = 500;
 
 /**
  * A layer.SyncEvent intended to be fired as an XHR request.
@@ -176,15 +213,16 @@ class XHRSyncEvent extends SyncEvent {
    * Actually it just returns the parameters needed to make the xhr call:
    *
    *      var xhr = require('./xhr');
-   *      xhr(event._getRequestData());
+   *      xhr(event._getRequestData(client));
    *
    * @method _getRequestData
+   * @param {layer.Client} client
    * @protected
    * @returns {Object}
    */
-  _getRequestData() {
-    this._updateUrl();
-    this._updateData();
+  _getRequestData(client) {
+    this._updateUrl(client);
+    this._updateData(client);
     return {
       url: this.url,
       method: this.method,
@@ -202,9 +240,11 @@ class XHRSyncEvent extends SyncEvent {
    * @method _updateUrl
    * @private
    */
-  _updateUrl() {
-    if (typeof this.url === 'function') {
-      this.url = this.url();
+  _updateUrl(client) {
+    if (!this.target) return;
+    const target = client._getObject(this.target);
+    if (target && !this.url.match(/^http(s)\:\/\//)) {
+      this.url = target._getUrl(this.url);
     }
   }
 
@@ -214,6 +254,10 @@ class XHRSyncEvent extends SyncEvent {
       url: this.url,
       method: this.method,
     };
+  }
+
+  _getCreateId() {
+    return this.operation === 'POST' && this.data ? this.data.id : '';
   }
 }
 
@@ -260,15 +304,20 @@ class WebsocketSyncEvent extends SyncEvent {
    *
    * @method _getRequestData
    * @private
+   * @param {layer.Client} client
    * @return {Object}
    */
-  _getRequestData() {
-    this._updateData();
+  _getRequestData(client) {
+    this._updateData(client);
     return this.data;
   }
 
   toObject() {
     return this.data;
+  }
+
+  _getCreateId() {
+    return this.operation === 'POST' && this.data.data ? this.data.data.id : '';
   }
 }
 

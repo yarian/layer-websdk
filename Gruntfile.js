@@ -117,16 +117,17 @@ module.exports = function (grunt) {
           "lib/conversation.js": "src/conversation.js",
           "lib/message-part.js": "src/message-part.js",
           "lib/message.js": "src/message.js",
+          "lib/announcement.js": "src/announcement.js",
           "lib/content.js": "src/content.js",
           "lib/query.js": "src/query.js",
           "lib/query-builder.js": "src/query-builder.js",
           "lib/sync-manager.js": "src/sync-manager.js",
           "lib/sync-event.js": "src/sync-event.js",
+          "lib/db-manager.js": "src/db-manager.js",
           "lib/online-state-manager.js": "src/online-state-manager.js",
           "lib/websockets/socket-manager.js": "src/websockets/socket-manager.js",
           "lib/websockets/request-manager.js": "src/websockets/request-manager.js",
           "lib/websockets/change-manager.js": "src/websockets/change-manager.js",
-          "lib/user.js": "src/user.js",
           "lib/layer-error.js": "src/layer-error.js",
           "lib/layer-event.js": "src/layer-event.js",
           "lib/client-registry.js": "src/client-registry.js",
@@ -179,9 +180,13 @@ module.exports = function (grunt) {
         }
       }
     },
+
     remove: {
       build: {
         fileList: ['build/client.build.js']
+      },
+      lib: {
+        dirList: ['lib']
       }
     },
     uglify: {
@@ -191,19 +196,7 @@ module.exports = function (grunt) {
         mangle: {
           except: [
             "layer",
-            "Conversation",
-            "Message",
-            "MessagePart",
-            "Client",
-            "LayerEvent",
-            "LayerError",
-            "Content",
-            "OnlineStateManager",
-            "Query",
-            "SyncEvent",
-            "SyncManager",
-            "User",
-            "WebsocketManager"]
+            "Client"]
         },
         sourceMap: false,
         screwIE8: true
@@ -239,7 +232,7 @@ module.exports = function (grunt) {
           template: require('grunt-template-jasmine-istanbul'),
           templateOptions: {
             coverage: 'coverage/data/coverage.json',
-            ignoreFiles: ["coverage/index.js", "lib/user.js"],
+            ignoreFiles: ["coverage/index.js"],
             report: [{ type: "text", options: { dir: 'coverage/report/text' } },
               { type: "html", options: { dir: 'coverage/report' } }]
 
@@ -301,13 +294,13 @@ module.exports = function (grunt) {
   grunt.loadNpmTasks('grunt-contrib-uglify');
   grunt.loadNpmTasks('grunt-remove');
   grunt.registerTask('debug', ['browserify:debug']);
-  grunt.registerTask('buildmin', ['browserify:build', 'uglify', 'remove:build']);
-  grunt.registerTask('build', ['debug', 'buildmin']);
-  grunt.registerTask('prepublish', ['babel:dist']);
+  grunt.registerTask('buildmin', ['remove:lib', 'browserify:build', 'uglify', 'remove:build']);
+  grunt.registerTask('build', ['remove:lib', 'debug', 'buildmin', 'babel:dist']);
+  grunt.registerTask('prepublish', ['remove:lib', 'babel:dist']);
 
   // Documentation
   grunt.loadNpmTasks('grunt-jsduck');
-  grunt.registerTask('docs', ['babel:dist', 'jsduck']);
+  grunt.registerTask('docs', ['remove:lib', 'babel:dist', 'jsduck']);
 
   // Testing
   grunt.loadNpmTasks('grunt-contrib-jasmine');

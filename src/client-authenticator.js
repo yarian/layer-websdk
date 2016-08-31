@@ -4,7 +4,7 @@
 
   var client = new layer.Client({
     appId: "layer:///apps/staging/ffffffff-ffff-ffff-ffff-ffffffffffff",
-    userId: "Dref",
+    isTrustedDevice: false,
     challenge: function(evt) {
       myAuthenticator({
         nonce: evt.nonce,
@@ -14,7 +14,7 @@
     ready: function(client) {
       alert("Yay, I finally got my client!");
     }
-  });
+  }).connect("sampleuserId");
 
  * The Layer Client/ClientAuthenticator classes have been divided into:
  *
@@ -36,10 +36,11 @@ const WebsocketRequestManager = require('./websockets/request-manager');
 const LayerError = require('./layer-error');
 const OnlineManager = require('./online-state-manager');
 const SyncManager = require('./sync-manager');
+const DbManager = require('./db-manager');
 const { XHRSyncEvent, WebsocketSyncEvent } = require('./sync-event');
 const { ACCEPT, LOCALSTORAGE_KEYS } = require('./const');
-const atob = typeof window === 'undefined' ? require('atob') : window.atob;
 const logger = require('./logger');
+const Util = require('./client-utils');
 
 const MAX_XHR_RETRIES = 3;
 
@@ -48,74 +49,36 @@ class ClientAuthenticator extends Root {
   /**
    * Create a new Client.
    *
-   * While the appId is the only required parameter, the userId parameter
-   * is strongly recommended.
+   * The appId is the only required parameter:
+   *
+   *      var client = new Client({
+   *          appId: "layer:///apps/staging/uuid"
+   *      });
+   *
+   * For trusted devices, you can enable storage of data to indexedDB and localStorage with the `isTrustedDevice` and `isPersistenceEnabled` property:
    *
    *      var client = new Client({
    *          appId: "layer:///apps/staging/uuid",
-   *          userId: "fred"
+   *          isTrustedDevice: true,
+   *          isPersistenceEnabled: true
    *      });
    *
    * @method constructor
    * @param  {Object} options
    * @param  {string} options.appId           - "layer:///apps/production/uuid"; Identifies what
    *                                            application we are connecting to.
-   * @param  {string} [options.url=https://api.layer.com] - URL to log into a different REST server
-   * @param  {string} [options.userId='']       - If you provide a userId, we will
-   *                                            compare the userId against the one in localStorage
-   *                                            to validate use of the cached sessionToken.  This is
-   *                                            useful for insuring a change in users in your app
-   *                                            gets a change in Layer Sessions.  Failure to provide this
-   *                                            parameter means that we will NOT restore the session token.
    * @param {number} [options.logLevel=ERROR] - Provide a log level that is one of layer.Constants.LOG.NONE, layer.Constants.LOG.ERROR,
    *                                            layer.Constants.LOG.WARN, layer.Constants.LOG.INFO, layer.Constants.LOG.DEBUG
+   * @param {boolean} [options.isTrustedDevice=false] - If this is not a trusted device, no data will be written to indexedDB nor localStorage,
+   *                                            regardless of any values in layer.Client.persistenceFeatures.
+   * @param {Object} [options.isPersistenceEnabled=false] If layer.Client.isPersistenceEnabled is true, then indexedDB will be used to manage a cache
+   *                                            allowing Query results, messages sent, and all local modifications to be persisted between page reloads.
    */
   constructor(options) {
     // Validate required parameters
     if (!options.appId) throw new Error(LayerError.dictionary.appIdMissing);
 
-    // We won't copy in userId; thats set from the identity-token... or from cache.
-    // the userId argument is a way to identify if there has been a change of users.
-    const requestedUserId = options.userId;
-    let cachedSessionData = '',
-      cachedUserId = '';
-    try {
-      cachedSessionData = global.localStorage ?
-        global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + options.appId] : null;
-      cachedUserId = cachedSessionData ? JSON.parse(cachedSessionData).userId : '';
-    } catch (error) {
-      // Do nothing
-    }
-
-    delete options.userId;
-
     super(options);
-
-    this.url = this.url.replace(/\/$/, '');
-
-    // If we've been provided with a user id as a parameter, attempt to restore the session.
-    if (requestedUserId) {
-      this._restoreLastSession(options, requestedUserId, cachedUserId);
-    }
-  }
-
-  /**
-   * Handles cases where constructor is given a userId OR a userID + sessionToken.
-   *
-   * @method _restoreLastSession
-   * @private
-   */
-  _restoreLastSession(options, requestedUserId, cachedUserId) {
-    const sessionToken = options.sessionToken || this._getSessionToken();
-    if (options.sessionToken) {
-      this.userId = requestedUserId;
-    } else if (sessionToken && cachedUserId === requestedUserId) {
-      this.sessionToken = sessionToken;
-      this.userId = requestedUserId;
-    } else {
-      this.sessionToken = '';
-      this.userId = '';
-    }
   }
 
   /**
@@ -153,8 +116,6 @@ class ClientAuthenticator extends Root {
       requestManager: this.socketRequestManager,
       client: this,
     });
-
-    this._connect();
   }
 
   /**
@@ -169,28 +130,80 @@ class ClientAuthenticator extends Root {
     this.socketManager.destroy();
     this.socketChangeManager.destroy();
     this.socketRequestManager.destroy();
+    if (this.dbManager) this.dbManager.destroy();
+  }
+
+
+  /**
+   * Is Persisted Session Tokens disabled?
+   *
+   * @method _isPersistedSessionsDisabled
+   * @returns {Boolean}
+   * @private
+   */
+  _isPersistedSessionsDisabled() {
+    return !global.localStorage || this.persistenceFeatures && !this.persistenceFeatures.sessionToken;
   }
 
   /**
-   * Gets/restores the sessionToken
+   * Restore the sessionToken from localStorage.
    *
+   * This sets the sessionToken rather than returning the token.
+   *
+   * @method _restoreLastSession
    * @private
-   * @method _getSessionToken
-   * @return {string}
    */
-  _getSessionToken() {
-    if (this.sessionToken) return this.sessionToken;
-    const cachedSessionData = global.localStorage ?
-      global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId] : '{}';
+  _restoreLastSession() {
+    if (this._isPersistedSessionsDisabled()) return;
     try {
-      return JSON.parse(cachedSessionData).sessionToken;
+      const sessionData = global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId];
+      if (!sessionData) return;
+      const parsedData = JSON.parse(sessionData);
+      if (parsedData.expires < Date.now()) {
+        global.localStorage.removeItem(LOCALSTORAGE_KEYS.SESSIONDATA + this.appId);
+      } else {
+        this.sessionToken = parsedData.sessionToken;
+      }
     } catch (error) {
-      return '';
+      // No-op
     }
   }
 
+/**
+   * Restore the Identity for the session owner from localStorage.
+   *
+   * @method _restoreLastSession
+   * @private
+   * @return {Object}
+   */
+  _restoreLastUser() {
+    try {
+      const sessionData = global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId];
+      if (!sessionData) return null;
+      const userObj = JSON.parse(sessionData).user;
+      return userObj;
+    } catch (error) {
+      return null;
+    }
+  }
 
-  /* CONNECT METHODS BEGIN */
+  /**
+   * Has the userID changed since the last login?
+   *
+   * @method _hasUserIdChanged
+   * @param {string} userId
+   * @returns {boolean}
+   * @private
+   */
+  _hasUserIdChanged(userId) {
+    try {
+      const sessionData = global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId];
+      if (!sessionData) return true;
+      return JSON.parse(sessionData).user.userId !== userId;
+    } catch (error) {
+      return true;
+    }
+  }
 
   /**
    * Initiates the connection.
@@ -200,22 +213,39 @@ class ClientAuthenticator extends Root {
    * Will either attempt to validate the cached sessionToken by getting converations,
    * or if no sessionToken, will call /nonces to start process of getting a new one.
    *
-   * @private
-   * @method _connect
+   * ```javascript
+   * var client = new layer.Client({appId: myAppId});
+   * client.connect('Frodo-the-Dodo');
+   * ```
    *
-   * TODO: WEB-958: Use a dedicated session validation endpoint instead of this...
+   * @method connect
+   * @param {string} userId - User ID of the user you are logging in as
+   * @returns {layer.ClientAuthenticator} this
    */
-  _connect() {
-    if (this.sessionToken) {
-      // This will return an error with a nonce if the token is not valid.
-      this.xhr({
-        url: '/messages/ffffffff-ffff-ffff-ffff-ffffffffffff',
-        method: 'GET',
-        sync: false,
-        headers: {
-          'content-type': 'application/json',
-        },
-      }, (result) => this._connectionWithSessionResponse(result));
+  connect(userId = '') {
+    let user;
+    this.isConnected = false;
+    this.user = null;
+    this.onlineManager.start();
+    if (!this.isTrustedDevice || !userId || this._isPersistedSessionsDisabled() || this._hasUserIdChanged(userId)) {
+      this._clearStoredData();
+    }
+
+
+    if (this.isTrustedDevice && userId) {
+      this._restoreLastSession(userId);
+      user = this._restoreLastUser();
+      if (user) this.user = user;
+    }
+
+    if (!this.user) {
+      this.user = {
+        userId
+      };
+    }
+
+    if (this.sessionToken && this.user.userId) {
+      this._sessionTokenRestored();
     } else {
       this.xhr({
         url: '/nonces',
@@ -223,27 +253,54 @@ class ClientAuthenticator extends Root {
         sync: false,
       }, (result) => this._connectionResponse(result));
     }
+    return this;
   }
 
   /**
-   * Called when our test of our last sessionToken gets a response.
+   * Initiates the connection with a session token.
    *
-   * If the response is an error, call _sessionTokenExpired with the new nonce
-   * returned in the error.
+   * This call is for use when you have received a Session Token from some other source; such as your server,
+   * and wish to use that instead of doing a full auth process.
    *
-   * If the response is successful, then, well, we have Conversations, and can call _sessionTokenRestored
-   * with those Conversations.
+   * The Client will presume the token to be valid, and will asynchronously trigger the `ready` event.
+   * If the token provided is NOT valid, this won't be detected until a request is made using this token,
+   * at which point the `challenge` method will trigger.
    *
-   * @private
-   * @method _connectionWithSessionResponse
-   * @param  {Object} result
+   * NOTE: The `connected` event will not be triggered on this path.
+   *
+   * * ```javascript
+   * var client = new layer.Client({appId: myAppId});
+   * client.connectWithSession('Frodo-the-Dodo', mySessionToken);
+   * ```
+   *
+   * @method connectWithSession
+   * @param {String} userId
+   * @param {String} sessionToken
+   * @returns {layer.ClientAuthenticator} this
    */
-  _connectionWithSessionResponse(result) {
-    if (!result.success && result.data.getNonce()) {
-      this._sessionTokenExpired(result.data.getNonce());
-    } else {
-      this._sessionTokenRestored(result.data);
+  connectWithSession(userId, sessionToken) {
+    let user;
+    this.user = null;
+    if (!userId || !sessionToken) throw new Error(LayerError.dictionary.sessionAndUserRequired);
+    if (!this.isTrustedDevice || this._isPersistedSessionsDisabled() || this._hasUserIdChanged(userId)) {
+      this._clearStoredData();
     }
+    if (this.isTrustedDevice) {
+      user = this._restoreLastUser();
+      if (user) this.user = user;
+    }
+
+    this.onlineManager.start();
+
+    if (!this.user) {
+      this.user = {
+        userId,
+      };
+    }
+
+    this.isConnected = true;
+    setTimeout(() => this._authComplete({ session_token: sessionToken }, false), 1);
+    return this;
   }
 
   /**
@@ -342,8 +399,16 @@ class ClientAuthenticator extends Root {
     if (!identityToken) {
       throw new Error(LayerError.dictionary.identityTokenMissing);
     } else {
-      // Store the UserId and get a sessionToken; bypass the __adjustUserId connected test
-      this.__userId = JSON.parse(atob(identityToken.split('.')[1])).prn;
+      const userData = Util.decode(identityToken.split('.')[1]);
+      const identityObj = JSON.parse(userData);
+
+      if (this.user.userId && this.user.userId !== identityObj.prn) throw new Error(LayerError.dictionary.invalidUserIdChange);
+
+      this.user.userId = identityObj.prn;
+
+      if (identityObj.display_name) this.user.displayName = identityObj.display_name;
+      if (identityObj.avatar_url) this.user.avatarUrl = identityObj.avatar_url;
+
       this.xhr({
         url: '/sessions',
         method: 'POST',
@@ -368,7 +433,7 @@ class ClientAuthenticator extends Root {
     if (!result.success) {
       this._authError(result.data, identityToken);
     } else {
-      this._authComplete(result.data);
+      this._authComplete(result.data, false);
     }
   }
 
@@ -379,33 +444,32 @@ class ClientAuthenticator extends Root {
    * @method _authComplete
    * @private
    * @param  {Object} result
+   * @param  {Boolean} fromPersistence
    * @param  {string} result.session_token - Session token received from the server
    *
    * @fires authenticated
    */
-  _authComplete(result) {
+  _authComplete(result, fromPersistence) {
     if (!result || !result.session_token) {
       throw new Error(LayerError.dictionary.sessionTokenMissing);
     }
     this.sessionToken = result.session_token;
 
-    // NOTE: We store both items of data in a single key because someone listening for storage
-    // events is listening for an asynchronous change, and we need to gaurentee that both
-    // userId and session are available.
-    if (global.localStorage) {
+    // If _authComplete was called because we accepted an auth loaded from storage
+    // we don't need to update storage.
+    if (!this._isPersistedSessionsDisabled() && !fromPersistence) {
       try {
         global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId] = JSON.stringify({
           sessionToken: this.sessionToken || '',
-          userId: this.userId || '',
+          user: this.user,
+          expires: Date.now() + 30 * 60 * 60 * 24 * 1000,
         });
       } catch (e) {
         // Do nothing
       }
     }
 
-    this.isAuthenticated = true;
-    this.trigger('authenticated');
-    this._clientReady();
+    this._clientAuthenticated();
   }
 
   /**
@@ -433,29 +497,50 @@ class ClientAuthenticator extends Root {
    *
    * @fires connected, authenticated
    */
-  _sessionTokenRestored(result) {
+  _sessionTokenRestored() {
     this.isConnected = true;
     this.trigger('connected');
-    this.isAuthenticated = true;
-    this.trigger('authenticated');
-    this._clientReady();
+    this._clientAuthenticated();
   }
 
   /**
-   * Tried to reuse a cached sessionToken but was rejected.
+   * The client is now authenticated, and doing some setup
+   * before calling _clientReady.
    *
-   * On failing to restore a sessionToken stored in localStorage,
-   * Start the connect() process anew.
-   *
-   * @method _sessionTokenExpired
+   * @method _clientAuthenticated
    * @private
    */
-  _sessionTokenExpired(nonce) {
-    this.sessionToken = '';
-    if (global.localStorage) {
-      localStorage.removeItem(LOCALSTORAGE_KEYS.SESSIONDATA + this.appId);
+  _clientAuthenticated() {
+    // Update state and trigger the event
+    this.isAuthenticated = true;
+    this.trigger('authenticated');
+
+    if (!this.isTrustedDevice) this.isPersistenceEnabled = false;
+
+    // If no persistenceFeatures are specified, set them all
+    // to true or false to match isTrustedDevice.
+    if (!this.persistenceFeatures || !this.isPersistenceEnabled) {
+      this.persistenceFeatures = {
+        conversations: this.isPersistenceEnabled,
+        messages: this.isPersistenceEnabled,
+        syncQueue: this.isPersistenceEnabled,
+        sessionToken: this.isPersistenceEnabled,
+      };
     }
-    this._authenticate(nonce);
+
+    // Setup the Database Manager
+    if (!this.dbManager) {
+      this.dbManager = new DbManager({
+        client: this,
+        tables: this.persistenceFeatures,
+      });
+    }
+
+    if (this.isPersistenceEnabled) {
+      this.dbManager.onOpen(() => this._clientReady());
+    } else {
+      this._clientReady();
+    }
   }
 
   /**
@@ -472,7 +557,6 @@ class ClientAuthenticator extends Root {
     if (!this.isReady) {
       this.isReady = true;
       this.trigger('ready');
-      this.onlineManager.start();
     }
   }
 
@@ -484,18 +568,37 @@ class ClientAuthenticator extends Root {
 
   /**
    * Deletes your sessionToken from the server, and removes all user data from the Client.
-   * Call `client.login()` to restart the authentication process.
+   *
+   * Call `client.connect()` to restart the authentication process.
+   *
+   * This call is asynchronous; some browsers (ahem, safari...) may not have completed the deletion of
+   * persisted data if you
+   * navigate away from the page.  Use the callback to determine when all necessary cleanup has completed
+   * prior to navigating away
    *
    * @method logout
+   * @param {Function} callback
    * @return {layer.ClientAuthenticator} this
    */
-  logout() {
+  logout(callback) {
+    let callbackCount = 1,
+      counter = 0;
     if (this.isAuthenticated) {
+      callbackCount++;
       this.xhr({
         method: 'DELETE',
         url: '/sessions/' + escape(this.sessionToken),
+        sync: false,
+      }, () => {
+        counter++;
+        if (counter === callbackCount && callback) callback();
       });
     }
+
+    this._clearStoredData(() => {
+      counter++;
+      if (counter === callbackCount && callback) callback();
+    });
 
     // Clear data even if isAuthenticated is false
     // Session may have expired, but data still cached.
@@ -503,18 +606,13 @@ class ClientAuthenticator extends Root {
     return this;
   }
 
-  /**
-   * This method is not needed under normal conditions.
-   * However, if after calling `logout()` you want to
-   * get a new nonce and trigger a new `challenge` event,
-   * call `login()`.
-   *
-   * @method login
-   * @return {layer.ClientAuthenticator} this
-   */
-  login() {
-    this._connect();
-    return this;
+  _clearStoredData(callback) {
+    if (global.localStorage) localStorage.removeItem(LOCALSTORAGE_KEYS.SESSIONDATA + this.appId);
+    if (this.dbManager) {
+      this.dbManager.deleteTables(callback);
+    } else if (callback) {
+      callback();
+    }
   }
 
   /**
@@ -524,7 +622,6 @@ class ClientAuthenticator extends Root {
    *
    * @method _resetSession
    * @private
-   * @returns {layer.ClientAuthenticator} this
    */
   _resetSession() {
     this.isReady = false;
@@ -534,6 +631,7 @@ class ClientAuthenticator extends Root {
         localStorage.removeItem(LOCALSTORAGE_KEYS.SESSIONDATA + this.appId);
       }
     }
+
     this.isConnected = false;
     this.isAuthenticated = false;
 
@@ -627,21 +725,7 @@ class ClientAuthenticator extends Root {
    * @method __adjustAppId
    * @param {string} value - New appId value
    */
-  __adjustAppId(value) {
-    if (this.isConnected) throw new Error(LayerError.dictionary.cantChangeIfConnected);
-  }
-
-  /**
-   * __ Methods are automatically called by property setters.
-   *
-   * Any attempt to execute `this.userId = 'xxx'` will cause an error to be thrown
-   * if the client is already connected.
-   *
-   * @private
-   * @method __adjustUserId
-   * @param {string} value - New appId value
-   */
-  __adjustUserId(value) {
+  __adjustAppId() {
     if (this.isConnected) throw new Error(LayerError.dictionary.cantChangeIfConnected);
   }
 
@@ -706,8 +790,8 @@ class ClientAuthenticator extends Root {
    * @return {layer.ClientAuthenticator} this
    */
   xhr(options, callback) {
-    if (typeof options.url === 'string') {
-      options.url = this._xhrFixRelativeUrls(options.url);
+    if (!options.sync || !options.sync.target) {
+      options.url = this._xhrFixRelativeUrls(options.url || '');
     }
 
     options.withCredentials = true;
@@ -726,6 +810,14 @@ class ClientAuthenticator extends Root {
     return this;
   }
 
+  /**
+   * For xhr calls that go through the sync manager, queue it up.
+   *
+   * @method _syncXhr
+   * @private
+   * @param  {Object}   options
+   * @param  {Function} callback
+   */
   _syncXhr(options, callback) {
     if (!options.sync) options.sync = {};
     const innerCallback = (result) => {
@@ -755,6 +847,7 @@ class ClientAuthenticator extends Root {
    * and so we don't hammer the server every time there's a problem.
    *
    * @method _nonsyncXhr
+   * @private
    * @param  {Object}   options
    * @param  {Function} callback
    * @param  {number}   retryCount
@@ -883,52 +976,71 @@ class ClientAuthenticator extends Root {
 
 /**
  * State variable; indicates that client is currently authenticated by the server.
+ *
  * Should never be true if isConnected is false.
  * @type {Boolean}
+ * @readonly
  */
 ClientAuthenticator.prototype.isAuthenticated = false;
 
 /**
- * State variable; indicates that client is currently connected to server
- * (may not be authenticated yet)
+ * State variable; indicates that client is currently connected to server.
+ *
+ * May not be authenticated yet.
  * @type {Boolean}
+ * @readonly
  */
 ClientAuthenticator.prototype.isConnected = false;
 
 /**
  * State variable; indicates that client is ready for the app to use.
+ *
  * Use the 'ready' event to be notified when this value changes to true.
  *
  * @type {boolean}
+ * @readonly
  */
 ClientAuthenticator.prototype.isReady = false;
 
 /**
  * Your Layer Application ID. This value can not be changed once connected.
+ *
  * To find your Layer Application ID, see your Layer Developer Dashboard.
  * @type {String}
  */
 ClientAuthenticator.prototype.appId = '';
 
-/**
- * You can use this to find the userId you are logged in as.
- * You can set this in the constructor to verify that the client
- * will only restore a session if that session belonged to that same userId.
- * @type {String}
+/*
+ * User object; reserved for 2.0 where Identity is present.
+ *
+ * @type {Object}
+ * @readonly
+ * @private
  */
-ClientAuthenticator.prototype.userId = '';
+ClientAuthenticator.prototype.user = null;
 
 /**
  * Your current session token that authenticates your requests.
  * @type {String}
+ * @readonly
  */
 ClientAuthenticator.prototype.sessionToken = '';
 
 /**
  * URL to Layer's Web API server.
+ *
+ * Only muck with this if told to by Layer Staff.
  * @type {String}
  */
 ClientAuthenticator.prototype.url = 'https://api.layer.com';
+
+/**
+ * URL to Layer's Websocket server.
+ *
+ * Only muck with this if told to by Layer Staff.
+ * @type {String}
+ */
+ClientAuthenticator.prototype.websocketUrl = 'wss://websockets.layer.com';
 
 /**
  * Web Socket Manager
@@ -961,6 +1073,53 @@ ClientAuthenticator.prototype.syncManager = null;
 ClientAuthenticator.prototype.onlineManager = null;
 
 /**
+ * If this is a trusted device, then we can write personal data to persistent memory.
+ * @type {boolean}
+ */
+ClientAuthenticator.prototype.isTrustedDevice = false;
+
+/**
+ * To enable indexedDB storage of query data, set this true.  Experimental.
+ *
+ * @property {boolean}
+ */
+ClientAuthenticator.prototype.isPersistenceEnabled = false;
+
+/**
+ * If this layer.Client.isTrustedDevice is true, advanced config lets you control which types of data are persisted.
+ *
+ * Note that values here are ignored if `isPersistenceEnabled` hasn't been set to `true`.
+ *
+ * Properties of this Object can be:
+ *
+ * * conversations: Write conversations to indexedDB? This allows for faster rendering
+ *                  of a Conversation List
+ * * messages: Write messages to indexedDB? This allows for full offline access
+ * * syncQueue: Write requests made while offline to indexedDB?  This allows the app
+ *              to complete sending messages after being relaunched.
+ * * sessionToken: Write the session token to localStorage for quick reauthentication on relaunching the app.
+ *
+ *      new layer.Client({
+ *        isTrustedDevice: true,
+ *        persistenceFeatures: {
+ *          conversations: true,
+ *          messages: false,
+ *          syncQueue: false,
+ *          sessionToken: true
+ *        }
+ *      });
+ *
+ * @type {Object}
+ */
+ClientAuthenticator.prototype.persistenceFeatures = null;
+
+/**
+ * Database Manager for read/write to IndexedDB
+ * @type {layer.DbManager}
+ */
+ClientAuthenticator.prototype.dbManager = null;
+
+/**
  * Is true if the client is authenticated and connected to the server;
  *
  * Typically used to determine if there is a connection to the server.
@@ -977,7 +1136,9 @@ Object.defineProperty(ClientAuthenticator.prototype, 'isOnline', {
 });
 
 /**
- * Log levels; one of:
+ * Log levels for writing logs to console.
+ *
+ * Possible values are:
  *
  *    * layer.Constants.LOG.NONE
  *    * layer.Constants.LOG.ERROR
@@ -991,6 +1152,21 @@ Object.defineProperty(ClientAuthenticator.prototype, 'logLevel', {
   enumerable: false,
   get: function get() { return logger.level; },
   set: function set(value) { logger.level = value; },
+});
+
+/**
+ * Short hand for getting the userId of the authenticated user.
+ *
+ * Could also just use client.user.userId
+ *
+ * @type {string} userId
+ */
+Object.defineProperty(ClientAuthenticator.prototype, 'userId', {
+  enumerable: true,
+  get: function get() {
+    return this.user ? this.user.userId : '';
+  },
+  set: function set() {},
 });
 
 /**
@@ -1022,6 +1198,7 @@ ClientAuthenticator._supportedEvents = [
 
   /**
    * Fired when connected to the server.
+   *
    * Currently just means we have a nonce.
    * Not recommended for typical applications.
    * @event connected
@@ -1029,7 +1206,8 @@ ClientAuthenticator._supportedEvents = [
   'connected',
 
   /**
-   * Fired when unsuccessful in obtaining a nonce
+   * Fired when unsuccessful in obtaining a nonce.
+   *
    * Not recommended for typical applications.
    * @event connected-error
    * @param {Object} event
@@ -1039,6 +1217,7 @@ ClientAuthenticator._supportedEvents = [
 
   /**
    * We now have a session and any requests we send aught to work.
+   *
    * Typically you should use the ready event instead of the authenticated event.
    * @event authenticated
    */
@@ -1072,6 +1251,13 @@ ClientAuthenticator._supportedEvents = [
    *
    * This event is where you verify that the user is who we all think the user is,
    * and provide an identity token to validate that.
+   *
+   * ```
+   * client.on('challenge', function(evt) {
+   *    myGetIdentityForNonce(evt.nonce, function(identityToken) {
+   *      evt.callback(identityToken);
+   *    });
+   * ```
    *
    * @param {Object} event
    * @param {string} event.nonce - A nonce for you to provide to your identity provider

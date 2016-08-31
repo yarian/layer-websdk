@@ -3,7 +3,6 @@
 
     var client = new layer.Client({
       appId: 'layer:///apps/staging/ffffffff-ffff-ffff-ffff-ffffffffffff',
-      userId: 'Fred',
       challenge: function(evt) {
         myAuthenticator({
           nonce: evt.nonce,
@@ -13,13 +12,12 @@
       ready: function(client) {
         alert('I am Client; Server: Serve me!');
       }
-    });
+    }).connect('Fred')
  *
  * You can also initialize this as
 
     var client = new layer.Client({
-      appId: 'layer:///apps/staging/ffffffff-ffff-ffff-ffff-ffffffffffff',
-      userId: 'Fred'
+      appId: 'layer:///apps/staging/ffffffff-ffff-ffff-ffff-ffffffffffff'
     });
 
     client.on('challenge', function(evt) {
@@ -32,6 +30,8 @@
     client.on('ready', function(client) {
       alert('I am Client; Server: Serve me!');
     });
+
+    client.connect('Fred');
  *
  * ## API Synopsis:
  *
@@ -42,14 +42,15 @@
  *
  * * layer.Client.userId: User ID of the authenticated user
  * * layer.Client.appId: The ID for your application
+ * * layer.Client.isTrustedDevice: Set this to enable your session token to be cached
  *
  *
  * ### Methods:
  *
  * * layer.Client.createConversation(): Create a new layer.Conversation.
  * * layer.Client.createQuery(): Create a new layer.Query.
- * * layer.Client.getMessage(): Input a Message ID, and output a Message from cache.
- * * layer.Client.getConversation(): Input a Conversation ID, and output a Conversation from cache.
+ * * layer.Client.getMessage(): Input a Message ID, and output a layer.Message or layer.Announcement from cache.
+ * * layer.Client.getConversation(): Input a Conversation ID, and output a layer.Conversation from cache.
  * * layer.Client.on() and layer.Conversation.off(): event listeners
  * * layer.Client.destroy(): Cleanup all resources used by this client, including all Messages and Conversations.
  *
@@ -69,7 +70,6 @@
  *
  *     var client = new layer.Client({
  *        appId: 'layer:///apps/staging/ffffffff-ffff-ffff-ffff-ffffffffffff',
- *        userId: 'Fred',
  *        logLevel: layer.Constants.LOG.INFO
  *     });
  *
@@ -81,9 +81,10 @@
 const ClientAuth = require('./client-authenticator');
 const Conversation = require('./conversation');
 const Query = require('./query');
-const LayerError = require('./layer-error');
+const ErrorDictionary = require('./layer-error').dictionary;
+const Syncable = require('./syncable');
 const Message = require('./message');
-const User = require('./user');
+const Announcement = require('./announcement');
 const TypingIndicatorListener = require('./typing-indicators/typing-indicator-listener');
 const Util = require('./client-utils');
 const Root = require('./root');
@@ -103,15 +104,8 @@ class Client extends ClientAuth {
     // Initialize Properties
     this._conversationsHash = {};
     this._messagesHash = {};
-    this._tempConversationsHash = {};
-    this._tempMessagesHash = {};
     this._queriesHash = {};
-
-    if (!options.users) {
-      this.users = [];
-    } else {
-      this.__updateUsers(this.users);
-    }
+    this._scheduleCheckAndPurgeCacheItems = [];
 
     this._initComponents();
 
@@ -162,10 +156,6 @@ class Client extends ClientAuth {
       this._queriesHash[id].destroy();
     });
     this._queriesHash = null;
-    if (this.users) [].concat(this.users).forEach(user => user.destroy ? user.destroy() : null);
-
-    // Ideally we'd set it to null, but _adjustUsers would make it []
-    this.users = [];
 
     if (this.socketManager) this.socketManager.close();
   }
@@ -190,6 +180,10 @@ class Client extends ClientAuth {
     this._inCleanup = false;
   }
 
+  __adjustAppId() {
+    if (this.appId) throw new Error(ErrorDictionary.appIdImmutable);
+  }
+
   /**
    * Retrieve a conversation by Identifier.
    *
@@ -199,7 +193,7 @@ class Client extends ClientAuth {
    *
    * If you want it to load it from cache and then from server if not in cache, use the `canLoad` parameter.
    * If loading from the server, the method will return
-   * a layer.Conversation instance that has no data; the conversations:loaded/conversations:loaded-error events
+   * a layer.Conversation instance that has no data; the `conversations:loaded` / `conversations:loaded-error` events
    * will let you know when the conversation has finished/failed loading from the server.
    *
    *      var c = client.getConversation('layer:///conversations/123', true)
@@ -210,6 +204,8 @@ class Client extends ClientAuth {
    *      // Render a placeholder for c until the details of c have loaded
    *      myrender(c);
    *
+   * Note in the above example that the `conversations:loaded` event will trigger even if the Conversation has previously loaded.
+   *
    * @method getConversation
    * @param  {string} id
    * @param  {boolean} [canLoad=false] - Pass true to allow loading a conversation from
@@ -217,14 +213,13 @@ class Client extends ClientAuth {
    * @return {layer.Conversation}
    */
   getConversation(id, canLoad) {
-    if (typeof id !== 'string') throw new Error(LayerError.dictionary.idParamRequired);
+    if (typeof id !== 'string') throw new Error(ErrorDictionary.idParamRequired);
     if (this._conversationsHash[id]) {
       return this._conversationsHash[id];
-    } else if (this._tempConversationsHash[id] && this._conversationsHash[this._tempConversationsHash[id]]) {
-      return this._conversationsHash[this._tempConversationsHash[id]];
     } else if (canLoad) {
       return Conversation.load(id, this);
     }
+    return null;
   }
 
   /**
@@ -244,7 +239,6 @@ class Client extends ClientAuth {
    * @method _addConversation
    * @protected
    * @param  {layer.Conversation} c
-   * @returns {layer.Client} this
    */
   _addConversation(conversation) {
     const id = conversation.id;
@@ -255,8 +249,9 @@ class Client extends ClientAuth {
       // Make sure the client is set so that the next event bubbles up
       if (conversation.clientId !== this.appId) conversation.clientId = this.appId;
       this._triggerAsync('conversations:add', { conversations: [conversation] });
+
+      this._scheduleCheckAndPurgeCache(conversation);
     }
-    return this;
   }
 
   /**
@@ -270,7 +265,6 @@ class Client extends ClientAuth {
    * @method _removeConversation
    * @protected
    * @param  {layer.Conversation} c
-   * @returns {layer.Client} this
    */
   _removeConversation(conversation) {
     // Insure we do not get any events, such as message:remove
@@ -280,7 +274,6 @@ class Client extends ClientAuth {
       delete this._conversationsHash[conversation.id];
       this._triggerAsync('conversations:remove', { conversations: [conversation] });
     }
-    delete this._tempConversationsHash[conversation._tempId];
 
     // Remove any Message associated with this Conversation
     Object.keys(this._messagesHash).forEach(id => {
@@ -288,8 +281,6 @@ class Client extends ClientAuth {
         this._messagesHash[id].destroy();
       }
     });
-
-    return this;
   }
 
   /**
@@ -305,21 +296,18 @@ class Client extends ClientAuth {
       this._conversationsHash[conversation.id] = conversation;
       delete this._conversationsHash[oldId];
 
-      // Enable components that still have the old ID to still call getConversation with it
-      this._tempConversationsHash[oldId] = conversation.id;
-
       // This is a nasty way to work... but need to find and update all
       // conversationId properties of all Messages or the Query's won't
       // see these as matching the query.
       Object.keys(this._messagesHash)
             .filter(id => this._messagesHash[id].conversationId === oldId)
-            .forEach(id => this._messagesHash[id].conversationId = conversation.id);
+            .forEach(id => (this._messagesHash[id].conversationId = conversation.id));
     }
   }
 
 
   /**
-   * Retrieve the message by message id.
+   * Retrieve the message or announcement by ID.
    *
    * Useful for finding a message when you have only the ID.
    *
@@ -327,7 +315,7 @@ class Client extends ClientAuth {
    *
    * If you want it to load it from cache and then from server if not in cache, use the `canLoad` parameter.
    * If loading from the server, the method will return
-   * a layer.Message instance that has no data; the messages:loaded/messages:loaded-error events
+   * a layer.Message instance that has no data; the `messages:loaded` / `messages:loaded-error` events
    * will let you know when the message has finished/failed loading from the server.
    *
    *      var m = client.getMessage('layer:///messages/123', true)
@@ -338,6 +326,7 @@ class Client extends ClientAuth {
    *      // Render a placeholder for m until the details of m have loaded
    *      myrender(m);
    *
+   * Note in the above example that the `messages:loaded` event will trigger even if the Message has previously loaded.
    *
    * @method getMessage
    * @param  {string} id              - layer:///messages/uuid
@@ -345,28 +334,33 @@ class Client extends ClientAuth {
    * @return {layer.Message}
    */
   getMessage(id, canLoad) {
-    if (typeof id !== 'string') throw new Error(LayerError.dictionary.idParamRequired);
+    if (typeof id !== 'string') throw new Error(ErrorDictionary.idParamRequired);
 
     if (this._messagesHash[id]) {
       return this._messagesHash[id];
-    } else if (this._tempMessagesHash[id] && this._messagesHash[this._tempMessagesHash[id]]) {
-      return this._messagesHash[this._tempMessagesHash[id]];
     } else if (canLoad) {
-      return Message.load(id, this);
+      return Syncable.load(id, this);
     }
+    return null;
   }
 
   /**
    * Get a MessagePart by ID
+   *
+   * ```
+   * var part = client.getMessagePart('layer:///messages/6f08acfa-3268-4ae5-83d9-6ca00000000/parts/0');
+   * ```
+   *
    * @method getMessagePart
    * @param {String} id - ID of the Message Part; layer:///messages/uuid/parts/5
    */
   getMessagePart(id) {
-    if (typeof id !== 'string') throw new Error(LayerError.dictionary.idParamRequired);
+    if (typeof id !== 'string') throw new Error(ErrorDictionary.idParamRequired);
 
     const messageId = id.replace(/\/parts.*$/, '');
     const message = this.getMessage(messageId);
     if (message) return message.getPartById(id);
+    return null;
   }
 
   /**
@@ -386,9 +380,14 @@ class Client extends ClientAuth {
         this._triggerAsync('messages:notify', { message });
         message._notify = false;
       }
-      const conversation = message.getConversation();
+
+      const conversation = message.getConversation(false);
       if (conversation && (!conversation.lastMessage || conversation.lastMessage.position < message.position)) {
+        const lastMessageWas = conversation.lastMessage;
         conversation.lastMessage = message;
+        if (lastMessageWas) this._scheduleCheckAndPurgeCache(lastMessageWas);
+      } else {
+        this._scheduleCheckAndPurgeCache(message);
       }
     }
   }
@@ -409,30 +408,33 @@ class Client extends ClientAuth {
     message = this._messagesHash[id];
     if (message) {
       delete this._messagesHash[id];
-      delete this._tempMessagesHash[message._tempId];
       if (!this._inCleanup) {
         this._triggerAsync('messages:remove', { messages: [message] });
-        const conv = message.getConversation();
+        const conv = message.getConversation(false);
         if (conv && conv.lastMessage === message) conv.lastMessage = null;
       }
     }
   }
 
-
   /**
-   * If the Message ID changes, we need to reregister the message
+   * Handles delete from position event from Websocket.
    *
-   * @method _updateMessageId
-   * @protected
-   * @param  {layer.Message} message - message whose ID has changed
-   * @param  {string} oldId - Previous ID
+   * A WebSocket may deliver a `delete` Conversation event with a
+   * from_position field indicating that all Messages at the specified position
+   * and earlier should be deleted.
+   *
+   * @method _purgeMessagesByPosition
+   * @private
+   * @param {string} conversationId
+   * @param {number} fromPosition
    */
-  _updateMessageId(message, oldId) {
-    this._messagesHash[message.id] = message;
-    delete this._messagesHash[oldId];
-
-    // Enable components that still have the old ID to still call getMessage with it
-    this._tempMessagesHash[oldId] = message.id;
+  _purgeMessagesByPosition(conversationId, fromPosition) {
+    Object.keys(this._messagesHash).forEach(mId => {
+      const message = this._messagesHash[mId];
+      if (message.conversationId === conversationId && message.position <= fromPosition) {
+        message.destroy();
+      }
+    });
   }
 
   /**
@@ -452,12 +454,14 @@ class Client extends ClientAuth {
   _getObject(id) {
     switch (Util.typeFromID(id)) {
       case 'messages':
+      case 'announcements':
         return this.getMessage(id);
       case 'conversations':
         return this.getConversation(id);
       case 'queries':
         return this.getQuery(id);
     }
+    return null;
   }
 
 
@@ -470,16 +474,26 @@ class Client extends ClientAuth {
    * @param  {Object} obj - Plain javascript object representing a Message or Conversation
    */
   _createObject(obj) {
-    switch (Util.typeFromID(obj.id)) {
-      case 'messages': {
-        const conversation = this.getConversation(obj.conversation.id, true);
-        return Message._createFromServer(obj, conversation);
-      }
-
-      case 'conversations': {
-        return Conversation._createFromServer(obj, this);
+    const item = this._getObject(obj.id);
+    if (item) {
+      item._populateFromServer(obj);
+      return item;
+    } else {
+      switch (Util.typeFromID(obj.id)) {
+        case 'messages':
+          return Message._createFromServer(obj, this);
+        case 'announcements':
+          return Announcement._createFromServer(obj, this);
+        case 'conversations':
+          return Conversation._createFromServer(obj, this);
       }
     }
+    return null;
+  }
+
+  // Placeholder for when we have Identity support
+  _fixIdentities(users) {
+    return users;
   }
 
   /**
@@ -524,9 +538,8 @@ class Client extends ClientAuth {
    */
   _triggerLogger(eventName, evt) {
     const infoEvents = [
-      'conversations:add', 'conversations:remove',
-      'conversations:change', 'messages:add',
-      'messages:remove', 'messages:change',
+      'conversations:add', 'conversations:remove', 'conversations:change',
+      'messages:add', 'messages:remove', 'messages:change',
       'challenge', 'ready',
     ];
     if (infoEvents.indexOf(eventName) !== -1) {
@@ -577,6 +590,7 @@ class Client extends ClientAuth {
       const conversation = this._conversationsHash[key];
       if (test(conversation, index)) return conversation;
     }
+    return null;
   }
 
   /**
@@ -587,87 +601,19 @@ class Client extends ClientAuth {
    */
   _resetSession() {
     this._cleanup();
-    this.users = [];
     this._conversationsHash = {};
     this._messagesHash = {};
     this._queriesHash = {};
     return super._resetSession();
   }
 
-  /**
-   * Add a user to the users array.
-   *
-   * By doing this instead of just directly `this.client.users.push(user)`
-   * the user will get its conversations property setup correctly.
-   *
-   * @method addUser
-   * @param  {layer.User} user [description]
-   * @returns {layer.Client} this
-   */
-  addUser(user) {
-    this.users.push(user);
-    user.setClient(this);
-    this.trigger('users:change');
-    return this;
-  }
 
-  /**
-   * Searches `client.users` array for the specified id.
-   *
-   * Use of the `client.users` array is optional.
-   *
-   *      function getSenderDisplayName(message) {
-   *          var user = client.findUser(message.sender.userId);
-   *          return user ? user.displayName : 'Unknown User';
-   *      }
-   *
-   * @method findUser
-   * @param  {string} id
-   * @return {layer.User}
-   */
-  findUser(id) {
-    const l = this.users.length;
-    for (let i = 0; i < l; i++) {
-      const u = this.users[i];
-      if (u.id === id) return u;
-    }
-  }
-
-  /**
-   * __ Methods are automatically called by property setters.
-   *
-   * Insure that any attempt to set the `users` property sets it to an array.
-   *
-   * @method __adjustUsers
-   * @private
-   */
-  __adjustUsers(users) {
-    if (!users) return [];
-    if (!Array.isArray(users)) return [users];
-  }
-
-  /**
-   * __ Methods are automatically called by property setters.
-   *
-   * Insure that each user in the users array gets its client property setup.
-   *
-   * @method __adjustUsers
-   * @private
-   */
-  __updateUsers(users) {
-    users.forEach(u => {
-      if (u instanceof User) u.setClient(this);
-    });
-    this.trigger('users:change');
-  }
 
   /**
    * This method is recommended way to create a Conversation.
    *
    * There are a few ways to invoke it; note that the default behavior is to create a Distinct Conversation
    * unless otherwise stated via the layer.Conversation.distinct property.
-   *
-   *         client.createConversation(['a', 'b']);
    *
    *         client.createConversation({participants: ['a', 'b']});
    *
@@ -694,7 +640,12 @@ class Client extends ClientAuth {
    * will be triggered asynchronously and the Conversation object will be ready
    * at that time.  Further, the event will provide details on the result:
    *
-   *       var conversation = client.createConversation(['a', 'b']);
+   *       var conversation = client.createConversation({
+   *          participants: ['a', 'b'],
+   *          metadata: {
+   *            title: 'I am a title'
+   *          }
+   *       });
    *       conversation.on('conversations:sent', function(evt) {
    *           switch(evt.result) {
    *               case Conversation.CREATED:
@@ -710,25 +661,16 @@ class Client extends ClientAuth {
    *       });
    *
    * @method createConversation
-   * @param  {Object/string[]} options Either an array of participants,
-   *                                  or an object with parameters to pass to
-   *                                  Conversation's constructor
+   * @param  {Object} options
+   * @param {string[]} participants - Array of UserIDs
    * @param {Boolean} [options.distinct=true] Is this a distinct Converation?
    * @param {Object} [options.metadata={}] Metadata for your Conversation
    * @return {layer.Conversation}
    */
   createConversation(options) {
-    let opts;
-    if (Array.isArray(options)) {
-      opts = {
-        participants: options,
-      };
-    } else {
-      opts = options;
-    }
-    if (!('distinct' in opts)) opts.distinct = true;
-    opts.client = this;
-    return Conversation.create(opts);
+    if (!('distinct' in options)) options.distinct = true;
+    options.client = this;
+    return Conversation.create(options);
   }
 
   /**
@@ -741,11 +683,8 @@ class Client extends ClientAuth {
    * @return {layer.Query}
    */
   getQuery(id) {
-    if (typeof id !== 'string') throw new Error(LayerError.dictionary.idParamRequired);
-
-    if (this._queriesHash[id]) {
-      return this._queriesHash[id];
-    }
+    if (typeof id !== 'string') throw new Error(ErrorDictionary.idParamRequired);
+    return this._queriesHash[id] || null;
   }
 
   /**
@@ -803,14 +742,14 @@ class Client extends ClientAuth {
    */
   _removeQuery(query) {
     if (query) {
+      delete this._queriesHash[query.id];
       if (!this._inCleanup) {
         const data = query.data
           .map(obj => this._getObject(obj.id))
           .filter(obj => obj);
-        this._checkCache(data);
+        this._checkAndPurgeCache(data);
       }
       this.off(null, null, query);
-      delete this._queriesHash[query.id];
     }
   }
 
@@ -819,17 +758,52 @@ class Client extends ClientAuth {
    *
    * Removes from cache if an object is not part of any Query's result set.
    *
-   * @method _checkCache
+   * @method _checkAndPurgeCache
    * @private
    * @param  {layer.Root[]} objects - Array of Messages or Conversations
    */
-  _checkCache(objects) {
+  _checkAndPurgeCache(objects) {
     objects.forEach(obj => {
-      if (!this._isCachedObject(obj)) {
+      if (!obj.isDestroyed && !this._isCachedObject(obj)) {
         if (obj instanceof Root === false) obj = this._getObject(obj.id);
-        obj.destroy();
+        if (obj) obj.destroy();
       }
     });
+  }
+
+  /**
+   * Schedules _runScheduledCheckAndPurgeCache if needed, and adds this object
+   * to the list of objects it will validate for uncaching.
+   *
+   * Note that any object that does not exist on the server (!isSaved()) is an object that the
+   * app created and can only be purged by the app and not by the SDK.  Once its been
+   * saved, and can be reloaded from the server when needed, its subject to standard caching.
+   *
+   * @method _scheduleCheckAndPurgeCache
+   * @private
+   * @param {layer.Root} object
+   */
+  _scheduleCheckAndPurgeCache(object) {
+    if (object.isSaved()) {
+      if (this._scheduleCheckAndPurgeCacheAt < Date.now()) {
+        this._scheduleCheckAndPurgeCacheAt = Date.now() + Client.CACHE_PURGE_INTERVAL;
+        setTimeout(() => this._runScheduledCheckAndPurgeCache(), Client.CACHE_PURGE_INTERVAL);
+      }
+      this._scheduleCheckAndPurgeCacheItems.push(object);
+    }
+  }
+
+  /**
+   * Calls _checkAndPurgeCache on accumulated objects and resets its state.
+   *
+   * @method _runScheduledCheckAndPurgeCache
+   * @private
+   */
+  _runScheduledCheckAndPurgeCache() {
+    const list = this._scheduleCheckAndPurgeCacheItems;
+    this._scheduleCheckAndPurgeCacheItems = [];
+    this._checkAndPurgeCache(list);
+    this._scheduleCheckAndPurgeCacheAt = 0;
   }
 
   /**
@@ -848,6 +822,7 @@ class Client extends ClientAuth {
       const query = this._queriesHash[list[i]];
       if (query._getItem(obj.id)) return true;
     }
+    return false;
   }
 
   /**
@@ -865,9 +840,11 @@ class Client extends ClientAuth {
   _connectionRestored(evt) {
     if (evt.reset) {
       logger.debug('Client Connection Restored; Resetting all Queries');
-      Object.keys(this._queriesHash).forEach(id => {
-        const query = this._queriesHash[id];
-        if (query) query.reset();
+      this.dbManager.deleteTables(() => {
+        Object.keys(this._queriesHash).forEach(id => {
+          const query = this._queriesHash[id];
+          if (query) query.reset();
+        });
       });
     }
   }
@@ -1013,24 +990,6 @@ Client.prototype._conversationsHash = null;
  */
 Client.prototype._messagesHash = null;
 
-
-/**
- * Hash mapping temporary Conversation IDs to server generated IDs.
- *
- * @private
- * @type {Object}
- */
-Client.prototype._tempConversationsHash = null;
-
-/**
- * Hash mapping temporary Message IDs to server generated IDs.
- *
- * @private
- * @type {Object}
- */
-Client.prototype._tempMessagesHash = null;
-
-
 /**
  * Hash of layer.Query objects for quick lookup by id
  *
@@ -1040,18 +999,34 @@ Client.prototype._tempMessagesHash = null;
 Client.prototype._queriesHash = null;
 
 /**
- * Array of layer.User objects.
+ * Array of items to be checked to see if they can be uncached.
  *
- * Use of this property is optional; but by storing
- * an array of layer.User objects in this array, you can
- * then use the `client.findUser(userId)` method to lookup
- * users; and you can use the layer.User objects to find
- * suitable Conversations so you can associate a Direct
- * Message conversation with each user.
- *
- * @type {layer.User[]}
+ * @private
+ * @type {layer.Root[]}
  */
-Client.prototype.users = null;
+Client.prototype._scheduleCheckAndPurgeCacheItems = null;
+
+/**
+ * Time that the next call to _runCheckAndPurgeCache() is scheduled for in ms since 1970.
+ *
+ * @private
+ * @type {number}
+ */
+Client.prototype._scheduleCheckAndPurgeCacheAt = 0;
+
+/**
+ * Control how often should we purge unused data from the Cache.
+ *
+ * Any Conversation or Message that is part of a Query's results are kept in memory for as long as it
+ * remains in that Query.  However, when a websocket event delivers new Messages and Conversations that
+ * are NOT part of a Query, how long should they stick around in memory?  Why have them stick around?
+ * Perhaps an app wants to post a notification of a new Message or Conversation... and wants to keep
+ * the object local for a little while.  Default is 10 minutes before checking to see if
+ * the object is part of a Query or can be uncached.  Value is in miliseconds.
+ * @static
+ * @type {number}
+ */
+Client.CACHE_PURGE_INTERVAL = 10 * 60 * 1000;
 
 Client._ignoredEvents = [
   'conversations:loaded',
@@ -1166,6 +1141,8 @@ Client._supportedEvents = [
    *          }
    *      });
    *
+   * NOTE: Typically such rendering is done using Events on layer.Query.
+   *
    * @event
    * @param {layer.LayerEvent} evt
    * @param {layer.Conversation} evt.target
@@ -1177,7 +1154,17 @@ Client._supportedEvents = [
   'conversations:change',
 
   /**
+   * A call to layer.Conversation.load has completed successfully
+   *
+   * @event
+   * @param {layer.LayerEvent} evt
+   * @param {layer.Conversation} evt.target
+   */
+  'conversations:loaded',
+
+  /**
    * A new message has been received for which a notification may be suitable.
+   *
    * This event is triggered for messages that are:
    *
    * 1. Added via websocket rather than other IO
@@ -1197,11 +1184,13 @@ Client._supportedEvents = [
   /**
    * Messages have been added to a conversation.
    *
+   * May also fire when new Announcements are received.
+   *
    * This event is triggered on
    *
    * * creating/sending a new message
-   * * Receiving a new Message via websocket
-   * * Querying/downloading a set of Messages
+   * * Receiving a new Message or Announcement via websocket
+   * * Querying/downloading a set of Messages or Announcements
    *
           client.on('messages:add', function(evt) {
               evt.messages.forEach(function(message) {
@@ -1290,6 +1279,8 @@ Client._supportedEvents = [
    *          }
    *      });
    *
+   * NOTE: Such rendering would typically be done using events on layer.Query.
+   *
    * @event
    * @param {layer.LayerEvent} evt
    * @param {layer.Message} evt.target
@@ -1300,20 +1291,15 @@ Client._supportedEvents = [
    */
   'messages:change',
 
+
   /**
-   * A message has been marked as read.
-   *
-   * This is can be triggered by a local event, or by this same user on a separate device or browser.
-   *
-   *      client.on('messages:read', function(evt) {
-   *          myView.renderUnreadStatus(evt.target);
-   *      });
+   * A call to layer.Message.load has completed successfully
    *
    * @event
    * @param {layer.LayerEvent} evt
    * @param {layer.Message} evt.target
    */
-  'messages:read',
+  'messages:loaded',
 
   /**
    * A Conversation has been deleted from the server.
@@ -1324,6 +1310,8 @@ Client._supportedEvents = [
    *      client.on('conversations:delete', function(evt) {
    *          myView.removeConversation(evt.target);
    *      });
+   *
+   * NOTE: Such rendering would typically be done using events on layer.Query.
    *
    * @event
    * @param {layer.LayerEvent} evt
@@ -1341,19 +1329,14 @@ Client._supportedEvents = [
    *          myView.removeMessage(evt.target);
    *      });
    *
+   * NOTE: Such rendering would typically be done using events on layer.Query.
+   *
    * @event
    * @param {layer.LayerEvent} evt
    * @param {layer.Message} evt.target
    */
   'messages:delete',
 
-  /**
-   * A User has been added or changed in the users array.
-   *
-   * This event is not yet well supported.
-   * @event
-   */
-  'users:change',
 
   /**
    * A Typing Indicator state has changed.

@@ -10,10 +10,6 @@
  * 3. when a request should be aborted
  * 4. triggering any request callbacks
  *
- * TODO WEB-850: Currently the sync queue is managed solely in runtime memory.  But the queue should be stored
- * in persistent memory so that a tab-reload can restore the queue without losing commands that the user has
- * been told have been accepted.
- *
  * TODO: In the event of a DNS error, we may have a valid websocket receiving events and telling us we are online,
  * and be unable to create a REST call.  This will be handled wrong because evidence will suggest that we are online.
  * This issue goes away when we use bidirectional websockets for all requests.
@@ -26,6 +22,8 @@ const { WebsocketSyncEvent } = require('./sync-event');
 const xhr = require('./xhr');
 const logger = require('./logger');
 const Utils = require('./client-utils');
+
+const MAX_RECEIPT_CONNECTIONS = 4;
 
 class SyncManager extends Root {
   /**
@@ -56,17 +54,30 @@ class SyncManager extends Root {
    */
   constructor(options) {
     super(options);
+    this.client = options.client;
 
     // Note we do not store a pointer to client... it is not needed.
-    if (options.client) {
-      options.client.on('authenticated', this._processNextRequest, this);
+    if (this.client) {
+      this.client.on('ready', () => {
+        this._processNextRequest();
+        this._loadPersistedQueue();
+      }, this);
     }
     this.queue = [];
+    this.receiptQueue = [];
 
     this.onlineManager.on('disconnected', this._onlineStateChange, this);
     this.socketManager.on('connected disconnected', this._onlineStateChange, this);
   }
 
+  /**
+   * Returns whether the Client is online/offline.
+   *
+   * For internal use; applications should use layer.Client.isOnline.
+   *
+   * @method isOnline
+   * @returns {Boolean}
+   */
   isOnline() {
     return this.onlineManager.isOnline;
   }
@@ -90,14 +101,19 @@ class SyncManager extends Root {
       if (this.queue.length) {
         this.queue[0].isFiring = false;
       }
+      if (this.receiptQueue.length) {
+        this.receiptQueue.forEach(syncEvt => { syncEvt.isFiring = false; });
+      }
     }
   }
 
   /**
    * Adds a new xhr request to the queue.
    *
-   * If the queue is empty, this will be fired immediately.
-   * If the queue is non-empty, this will wait until all other requests in the queue have been fired.
+   * If the queue is empty, this will be fired immediately; else it will be added to the queue and wait its turn.
+   *
+   * If its a read/delivery receipt request, it will typically be fired immediately unless there are many receipt
+   * requests already in-flight.
    *
    * @method request
    * @param  {layer.SyncEvent} requestEvt - A SyncEvent specifying the request to be made
@@ -106,16 +122,18 @@ class SyncManager extends Root {
     // If its a PATCH request on an object that isn't yet created,
     // do not add it to the queue.
     if (requestEvt.operation !== 'PATCH' || !this._findUnfiredCreate(requestEvt)) {
-      logger.info(`Sync Manager Request ${requestEvt.operation} on target ${requestEvt.target}`);
-      logger.debug(requestEvt.toObject());
-      this.queue.push(requestEvt);
+      logger.info(`Sync Manager Request ${requestEvt.operation} on target ${requestEvt.target}`, requestEvt.toObject());
+      if (requestEvt.operation === 'RECEIPT') {
+        this.receiptQueue.push(requestEvt);
+      } else {
+        this.queue.push(requestEvt);
+      }
       this.trigger('sync:add', {
         request: requestEvt,
         target: requestEvt.target,
       });
     } else {
-      logger.info(`Sync Manager Request PATCH ${requestEvt.target} request ignored; create request still enqueued`);
-      logger.debug(requestEvt.toObject());
+      logger.info(`Sync Manager Request PATCH ${requestEvt.target} request ignored; create request still enqueued`, requestEvt.toObject());
     }
 
     // If its a DELETE request, purge all other requests on that target.
@@ -123,11 +141,22 @@ class SyncManager extends Root {
       this._purgeOnDelete(requestEvt);
     }
 
-    // Fire the request if there aren't any existing requests already being processed.
-    // If this isn't the first item, assume that all necessary logic exists to fire the
-    // existing requests and then it will move onto this request.
-    if (this.queue.length === 1) {
-      this._processNextRequest();
+    this._processNextRequest(requestEvt);
+  }
+
+  _processNextRequest(requestEvt) {
+    // Fire the request if there aren't any existing requests already firing
+    if (this.queue.length && !this.queue[0].isFiring) {
+      if (requestEvt) {
+        this.client.dbManager.writeSyncEvents([requestEvt], false, () => this._processNextStandardRequest());
+      } else {
+        this._processNextStandardRequest();
+      }
+    }
+
+    // If we have anything in the receipts queue, fire it
+    if (this.receiptQueue.length) {
+      this._processNextReceiptRequest();
     }
   }
 
@@ -158,29 +187,141 @@ class SyncManager extends Root {
    * @method _processNextRequest
    * @private
    */
-  _processNextRequest() {
-    if (this.isDestroyed) return;
+  _processNextStandardRequest() {
+    if (this.isDestroyed || !this.client.isAuthenticated) return;
     const requestEvt = this.queue[0];
-    if (this.isOnline() && requestEvt && !requestEvt.isFiring) {
-      if (requestEvt instanceof WebsocketSyncEvent) {
-        if (this.socketManager && this.socketManager._isOpen()) {
-          logger.debug(`Sync Manager Websocket Request Firing ${requestEvt.operation} on target ${requestEvt.target}`,
-            requestEvt.toObject());
-          this.requestManager.sendRequest(requestEvt._getRequestData(),
-              result => this._xhrResult(result, requestEvt));
-          requestEvt.isFiring = true;
+    if (this.isOnline() && requestEvt && !requestEvt.isFiring && !requestEvt._isValidating) {
+      requestEvt._isValidating = true;
+      this._validateRequest(requestEvt, (isValid) => {
+        requestEvt._isValidating = false;
+        if (!isValid) {
+          this._removeRequest(requestEvt, false);
+          return this._processNextStandardRequest();
         } else {
-          logger.debug('Sync Manager Websocket Request skipped; socket closed');
+          this._fireRequest(requestEvt);
         }
-      } else {
-        logger.debug(`Sync Manager XHR Request Firing ${requestEvt.operation} ${requestEvt.target}`,
-          requestEvt.toObject());
-        xhr(requestEvt._getRequestData(), result => this._xhrResult(result, requestEvt));
-        requestEvt.isFiring = true;
+      });
+    }
+  }
+
+  /**
+   * Process up to MAX_RECEIPT_CONNECTIONS worth of receipts.
+   *
+   * These requests have no interdependencies. Just fire them all
+   * as fast as we can, in parallel.
+   *
+   * @method _processNextReceiptRequest
+   * @private
+   */
+  _processNextReceiptRequest() {
+    let firingReceipts = 0;
+    this.receiptQueue.forEach((receiptEvt) => {
+      if (this.isOnline() && receiptEvt) {
+        if (receiptEvt.isFiring || receiptEvt._isValidating) {
+          firingReceipts++;
+        } else if (firingReceipts < MAX_RECEIPT_CONNECTIONS) {
+          firingReceipts++;
+          receiptEvt._isValidating = true;
+          this._validateRequest(receiptEvt, (isValid) => {
+            receiptEvt._isValidating = false;
+            if (!isValid) {
+              const index = this.receiptQueue.indexOf(receiptEvt);
+              if (index !== -1) this.receiptQueue.splice(index, 1);
+            } else {
+              this._fireRequest(receiptEvt);
+            }
+          });
+        }
       }
-    } else if (requestEvt && requestEvt.isFiring) {
-      logger.debug(`Sync Manager processNext skipped; request still firing ${requestEvt.operation} ` +
-        `on target ${requestEvt.target}`, requestEvt.toObject());
+    });
+  }
+
+  /**
+   * Directly fire this sync request.
+   *
+   * This is intended to be called only after careful analysis of our state to make sure its safe to send the request.
+   * See `_processNextRequest()`
+   *
+   * @method _fireRequest
+   * @private
+   * @param {layer.SyncEvent} requestEvt
+   */
+  _fireRequest(requestEvt) {
+    if (requestEvt instanceof WebsocketSyncEvent) {
+      this._fireRequestWebsocket(requestEvt);
+    } else {
+      this._fireRequestXHR(requestEvt);
+    }
+  }
+
+  /**
+   * Directly fire this XHR Sync request.
+   *
+   * @method _fireRequestXHR
+   * @private
+   * @param {layer.XHRSyncEvent} requestEvt
+   */
+  _fireRequestXHR(requestEvt) {
+    requestEvt.isFiring = true;
+    if (!requestEvt.headers) requestEvt.headers = {};
+    requestEvt.headers.authorization = 'Layer session-token="' + this.client.sessionToken + '"';
+    logger.debug(`Sync Manager XHR Request Firing ${requestEvt.operation} ${requestEvt.target}`,
+      requestEvt.toObject());
+    xhr(requestEvt._getRequestData(this.client), result => this._xhrResult(result, requestEvt));
+  }
+
+  /**
+   * Directly fire this Websocket Sync request.
+   *
+   * @method _fireRequestWebsocket
+   * @private
+   * @param {layer.SyncEvent.WebsocketSyncEvent} requestEvt
+   */
+  _fireRequestWebsocket(requestEvt) {
+    if (this.socketManager && this.socketManager._isOpen()) {
+      logger.debug(`Sync Manager Websocket Request Firing ${requestEvt.operation} on target ${requestEvt.target}`,
+        requestEvt.toObject());
+      requestEvt.isFiring = true;
+      this.requestManager.sendRequest(requestEvt._getRequestData(this.client),
+          result => this._xhrResult(result, requestEvt));
+    } else {
+      logger.debug('Sync Manager Websocket Request skipped; socket closed');
+    }
+  }
+
+  /**
+   * Is the syncEvent still valid?
+   *
+   * This method specifically tests to see if some other tab has already sent this request.
+   * If persistence of the syncQueue is not enabled, then the callback is immediately called with true.
+   * If another tab has already sent the request, then the entry will no longer be in indexedDB and the callback
+   * will call false.
+   *
+   * @method _validateRequest
+   * @param {layer.SyncEvent} syncEvent
+   * @param {Function} callback
+   * @param {Function} callback.isValid - The request is still valid
+   * @private
+   */
+  _validateRequest(syncEvent, callback) {
+    this.client.dbManager.claimSyncEvent(syncEvent, isFound => callback(isFound));
+  }
+
+  /**
+   * Turn deduplication errors into success messages.
+   *
+   * If this request has already been made but we failed to get a response the first time and we retried the request,
+   * we will reissue the request.  If the prior request was successful we'll get back a deduplication error
+   * with the created object. As far as the WebSDK is concerned, this is a success.
+   *
+   * @method _handleDeduplicationErrors
+   * @private
+   */
+  _handleDeduplicationErrors(result) {
+    if (result.data && result.data.id === 'id_in_use' &&
+        result.data.data && result.data.data.id === result.request._getCreateId()) {
+      result.success = true;
+      result.data = result.data.data;
     }
   }
 
@@ -193,8 +334,10 @@ class SyncManager extends Root {
    * @param  {layer.SyncEvent} requestEvt - Request object
    */
   _xhrResult(result, requestEvt) {
+    if (this.isDestroyed) return;
     result.request = requestEvt;
     requestEvt.isFiring = false;
+    this._handleDeduplicationErrors(result);
     if (!result.success) {
       this._xhrError(result);
     } else {
@@ -210,8 +353,10 @@ class SyncManager extends Root {
    * @param  {Object} result  - Response object returned by xhr call
    * @param  {layer.SyncEvent} requestEvt - Request object
    * @param  {boolean} isOnline - Is our app state set to online
+   * @returns {String}
    */
   _getErrorState(result, requestEvt, isOnline) {
+    const errId = result.data ? result.data.id : '';
     if (!isOnline) {
       // CORS errors look identical to offline; but if our online state has transitioned from false to true repeatedly while processing this request,
       // thats a hint that that its a CORS error
@@ -220,9 +365,11 @@ class SyncManager extends Root {
       } else {
         return 'offline';
       }
-    } else if (result.status === 404 && result.data && result.data.code === 102) {
+    } else if (errId === 'not_found') {
       return 'notFound';
-    } else if (result.status === 408) {
+    } else if (errId === 'id_in_use') {
+      return 'invalidId'; // This only fires if we get `id_in_use` but no Resource, which means the UUID was used by another user/app.
+    } else if (result.status === 408 || errId === 'request_timeout') {
       if (requestEvt.retryCount >= SyncManager.MAX_RETRIES) {
         return 'tooManyFailuresWhileOnline';
       } else {
@@ -234,7 +381,7 @@ class SyncManager extends Root {
       } else {
         return 'serverUnavailable';
       }
-    } else if (result.status === 401 && result.data.data && result.data.data.nonce) {
+    } else if (errId === 'authentication_required' && result.data.data && result.data.data.nonce) {
       return 'reauthorize';
     } else {
       return 'serverRejectedRequest';
@@ -259,19 +406,23 @@ class SyncManager extends Root {
     logger.warn(`Sync Manager ${requestEvt instanceof WebsocketSyncEvent ? 'Websocket' : 'XHR'} ` +
       `${requestEvt.operation} Request on target ${requestEvt.target} has Failed`, requestEvt.toObject());
 
+
     const errState = this._getErrorState(result, requestEvt, this.isOnline());
     logger.warn('Sync Manager Error State: ' + errState);
     switch (errState) {
       case 'tooManyFailuresWhileOnline':
-        this._xhrHandleServerError(result, 'Sync Manager Server Unavailable Too Long; removing request');
+        this._xhrHandleServerError(result, 'Sync Manager Server Unavailable Too Long; removing request', false);
         break;
       case 'notFound':
-        this._xhrHandleServerError(result, 'Resource not found; presumably deleted');
+        this._xhrHandleServerError(result, 'Resource not found; presumably deleted', false);
+        break;
+      case 'invalidId':
+        this._xhrHandleServerError(result, 'ID was not unique; request failed', false);
         break;
       case 'validateOnlineAndRetry':
         // Server appears to be hung but will eventually recover.
         // Retry a few times and then error out.
-        this._xhrValidateIsOnline();
+        this._xhrValidateIsOnline(requestEvt);
         break;
       case 'serverUnavailable':
         // Server is in a bad state but will eventually recover;
@@ -282,21 +433,27 @@ class SyncManager extends Root {
         // sessionToken appears to no longer be valid; forward response
         // on to client-authenticator to process.
         // Do not retry nor advance to next request.
-        requestEvt.callback(result);
+        if (requestEvt.callback) requestEvt.callback(result);
+
         break;
       case 'serverRejectedRequest':
         // Server presumably did not like the arguments to this call
         // or the url was invalid.  Do not retry; trigger the callback
         // and let the caller handle it.
-        this._xhrHandleServerError(result, 'Sync Manager Server Rejects Request; removing request');
+        this._xhrHandleServerError(result, 'Sync Manager Server Rejects Request; removing request', true);
         break;
       case 'CORS':
         // A pattern of offline-like failures that suggests its actually a CORs error
-        this._xhrHandleServerError(result, 'Sync Manager Server detects CORS-like errors; removing request');
+        this._xhrHandleServerError(result, 'Sync Manager Server detects CORS-like errors; removing request', false);
         break;
       case 'offline':
         this._xhrHandleConnectionError();
         break;
+    }
+
+    // Write the sync event back to the database if we haven't completed processing it
+    if (this.queue.indexOf(requestEvt) !== -1 || this.receiptQueue.indexOf(requestEvt) !== -1) {
+      this.client.dbManager.writeSyncEvents([requestEvt], false);
     }
   }
 
@@ -337,12 +494,20 @@ class SyncManager extends Root {
    * @method _xhrHandleServerError
    * @private
    * @param  {Object} result  - Response object returned by xhr call
+   * @param  {string} logMsg - Message to display in console
+   * @param  {boolean} stringify - log object for quick debugging
    *
    */
-  _xhrHandleServerError(result, logMsg) {
+  _xhrHandleServerError(result, logMsg, stringify) {
     // Execute all callbacks provided by the request
-    result.request.callback(result);
-    logger.error(logMsg, result.request);
+    if (result.request.callback) result.request.callback(result);
+    if (stringify) {
+      logger.error(logMsg +
+        '\nREQUEST: ' + JSON.stringify(result.request.toObject(), null, 4) +
+        '\nRESPONSE: ' + JSON.stringify(result.data, null, 4));
+    } else {
+      logger.error(logMsg, result);
+    }
     this.trigger('sync:error', {
       target: result.request.target,
       request: result.request,
@@ -358,7 +523,7 @@ class SyncManager extends Root {
     }
 
     // Remove this request as well (side-effect: rolls back the operation)
-    this._removeRequest(result.request);
+    this._removeRequest(result.request, true);
 
     // And finally, we are ready to try the next request
     this._processNextRequest();
@@ -393,9 +558,9 @@ class SyncManager extends Root {
    * @method _xhrValidateIsOnline
    * @private
    */
-  _xhrValidateIsOnline() {
+  _xhrValidateIsOnline(requestEvt) {
     logger.debug('Sync Manager verifying online state');
-    this.onlineManager.checkOnlineStatus(isOnline => this._xhrValidateIsOnlineCallback(isOnline));
+    this.onlineManager.checkOnlineStatus(isOnline => this._xhrValidateIsOnlineCallback(isOnline, requestEvt));
   }
 
   /**
@@ -411,8 +576,9 @@ class SyncManager extends Root {
    * @method _xhrValidateIsOnlineCallback
    * @private
    * @param  {boolean} isOnline  - Response object returned by xhr call
+   * @param {layer.SyncEvent} requestEvt - The request that failed triggering this call
    */
-  _xhrValidateIsOnlineCallback(isOnline) {
+  _xhrValidateIsOnlineCallback(isOnline, requestEvt) {
     logger.debug('Sync Manager online check result is ' + isOnline);
     if (!isOnline) {
       // Treat this as a Connection Error
@@ -420,7 +586,7 @@ class SyncManager extends Root {
     } else {
       // Retry the request in case we were offline, but are now online.
       // Of course, if this fails, give it up entirely.
-      this.queue[0].retryCount++;
+      requestEvt.retryCount++;
       this._processNextRequest();
     }
   }
@@ -445,7 +611,7 @@ class SyncManager extends Root {
       `${requestEvt.operation} Request on target ${requestEvt.target} has Succeeded`, requestEvt.toObject());
     if (result.data) logger.debug(result.data);
     requestEvt.success = true;
-    this._removeRequest(requestEvt);
+    this._removeRequest(requestEvt, true);
     if (requestEvt.callback) requestEvt.callback(result);
     this._processNextRequest();
 
@@ -462,10 +628,13 @@ class SyncManager extends Root {
    * @method _removeRequest
    * @private
    * @param  {layer.SyncEvent} requestEvt - SyncEvent Request to remove
+   * @param {Boolean} deleteDB - Delete from indexedDB
    */
-  _removeRequest(requestEvt) {
-    const index = this.queue.indexOf(requestEvt);
-    if (index !== -1) this.queue.splice(index, 1);
+  _removeRequest(requestEvt, deleteDB) {
+    const queue = requestEvt.operation === 'RECEIPT' ? this.receiptQueue : this.queue;
+    const index = queue.indexOf(requestEvt);
+    if (index !== -1) queue.splice(index, 1);
+    if (deleteDB) this.client.dbManager.deleteObjects('syncQueue', [requestEvt]);
   }
 
   /**
@@ -484,6 +653,7 @@ class SyncManager extends Root {
    */
   _purgeDependentRequests(request) {
     this.queue = this.queue.filter(evt => evt.depends.indexOf(request.target) === -1 || evt === request);
+    this.receiptQueue = this.receiptQueue.filter(evt => evt.depends.indexOf(request.target) === -1 || evt === request);
   }
 
 
@@ -495,14 +665,40 @@ class SyncManager extends Root {
    * @param  {layer.SyncEvent} evt - Delete event that requires removal of other events
    */
   _purgeOnDelete(evt) {
-    this.queue = this.queue.filter(request => request.depends.indexOf(evt.target) === -1 || evt === request);
+    this.queue.filter(request => request.depends.indexOf(evt.target) !== -1 && evt !== request)
+      .forEach(requestEvt => {
+        this.trigger('sync:abort', {
+          target: requestEvt.target,
+          request: requestEvt,
+        });
+        this._removeRequest(requestEvt, true);
+      });
   }
 
 
   destroy() {
     this.queue.forEach(evt => evt.destroy());
     this.queue = null;
+    this.receiptQueue.forEach(evt => evt.destroy());
+    this.receiptQueue = null;
     super.destroy();
+  }
+
+  /**
+   * Load any unsent requests from indexedDB.
+   *
+   * If persistence is disabled, nothing will happen;
+   * else all requests found in the database will be added to the queue.
+   * @method _loadPersistedQueue
+   * @private
+   */
+  _loadPersistedQueue() {
+    this.client.dbManager.loadSyncQueue(data => {
+      if (data.length) {
+        this.queue = this.queue.concat(data);
+        this._processNextRequest();
+      }
+    });
   }
 }
 
@@ -532,6 +728,19 @@ SyncManager.prototype.onlineManager = null;
  * @type {layer.SyncEvent[]}
  */
 SyncManager.prototype.queue = null;
+
+/**
+ * The array of layer.SyncEvent instances awaiting to be fired.
+ *
+ * Receipts can generally just be fired off all at once without much fretting about ordering or dependencies.
+ * @type {layer.SyncEvent[]}
+ */
+SyncManager.prototype.receiptQueue = null;
+
+/**
+ * Reference to the Client so that we can pass it to SyncEvents  which may need to lookup their targets
+ */
+SyncManager.prototype.client = null;
 
 /**
  * Maximum exponential backoff wait.
@@ -571,6 +780,14 @@ SyncManager._supportedEvents = [
   /**
    * A sync request has failed.
    *
+   * ```
+   * client.syncManager.on('sync:error', function(evt) {
+   *    console.error(evt.target.id + ' failed to send changes to server: ', result.data.message);
+   *    console.log('Request Event:', requestEvt);
+   *    console.log('Server Response:', result.data);
+   * });
+   * ```
+   *
    * @event
    * @param {layer.SyncEvent} evt - The request object
    * @param {Object} result
@@ -583,6 +800,14 @@ SyncManager._supportedEvents = [
   /**
    * A sync layer request has completed successfully.
    *
+   * ```
+   * client.syncManager.on('sync:success', function(evt) {
+   *    console.log(evt.target.id + ' changes sent to server successfully');
+   *    console.log('Request Event:', requestEvt);
+   *    console.log('Server Response:', result.data);
+   * });
+   * ```
+   *
    * @event
    * @param {Object} result
    * @param {string} result.target - ID of the message/conversation/etc. being operated upon
@@ -594,10 +819,31 @@ SyncManager._supportedEvents = [
   /**
    * A new sync request has been added.
    *
+   * ```
+   * client.syncManager.on('sync:add', function(evt) {
+   *    console.log(evt.target.id + ' has changes queued for the server');
+   *    console.log('Request Event:', requestEvt);
+   * });
+   * ```
+   *
    * @event
+   * @param {string} result.target - ID of the message/conversation/etc. being operated upon
    * @param {layer.SyncEvent} evt - The request object
    */
   'sync:add',
+
+  /**
+   * A sync request has been canceled.
+   *
+   * Typically caused by a new SyncEvent that deletes the target of this SyncEvent
+   *
+   * @event
+   * @param {layer.SyncEvent} evt - The request object
+   * @param {Object} result
+   * @param {string} result.target - ID of the message/conversation/etc. being operated upon
+   * @param {layer.SyncEvent} result.request - The original request
+   */
+  'sync:abort',
 ].concat(Root._supportedEvents);
 
 Root.initClass(SyncManager);

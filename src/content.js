@@ -13,7 +13,7 @@
  *      });
  *
  * @class  layer.Content
- * @protected
+ * @private
  * @extends layer.Root
  * @author Michael Kantor
  */
@@ -84,9 +84,10 @@ class Content extends Root {
     client.xhr({
       url: this.refreshUrl,
       method: 'GET',
+      sync: false,
     }, result => {
       const { data } = result;
-      this.expiration = data.expiration;
+      this.expiration = new Date(data.expiration);
       this.downloadUrl = data.download_url;
       if (callback) callback(this.downloadUrl);
     });

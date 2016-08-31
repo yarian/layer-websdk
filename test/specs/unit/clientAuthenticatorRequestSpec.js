@@ -17,19 +17,23 @@ describe("The Client Authenticator Requests", function() {
         jasmine.Ajax.install();
         requests = jasmine.Ajax.requests;
 
-        client = new layer.ClientAuthenticator({
+        client = new layer.Client({
             appId: appId,
             reset: true,
             url: "https://duh.com"
         });
+        client.user = {userId: userId};
+
         client._initComponents();
+        client._clientAuthenticated();
         client._clientReady();
+        requests.reset();
     });
 
     afterEach(function() {
         jasmine.clock().uninstall();
         jasmine.Ajax.uninstall();
-        client._destroyComponents();
+        client.destroy();
     });
 
     afterAll(function() {
@@ -120,7 +124,7 @@ describe("The Client Authenticator Requests", function() {
     });
 
     describe("The xhr() method", function() {
-        it("Should call _xhrFixRelativeUrls", function() {
+        it("Should call _xhrFixRelativeUrls if non-sync request", function() {
             // Setup
             spyOn(client, "_xhrFixRelativeUrls");
 
@@ -129,6 +133,36 @@ describe("The Client Authenticator Requests", function() {
 
             // Posttest
             expect(client._xhrFixRelativeUrls).toHaveBeenCalledWith("/conversations");
+        });
+
+        it("Should call _xhrFixRelativeUrls if sync request without target", function() {
+            // Setup
+            spyOn(client, "_xhrFixRelativeUrls");
+
+            // Run
+            client.xhr({
+              url: "/conversations",
+              sync: {}
+            });
+
+            // Posttest
+            expect(client._xhrFixRelativeUrls).toHaveBeenCalledWith("/conversations");
+        });
+
+        it("Should not call _xhrFixRelativeUrls if sync request with target", function() {
+            // Setup
+            spyOn(client, "_xhrFixRelativeUrls");
+
+            // Run
+            client.xhr({
+              url: "/conversations",
+              sync: {
+                target: "hey"
+              }
+            });
+
+            // Posttest
+            expect(client._xhrFixRelativeUrls).not.toHaveBeenCalled();
         });
 
         it("Should call _xhrFixHeaders", function() {
@@ -209,6 +243,11 @@ describe("The Client Authenticator Requests", function() {
     });
 
     describe("The _syncXhr() method", function() {
+        beforeEach(function() {
+            client.sessionToken = 'sessionToken';
+            spyOn(client.syncManager, "isOnline").and.returnValue(true);
+        });
+
         it("Should fire a correct call to xhr", function() {
             // Run
             client._syncXhr({url: "fred", method: "POST", headers: {}});
@@ -217,7 +256,9 @@ describe("The Client Authenticator Requests", function() {
             expect(requests.mostRecent()).toEqual(jasmine.objectContaining({
                 url: "fred",
                 method: "POST",
-                requestHeaders: {}
+                requestHeaders: {
+                    authorization: 'Layer session-token="sessionToken"'
+                }
             }));
 
         });
@@ -570,6 +611,10 @@ describe("The Client Authenticator Requests", function() {
     });
 
     describe("The Push Token Methods", function() {
+      beforeEach(function() {
+        spyOn(client.syncManager, "isOnline").and.returnValue(true);
+      });
+
       it("Should have a working registerIOSPushToken() method", function() {
         var callback = jasmine.createSpy('callback');
         client.registerIOSPushToken({

@@ -1,17 +1,14 @@
 # Layer Web SDK
+
 [![Build Status](http://img.shields.io/travis/layerhq/layer-websdk.svg)](https://travis-ci.org/layerhq/layer-websdk)
 [![npm version](http://img.shields.io/npm/v/layer-websdk.svg)](https://npmjs.org/package/layer-websdk)
 
-The Layer Web SDK is a JavaScript library for adding chat services to your web application. For detailed documentation, tutorials and guides please visit our [Web SDK documentation](https://developer.layer.com/docs/websdk).
-
-## Public Beta Disclaimer
-
-This **public beta is NOT production ready**; while we will not stop you from using it in production, your expectations of polish and support will need to account for this. There are known limitations and known concerns with the Layer Web SDK.
+The Layer Web SDK is a JavaScript library for adding chat services to your web application. For detailed documentation, tutorials and guides please visit our [Web SDK documentation](https://docs.layer.com/sdk/web/install).
 
 ## Supported Browsers
 
 * IE 11 and Edge
-* Safari 7
+* Safari 7 and up
 * Chrome 42 and up
 * Firefox 40 and up
 
@@ -19,15 +16,17 @@ Older versions of Chrome and Firefox will likely work.
 
 ## Installation
 
-All examples below assume your using the CDN installation method.
+All examples below assume your using the CDN installation method; adapting instructions to other methods should be straightforward.
 
 ### CDN
 
 Simplest approach to install the Web SDK is to add the following script tag:
 
 ```html
-<script src='//cdn.layer.com/sdk/0.9/layer-websdk.min.js'></script>
+<script src='//cdn.layer.com/sdk/1.1/layer-websdk.min.js'></script>
 ```
+
+* For stricter code control, use `//cdn.layer.com/sdk/1.1.0/layer-websdk.min.js` instead.
 
 All classes can then be accessed via the `layer` namespace:
 
@@ -39,7 +38,9 @@ var client = new layer.Client({
 
 ### NPM
 
-    npm install layer-websdk --save
+```console
+npm install layer-websdk --save
+```
 
 All classes can then be accessed via the layer module:
 
@@ -68,17 +69,26 @@ Other build commands:
 
 ## About this README
 
-This README contains everything you need to get started.  But is NOT an exhaustive source of documentation.  For the full documentation, or for any topics that are missing here, go to the [Web SDK documentation](https://developer.layer.com/docs/websdk).
+This README contains everything you need to get started.  But is NOT an exhaustive source of documentation.  For the full documentation, or for any topics that are missing here, go to the [Web SDK documentation](https://docs.layer.com/sdk/web/install).
 
 ## Getting Started
 
-To start using Layer's Web SDK, you need to initialize a client with your Layer Application ID which can be found in the [Developer Dashboard](https://developer.layer.com/projects/keys).
+To start using Layer's Web SDK, you need to
+
+1. Initialize a layer.Client
+2. Setup event handlers
+3. Connect to Layer
+
+### 1. Initializing a Client
+
+Initialize a client with your Layer Application ID which can be found in the [Developer Dashboard](https://developer.layer.com/projects/keys).
 
 ```javascript
 var client = new layer.Client({
     appId: LAYER_APP_ID
 });
 ```
+### 2. Setup Event handlers
 
 The client requires two event handlers to get started:
 
@@ -113,18 +123,30 @@ var client = new layer.Client({
 });
 ```
 
-`getIdentityToken()` is a method you provide for accessing your Identity Provider, and is covered in the [Authentication](https://developer.layer.com/docs/websdk/integration#authentication) section.
+`getIdentityToken()` is a method you provide for accessing your Identity Provider, and is covered in the [Authentication](#authentication) section.
+
+### 3. Connect to Layer
+
+To start the client, you will call the `connect` method with the userId of the user you are authenticating as:
+
+```javascript
+client.connect('Frodo_the_Dodo');
+```
+
+This call will start the authentication process.  If using the `layer.Client.isTrustedDevice` property, it may try to restore your last Session Token and skip authentication.
 
 ### Accessing Data
 
 Data is accessed via layer.Query instances.  Some notes about queries before going into details:
 
-* The `update()` method lets you change properties of the Query, and then fetches updated results.
+* The `update()` method lets you change properties of the Query and then fetches updated results.
 * Results of Queries will update as new Conversations or Messages are created locally or remotely.
-* Results are accessed via the `data` property.
+* Results are accessed via the query's `data` property.
 * Events are triggered whenever there is a change to the query's results.
-* Querys for Conversations should specify a `model` of `layer.Query.Conversation`.
-* Querys for Messages should specify a `model` of `layer.Query.Message`.
+* Queries can be used to retrieve the following types of data:
+    * Conversations: model is `layer.Query.Conversation`
+    * Messages: model is `layer.Query.Message`
+    * Announcements: model is `layer.Query.Announcement`
 
 #### Conversation Query
 
@@ -150,7 +172,7 @@ var query = client.createQuery({
 });
 ```
 
-Improved support for sorting and predicates will ship once the server adds a Query API.
+Improved support for sorting and predicates will ship once the Layer's [Client APIs](https://developer.layer.com/docs/client) adds a Query API.
 
 #### Message Query
 
@@ -175,8 +197,7 @@ The Message query only accepts a predicate/filter of the form:
 Notes:
 
 * Single and double quotes are both supported for this predicate.
-* Any other predicate will trigger a change event, and the new data will be `[]`. In other words, no other predicates are currently supported.
-* No sorting options are currently supported on Message queries.
+* No sorting options are currently supported on Message queries.  They are always sorted by Message `position` property in descending order.
 
 #### Query Update
 
@@ -231,7 +252,7 @@ var query = client.createQuery(builder);
 query.update(builder.forConversation(conversationTwo.id));
 ```
 
-The QueryBuilder may suit some developer styles better, and makes specifying a predicateis simpler than concatenating strings when specifying a predicate.
+The QueryBuilder may suit some developer styles better.
 
 #### Query Results
 
@@ -243,19 +264,19 @@ query.on('change', function(evt) {
 });
 ```
 
-To get more granular details about the different types of `change` events and how to access just the data within the results that have changed, see the [Query API](http://static.layer.com/sdk/docs/#!/api/layer.Query)
+To get more granular details about the different types of `change` events and how to access just the data within the results that have changed, see the [Query API](http://static.layer.com/sdk/docs-1.1/#!/api/layer.Query).
 
 ## Authentication
 
 Authentication requires that:
 
-* you have setup an Identity Service
+* you have set up an Identity Service
 * your client sends a request to your identity service to get an Identity Token
-* your client provides that identity token to the Layer Web SDK.
+* your client provides that identity token to the Layer Web SDK
 
-Some of these concepts are explained in more detail in the [Authentication Guide](https://developer.layer.com/docs/websdk/guides#authentication); concepts specific to the Layer Web SDK are described here.
+Some of these concepts are explained in more detail in the [Authentication Guide](https://docs.layer.com/sdk/web/authentication#identity-token); concepts specific to the Layer Web SDK are described here.
 
-Assuming that you have an Identity Service, your javascript application will need to provide some method (`getIdentityToken()` in the example below) that gets the identity token.
+Assuming that you have an [Identity Provider](https://docs.layer.com/sdk/web/authentication#identity-token), your javascript application will need to provide some method (`getIdentityToken()` in the example below) that gets the identity token.
 
 ```javascript
 function getIdentityToken(nonce, callback) {
@@ -277,7 +298,8 @@ The full sequence may look like:
 
 ```javascript
 var client = new layer.Client({
-    appId: LAYER_APP_ID
+    appId: LAYER_APP_ID,
+    isTrustedDevice: false
 });
 
 client.on('challenge', function(evt) {
@@ -291,28 +313,31 @@ Note that `evt.callback` must be called to provide the Layer Client with the ide
 
 ### Reusing the previous Authorization?
 
-When reloading a web page, the framework will try to restore the last session.  However, it will only do this **if** you provide a `userId` parameter AND if that parameter matches the name associated with the last session:
+If the client receives the `isTrustedDevice` property, then it will store your user's last Session Token in localStorage.
+
+When reloading a web page, the framework will try to restore the last session.  However, it will only do this if:
+
+1. `isTrustedDevice` is true
+2. A `userId` property is provided to the `connect()` method
+3. The `userId` property matches the userId of the last user to login
 
 ```javascript
 var client = new layer.Client({
     appId: LAYER_APP_ID,
-    userId: 'Frodo_the_Dodo'
+    isTrustedDevice: true
 });
+client.connect('Frodo_the_Dodo');
 ```
 
-* If there is no session cached for Frodo_the_Dodo, then your `challenge` event handler will be called.
+* If there is no session cached for `Frodo_the_Dodo`, then your `challenge` event handler will be called.
 * If there is a session but its expired, then your `challenge` event handler will be called.
 * If there is a session and its valid, then your `ready` event handler will be called.
 
 ## Creating a Conversation
 
 ```javascript
-// Shorthand
-var conversation = client.createConversation(['a', 'b']);
-
-// Complete version
 var conversation = client.createConversation({
-    participants: ['a','b'],
+    participants: ['Frodo_the_Dodo','Samwise_the_Brave'],
     distinct: false,
     metadata: {
         title: 'My conversation title'
@@ -335,7 +360,8 @@ var message = conversation.createMessage({
         mimeType: 'text/plain'
     })]
 }).send({
-    text: 'Push Notification: Your New Message says Hello',
+    title: 'New Message from the World',
+    text: 'The world Says "Hello World"; its a very self involved planet',
     sound: 'ding.aiff'
 });
 ```
@@ -351,14 +377,16 @@ message.addPart({
 message.send();
 ```
 
-Also note that the send method takes an optional parameter for push notifications; without that parameter there will be no new message notification for recipients:
+Also note that the send method takes an optional parameter for push notifications; without that parameter there will be no new message notification for mobile device users:
 
 ```javascript
 message.send({
-    text: 'Push Notification: Your New Message says Hello',
+    title: 'New Message from World',
+    text: 'World Says "Hello World"; its a very self involved planet',
     sound: 'ding.aiff'
 });
 ```
+The exact meaning of these fields, and how to use them will depend on the platform that is receiving them; please consult the IOS and Android docs for more information.
 
 ## Retrieving a Conversation
 
@@ -374,11 +402,11 @@ A Conversation can be retrieved by ID from cache OR from the server if not cache
 var conversation = client.getConversation('layer:///conversations/uuid', true);
 ```
 
-If you need the Conversation's details to be loaded from the server, use the 'conversations:loaded' event.
+If you need the Conversation's details to be loaded from the server, use the 'conversations:loaded' event to be notified when its ready:
 
 ```javascript
 var conversation = client.getConversation('layer:///conversations/uuid', true);
-conversation.on('conversations:loaded', function() {
+conversation.once('conversations:loaded', function() {
     renderMyUI(conversation);
 });
 ```
@@ -403,41 +431,56 @@ If you need the Message's details to be loaded from the server, use the "message
 
 ```javascript
 var message = client.getMessage("layer:///messages/uuid", true);
-message.on("messages:loaded", function() {
+message.once("messages:loaded", function() {
     renderMyUI(message);
 });
 ```
 The `messages:loaded` event will be called immediately if its already loaded.
 
+## Persistence
+
+Options exist to cache data in the browser.  All of these capabilities are protected by the `isTrustedDevice` property as well as the `isPersistenceEnabled` property.  If the device is not trusted, no data will be stored.  If `isPersistenceEnabled` is not enabled, no data will be stored in IndexedDB (Your user's Session Token will still be persisted to localStorage).    But if you set both of these to true, then data can be saved.
+
+```javascript
+var client = new layer.Client({
+  appId: LAYER_APP_ID,
+  isTrustedDevice: true,
+  isPersistenceEnabled: true
+});
+```
+
+By default, `isTrustedDevice` will enable the following types of data to be stored:
+
+* Conversations
+* Messages
+* Announcements
+* Server Requests that have not yet completed
+* The Session Token
+
+
 ## Change Events
 
-The Layer Web SDK provides not just a set of APIs for letting you create, retrieve and control Conversations and Messages, but also a websocket connection that keeps your objects up-to-date and in sync with everyone else.  Changes, regardless of whether they are generated by websocket messages or changes you have made programatically, will all result in Events being triggered.
-
+The Layer Web SDK provides not just a set of APIs for letting you create, retrieve and control Conversations and Messages, but also a websocket connection that keeps your objects up-to-date and in sync with everyone else.  Changes, regardless of whether they are generated by websocket data or changes you have made programatically, will all result in Events being triggered.
 
 ### Commonly Used Events
 
-There are a log of available events, but only a few that are really necessary for building applications:
+There are a lot of available events, but only a few that are really necessary for building applications:
 
 * layer.Query Events
     * `change` - Any change to the Query results
 
 * layer.Message Events:
-    * `messages:sent` - A message you were sending is now sent
-    * `messages:change` - A Message's property has changed
-    * `messages:delete` - A message has been deleted
-    * `messages:read` - A message has been marked as read by your user
+    * `messages:sent` - A Message you were sending is now sent
+    * `messages:change` - A Message property has changed
 
 * layer.Conversation Events:
     * `conversations:sent` - A Conversation has been sent to the server
-    * `conversations:change` - A Conversation's property has changed
-    * `conversations:delete` - A Conversation has been deleted
+    * `conversations:change` - A Conversation property has changed
 
 * layer.Client Events: Receives all of the above events as well as:
     * `ready` - The client is connected, authenticated and ready for use
     * `challenge` - The client requires an identity token
-    * `messages:add` - A Message has been added to the messages cache
-    * `conversations:add` - A Conversation has been added to the conversations cache
-
+    * `messages:notify` - A Message has been added to the messages cache
 
 ### Event Arguments
 
@@ -485,6 +528,8 @@ The Event system is built on top of the backbone.js events. This accepts:
 ```javascript
 object.on(eventName, callback, context);
 
+object.on('eventName1 eventName2', callback, context);
+
 object.on({
     eventName1: callback,
     eventName2: callback,
@@ -498,22 +543,8 @@ object.off(null, null, context);
 
 ## Websockets
 
-The layer.Client instance manages a websocket connection to the server.  If the connection is lost, it will attempt to reconnect when able, and will catchup on missed events. Typically, all management of this connection should be left to the Layer Web SDK.
-
-## Users
-
-Layer imposes very little meaning on the identity of participants in a Conversation.  However, it is often useful to manage an array of users that can be used to populate a user list.  Even more important is being able to find a user by user-id, and find a display name to show for them next to messages they send.
-
-The layer.Client `users` property can be used for storing an array of `layer.User` instances, and a `client.findUser(id)` call for retreiving a User object by ID.  At this time there is no code within the framework that depends upon use of the `layer.User` object, nor the `users` property.
-
-```javascript
-client.users = [
-    new layer.User({displayName: 'Fred', id: 'fred.flinstone@ancients.com', data: {custom-data}}),
-    new layer.User({displayName: 'Frodo', id: 'frodo.baggins@gandalf-fan-club.org', data: {custom-data}})
-];
-```
-
-The user object automatically looks for any Direct Message conversations between the currently authenticated user and the user represented by the layer.User instance and sets it in the `layer.User` `conversation` property.  When rendering a User list, this helps to provide information about last messages, unread message counts, etc... related to each user in the list.
+The layer.Client manages a websocket connection to the server.  If the connection is lost, it will attempt to reconnect when able, and will catchup on missed events. Typically, all management of this connection should be left to the Layer Web SDK.  After an extended period of disconnect (> 1 day)
+the Client may simply refire all Queries and refresh its data instead of trying to catch up on missed events.
 
 ## Testing
 
@@ -527,7 +558,4 @@ Layer Web SDK is an Open Source project maintained by Layer, inc. Feedback and c
 
 ## Contact
 
-Layer Web SDK was developed in San Francisco by the Layer team. If you have any technical questions or concerns about this project feel free to reach out to engineers responsible for the development:
-
-* [Michael Kantor](mailto:michael@layer.com)
-* [Nil Gradisnik](mailto:nil@layer.com)
+Layer Web SDK was developed in San Francisco by the Layer team. If you have any technical questions or concerns about this project feel free to reach out to [Layer Support](mailto:support@layer.com).

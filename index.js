@@ -9,12 +9,13 @@ layer.Root = require('./lib/root');
 layer.Client = require('./lib/client');
 layer.ClientAuthenticator = require('./lib/client-authenticator');
 layer.Conversation = require('./lib/conversation');
+layer.Syncable = require('./lib/syncable');
 layer.Message = require('./lib/message');
+layer.Announcement = require('./lib/announcement');
 layer.MessagePart = require('./lib/message-part');
 layer.Query = require('./lib/query');
 layer.QueryBuilder = require('./lib/query-builder');
 layer.xhr = require('./lib/xhr');
-layer.User = require('./lib/user');
 layer.LayerError = require('./lib/layer-error');
 layer.LayerEvent = require('./lib/layer-event');
 layer.Content = require('./lib/content');
@@ -28,6 +29,7 @@ layer.Websockets = {
   ChangeManager: require('./lib/websockets/change-manager'),
 };
 layer.OnlineStateManager = require('./lib/online-state-manager');
+layer.DbManager = require('./lib/db-manager');
 layer.Constants = require('./lib/const');
 layer.Util = require('./lib/client-utils');
 layer.TypingIndicators = require('./lib/typing-indicators/typing-indicators');

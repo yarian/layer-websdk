@@ -66,7 +66,7 @@ class MessagesQuery {
       this._query.predicate = `conversation.id = '${conversationId}'`;
       this._conversationIdSet = true;
     } else {
-      delete this._query.predicate;
+      this._query.predicate = '';
       this._conversationIdSet = false;
     }
     return this;
@@ -93,21 +93,37 @@ class MessagesQuery {
    * @method build
    */
   build() {
-    if (!this._conversationIdSet) {
-      throw new Error(LayerError.dictionary.conversationMissing);
-    }
-
     return this._query;
   }
+}
 
+/**
+ * Query builder class generating queries for a set of Announcements.
+ *
+ * To get started:
+ *
+ *      var qBuilder = QueryBuilder
+ *       .announcements()
+ *       .paginationWindow(100);
+ *      var query = client.createQuery(qBuilder);
+ *
+ * @class layer.QueryBuilder.AnnouncementsQuery
+ * @extends layer.QueryBuilder.MessagesQuery
+ */
+class AnnouncementsQuery extends MessagesQuery {
+  constructor(options) {
+    super(options);
+    this._query.model = Query.Announcement;
+  }
+  build() {
+    return this._query;
+  }
 }
 
 /**
  * Query builder class generating queries for a set of Conversations.
  *
  * Used in Creating and Updating layer.Query instances.
- * Note that at this time, the only thing we can query for is
- * ALL Conversations; primary use for this is to page through the Conversations.
  *
  * To get started:
  *
@@ -197,6 +213,7 @@ class ConversationsQuery {
   }
 }
 
+
 /**
  * Query builder class. Used with layer.Query to specify what local/remote
  * data changes to subscribe to.  For examples, see layer.QueryBuilder.MessagesQuery
@@ -226,6 +243,16 @@ const QueryBuilder = {
   },
 
   /**
+   * Create a new layer.AnnouncementsQuery instance.
+   *
+   * @method announcements
+   * @returns {layer.QueryBuilder.AnnouncementsQuery}
+   */
+  announcements() {
+    return new AnnouncementsQuery();
+  },
+
+  /**
    * Create a new layer.ConversationsQuery instance.
    *
    * @method conversations
@@ -251,6 +278,8 @@ const QueryBuilder = {
     switch (obj.model) {
       case Query.Message:
         return new MessagesQuery(obj);
+      case Query.Announcement:
+        return new AnnouncementsQuery(obj);
       case Query.Conversation:
         return new ConversationsQuery(obj);
       default:

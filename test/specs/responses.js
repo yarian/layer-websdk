@@ -30,7 +30,7 @@ var messageTemplate = {
     "sent_at": "2014-09-09T04:44:47+00:00",
     "sender": {
         "user_id": "12345",
-        "name": null
+        "display_name": "One through Five",
     },
     "is_unread": true,
     "recipient_status": {
@@ -68,10 +68,7 @@ responses = {
         "url": "https://doh.com/conversations/f3cc7b32-3c92-11e4-baad-164230d1df67",
         "created_at": "2014-09-15T04:44:47+00:00",
         "last_message": sampleMessage1,
-        "participants": [
-            "1234",
-            "5678"
-        ],
+        "participants": ["1234", "5678"],
         "distinct": true,
         "unread_message_count": 3,
         "metadata": {
@@ -84,11 +81,7 @@ responses = {
         "url": "https://doh.com/conversations/f3cc7b32-3c92-11e4-baad-164230d1df68",
         "created_at": "2014-09-15T04:44:47+00:00",
         "last_message": sampleMessage2,
-        "participants": [
-            "777",
-            "999",
-            "111"
-        ],
+        "participants": ["777", "999", "111"],
         "distinct": true,
         "unread_message_count": 3,
         "metadata": {
@@ -96,16 +89,30 @@ responses = {
             "background_color": "#3c3c3c"
         }
     },
-    createConversationDistinct: {
-        "participants": [ "1234", "5678" ],
-        "distinct": true
-    },
-    createConversationNonDistinct: {
-        "participants": [ "1234", "5678" ],
-        "distinct": false
-    },
     message1: sampleMessage2,
-    message2: sampleMessage3
+    message2: sampleMessage3,
+    announcement: {
+       "id": "layer:///announcements/b40de862-3c96-11e4-baad-164230d1df67",
+      "url": "https://doh.com/announcements/b40de862-3c96-11e4-baad-164230d1df67",
+      "position": 15032697020,
+      "parts": [
+          {
+              "id": "layer:///announcements/b40de862-3c96-11e4-baad-164230d1df67/parts/0",
+              "mime_type": "text/plain",
+              "body": "This is the message.",
+              "size": 20
+          }
+      ],
+      "sent_at": "2014-09-09T04:44:47+00:00",
+      "sender": {
+        "user_id": "admin",
+        "display_name": "Lord Master the Admin",
+      },
+      "is_unread": true,
+      "recipient_status": {
+          "777": "sent"
+      }
+    }
 };
 
 var mostRecentEqualityTest =  function(a, b) {

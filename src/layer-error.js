@@ -7,9 +7,18 @@
  *
  * Layer Error is passed as part of the layer.LayerEvent's data property.
  *
+ * Throw an error:
+ *
  *     object.trigger('xxx-error', new LayerEvent({
  *       data: new LayerError()
  *     }));
+ *
+ * Receive an Error:
+ *
+ *     conversation.on('loaded-error', function(errEvt) {
+ *        var error = errEvt.data;
+ *        console.error(error.message);
+ *     });
  *
  * @class layer.LayerError
  */
@@ -150,10 +159,16 @@ LayerError.dictionary = {
   wrongClass: 'Parameter class error; should be: ',
   inProgress: 'Operation already in progress',
   cantChangeIfConnected: 'You can not change value after connecting',
+  cantChangeUserId: 'You can not change the userId property',
   alreadySent: 'Already sent or sending',
   contentRequired: 'MessagePart requires rich content for this call',
   alreadyDestroyed: 'This object has already been destroyed',
   deletionModeUnsupported: 'Call to deletion was made with an unsupported deletion mode',
+  sessionAndUserRequired: 'connectWithSession requires both a userId and a sessionToken',
+  invalidUserIdChange: 'The prn field in the Identity Token must match the requested UserID',
+  predicateNotSupported: 'The predicate is not supported for this value of model',
+  invalidPredicate: 'The predicate does not match the expected format',
+  appIdImmutable: 'The appId property cannot be changed',
 };
 
 module.exports = LayerError;

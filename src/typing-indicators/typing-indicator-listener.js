@@ -19,7 +19,7 @@
 const Root = require('../root');
 const ClientRegistry = require('../client-registry');
 
-const {STARTED, PAUSED, FINISHED} = require('./typing-indicators');
+const { STARTED, PAUSED, FINISHED } = require('./typing-indicators');
 class TypingIndicatorListener extends Root {
 
   /**
@@ -53,7 +53,7 @@ class TypingIndicatorListener extends Root {
    */
   _clientReady() {
     const client = this._getClient();
-    this.userId = client.userId;
+    this.user = client.user;
     const ws = client.socketManager;
     ws.on('message', this._handleSocketEvent, this);
     this._startPolling();
@@ -72,7 +72,7 @@ class TypingIndicatorListener extends Root {
   _isRelevantEvent(evt) {
     return evt.type === 'signal' &&
       evt.body.type === 'typing_indicator' &&
-      evt.body.data.user_id !== this.userId;
+      evt.body.data.user_id !== this.user.userId;
   }
 
   /**
@@ -87,7 +87,7 @@ class TypingIndicatorListener extends Root {
     const evt = evtIn.data;
 
     if (this._isRelevantEvent(evt)) {
-      const userId = evt.body.data.user_id;
+      const sender = evt.body.data.user_id;
       const state = evt.body.data.action;
       const conversationId = evt.body.object.id;
       let stateEntry = this.state[conversationId];
@@ -98,15 +98,15 @@ class TypingIndicatorListener extends Root {
           paused: [],
         };
       }
-      stateEntry.users[userId] = {
+      stateEntry.users[sender] = {
         startTime: Date.now(),
-        state: state,
+        state,
       };
-      if (stateEntry.users[userId].state === FINISHED) {
-        delete stateEntry.users[userId];
+      if (stateEntry.users[sender].state === FINISHED) {
+        delete stateEntry.users[sender];
       }
 
-      this._updateState(stateEntry, state, userId);
+      this._updateState(stateEntry, state, sender);
 
       this.trigger('typing-indicator-change', {
         conversationId,
@@ -127,7 +127,7 @@ class TypingIndicatorListener extends Root {
    * @private
    * @param  {Object} stateEntry - A Conversation's typing indicator state
    * @param  {string} newState   - started, paused or finished
-   * @param  {string} userId     - ID of the user whose state has changed
+   * @param  {string} userId     - User ID of the user whose state has changed
    */
   _updateState(stateEntry, newState, userId) {
     const typingIndex = stateEntry.typing.indexOf(userId);
@@ -179,7 +179,7 @@ class TypingIndicatorListener extends Root {
 
     conversationIds.forEach(id => {
       const state = this.state[id];
-      Object.keys(this.state[id].users)
+      Object.keys(state.users)
         .forEach((userId) => {
           if (Date.now() >= state.users[userId].startTime + 6000) {
             this._updateState(state, FINISHED, userId);
@@ -228,8 +228,8 @@ TypingIndicatorListener._supportedEvents = [
    * There has been a change in typing indicator state of other users.
    * @event change
    * @param {layer.LayerEvent} evt
-   * @param {string[]} evt.typing - Array of userIds of people who are typing
-   * @param {string[]} evt.paused - Array of userIds of people who are paused
+   * @param {String[]} evt.typing - Array of User IDs of people who are typing
+   * @param {String[]} evt.paused - Array of User IDs of people who are paused
    * @param {string} evt.conversationId - ID of the Converation that has changed typing indicator state
    */
   'typing-indicator-change',

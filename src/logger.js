@@ -15,36 +15,26 @@ const Black = 'color: black';
 class Logger {
   log(msg, obj, type, color) {
     /* istanbul ignore else */
-    if (typeof msg === 'string') {
-      const timestamp = new Date().toLocaleTimeString();
+    if (typeof msg === 'object') {
+      obj = msg;
+      msg = '';
+    }
+    const timestamp = new Date().toLocaleTimeString();
+    if (obj) {
+      if (supportsConsoleFormatting) {
+        console.log(`%cLayer%c ${type}%c [${timestamp}]: ${msg}`, LayerCss, `color: ${color}`, Black, obj);
+      } else {
+        console.log(`Layer ${type} [${timestamp}]: ${msg}`, obj);
+      }
+    } else {
       if (supportsConsoleFormatting) {
         console.log(`%cLayer%c ${type}%c [${timestamp}]: ${msg}`, LayerCss, `color: ${color}`, Black);
       } else {
         console.log(`Layer ${type} [${timestamp}]: ${msg}`);
       }
-    } else {
-      this._logObj(msg, type, color);
-    }
-    if (obj) this._logObj(obj, type, color);
-  }
-  _logObj(obj, type, color) {
-    /* istanbul ignore next */
-    if (!obj || isEmpty(obj)) return;
-    /* istanbul ignore next */
-    if (obj.constructor.name === 'Object') {
-      if (supportsConsoleFormatting) {
-        console.log(`%cLayer%c ${type}%c: ${JSON.stringify(obj, null, 4)}`, LayerCss, `color: ${color}`, Black);
-      } else {
-        console.log(`Layer ${type}: ${JSON.stringify(obj, null, 4)}`);
-      }
-    } else {
-      if (supportsConsoleFormatting) {
-        console.log(`%cLayer%c ${type}%c: %O`, LayerCss, `color: ${color}`, Black, obj);
-      } else {
-        console.log(`Layer ${type}:`, obj);
-      }
     }
   }
+
 
   debug(msg, obj) {
     /* istanbul ignore next */

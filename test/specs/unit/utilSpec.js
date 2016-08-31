@@ -240,11 +240,47 @@ describe("The Util Library", function() {
         });
     });
 
+    describe("The fetchTextFromFile() method", function() {
+        var  blob, text;
+        beforeEach(function() {
+            text = new Array(layer.DbManager.MaxPartSize + 10).join('a');
+            blob = new Blob([text], {type : 'text/plain'});
+        });
+
+        it("Should return file if file is really a string", function() {
+            var result;
+            layer.Util.fetchTextFromFile(text, function(data) { result = data;});
+            expect(result).toEqual(text);
+        });
+
+        it("Should turn text blob to string", function(done) {
+            var result;
+            layer.Util.fetchTextFromFile(text, function(data) {
+                expect(data).toEqual(text);
+                done();
+            });
+        });
+
+    });
+
     describe("The layerParse() method", function() {
         var client, conversation, config, message;
         beforeEach(function() {
             client = new layer.Client({appId: "fred"});
-            client.userId = "c";
+
+            client.user = {userId: "Frodo"}
+
+
+            client._clientAuthenticated();
+            getObjectsResult = [];
+            spyOn(client.dbManager, "getObjects").and.callFake(function(tableName, ids, callback) {
+                setTimeout(function() {
+                    callback(getObjectsResult);
+                }, 10);
+            });
+            client._clientReady();
+            client.onlineManager.isOnline = true;
+
             conversation = client.createConversation({
                 participants: ["a", "b"],
                 metadata: {
@@ -300,7 +336,11 @@ describe("The Util Library", function() {
         });
 
         it("Should update recipientStatus", function() {
-            message.recipientStatus = {a: "sent", b: "sent", c: "read"};
+            message.recipientStatus = {
+                "a": "sent",
+                "b": "sent",
+                "c": "read"
+            };
             layer.Util.layerParse({
                 client: client,
                 object: message,
@@ -313,14 +353,19 @@ describe("The Util Library", function() {
 
             // Posttest
             expect(message.recipientStatus).toEqual({
-                a: "read",
-                b: "delivered",
-                c: "read"
+                "a": "read",
+                "b": "delivered",
+                "c": "read",
+                "Frodo": "read"
             });
         });
 
         it("Should call __updateRecipientStatus", function() {
-            message.recipientStatus = {a: "sent", b: "sent", c: "read"};
+            message.recipientStatus = {
+                "a": "sent",
+                "b": "sent",
+                "c": "read"
+            };
             spyOn(message, "__updateRecipientStatus");
             layer.Util.layerParse({
                 client: client,
@@ -334,13 +379,15 @@ describe("The Util Library", function() {
 
             // Posttest
             expect(message.__updateRecipientStatus).toHaveBeenCalledWith({
-                a: "read",
-                b: "delivered",
-                c: "read"
+                "a": "read",
+                "b": "delivered",
+                "c": "read",
+                "Frodo": "read"
             }, {
-                a: "sent",
-                b: "sent",
-                c: "read"
+                "a": "sent",
+                "b": "sent",
+                "c": "read",
+                "Frodo": "read"
             });
         });
     });

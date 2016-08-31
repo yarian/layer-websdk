@@ -42,7 +42,7 @@ function unregister(client) {
  * @return {layer.Client}
  */
 function get(appId) {
-  return registry[appId];
+  return registry[appId] || null;
 }
 
 function getAll() {

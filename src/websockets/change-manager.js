@@ -85,8 +85,7 @@ class WebsocketChangeManager {
   _handleDelete(msg) {
     const entity = this._getObject(msg);
     if (entity) {
-      entity._deleted();
-      entity.destroy();
+      entity._handleWebsocketDelete(msg.data);
     }
   }
 
@@ -114,10 +113,17 @@ class WebsocketChangeManager {
       } catch (err) {
         logger.error('websocket-manager: Failed to handle event', msg.data);
       }
-    } else if (Utils.typeFromID(msg.object.id) === 'conversations') {
-      if (Conversation._loadResourceForPatch(msg.data)) this.client.getConversation(msg.object.id, true);
-    } else if (Utils.typeFromID(msg.object.id) === 'messages') {
-      if (Message._loadResourceForPatch(msg.data)) this.client.getMessage(msg.object.id, true);
+    } else {
+      switch (Utils.typeFromID(msg.object.id)) {
+        case 'conversations':
+          if (Conversation._loadResourceForPatch(msg.data)) this.client.getConversation(msg.object.id, true);
+          break;
+        case 'messages':
+          if (Message._loadResourceForPatch(msg.data)) this.client.getMessage(msg.object.id, true);
+          break;
+        case 'announcements':
+          break;
+      }
     }
   }
 

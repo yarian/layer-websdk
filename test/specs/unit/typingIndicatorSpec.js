@@ -1,7 +1,7 @@
 /*eslint-disable */
 describe("The Typing Indicator Classes", function() {
     var appId = "Fred's App";
-
+    var userId= "Frodo";
     var conversation,
         client,
         convId = "layer:///conversations/myconv",
@@ -16,7 +16,16 @@ describe("The Typing Indicator Classes", function() {
             url: "https://huh.com"
         });
         client.sessionToken = "sessionToken";
-        client.userId = "Frodo";
+        client.user = {userId: userId};
+        client._clientAuthenticated();
+        getObjectsResult = [];
+        spyOn(client.dbManager, "getObjects").and.callFake(function(tableName, ids, callback) {
+            setTimeout(function() {
+                callback(getObjectsResult);
+            }, 10);
+        });
+        client._clientReady();
+        client.onlineManager.isOnline = true;
 
         client.socketManager._socket = {
             close: function() {},
@@ -27,7 +36,7 @@ describe("The Typing Indicator Classes", function() {
 
         var convData = JSON.parse(JSON.stringify(responses.conversation1));
         convData.id = convId;
-        conversation = client._createObject(convData).conversation;
+        conversation = client._createObject(convData);
 
         requests.reset();
         client.syncManager.queue = [];
@@ -54,7 +63,8 @@ describe("The Typing Indicator Classes", function() {
             it("Should connect to client ready", function() {
                 var listener = client._typingIndicators;
                 spyOn(listener, "_clientReady");
-                client.trigger("ready");
+                client.isReady = false;
+                client._clientReady();
                 expect(listener._clientReady).toHaveBeenCalledWith();
             });
         });
@@ -76,7 +86,7 @@ describe("The Typing Indicator Classes", function() {
 
             it("Should set the userId", function() {
                 listener._clientReady(client);
-                expect(listener.userId).toEqual("Frodo");
+                expect(listener.user).toBe(client.user);
             });
 
             it("Should subscribe to the websocket", function() {
@@ -103,13 +113,14 @@ describe("The Typing Indicator Classes", function() {
             var listener, evt;
             beforeEach(function() {
                 listener = client._typingIndicators;
-                client.trigger("ready");
+                client._clientReady();
                 evt = {
                     type: "signal",
                     body: {
                         type: "typing_indicator",
                         data: {
-                            user_id: client.userId + "1"
+                            user_id: client.user.userId + "1",
+                            action: layer.TypingIndicators.STARTED
                         }
                     }
                 };
@@ -134,7 +145,7 @@ describe("The Typing Indicator Classes", function() {
             });
 
             it("Should return false if sent by this user", function() {
-                evt.body.data.user_id = client.userId
+                evt.body.data.user_id = client.user.userId;
                 expect(listener._isRelevantEvent(evt)).toBe(false);
             });
         });
@@ -143,7 +154,7 @@ describe("The Typing Indicator Classes", function() {
             var listener, evt;
             beforeEach(function() {
                 listener = client._typingIndicators;
-                client.trigger("ready");
+                client._clientReady();
                 evt = {
                     type: "signal",
                     body: {
@@ -153,7 +164,7 @@ describe("The Typing Indicator Classes", function() {
                         },
                         data: {
                             action: layer.TypingIndicators.STARTED,
-                            user_id: "JohnDoh"
+                            user_id: "JohnDoh",
                         }
                     }
                 };
@@ -168,12 +179,12 @@ describe("The Typing Indicator Classes", function() {
                 expect(listener.state).toEqual({
                     "layer:///conversations/myconv": {
                         users: {
-                            JohnDoh: {
+                            "JohnDoh": {
                                 startTime: jasmine.any(Number),
                                 state: layer.TypingIndicators.STARTED
                             }
                         },
-                        typing: ["JohnDoh"],
+                        typing: ['JohnDoh'],
                         paused: []
                     }
                 });
@@ -186,13 +197,13 @@ describe("The Typing Indicator Classes", function() {
                 expect(listener.state).toEqual({
                     "layer:///conversations/myconv": {
                         users: {
-                            JohnDoh: {
+                            "JohnDoh": {
                                 startTime: jasmine.any(Number),
                                 state: layer.TypingIndicators.PAUSED
                             }
                         },
                         typing: [],
-                        paused: ["JohnDoh"]
+                        paused: ['JohnDoh']
                     }
                 });
             });
@@ -216,7 +227,7 @@ describe("The Typing Indicator Classes", function() {
                 listener._handleSocketEvent({data: evt});
                 expect(listener.trigger).toHaveBeenCalledWith("typing-indicator-change", {
                     conversationId: conversation.id,
-                    typing: ["JohnDoh"],
+                    typing: ['JohnDoh'],
                     paused: []
                 });
             });
@@ -254,15 +265,15 @@ describe("The Typing Indicator Classes", function() {
             var listener, state;
             beforeEach(function() {
                 listener = client._typingIndicators;
-                client.trigger("ready");
+                client._clientReady();
                 listener.state = {
                     "layer:///conversations/myconv": {
                         users: {
-                            JohnDoh: {
+                            "JohnDoh": {
                                 startTime: Date.now(),
                                 state: layer.TypingIndicators.PAUSED
                             },
-                            JaneDoh: {
+                            "JaneDoh": {
                                 startTime: Date.now() - 1000000,
                                 state: layer.TypingIndicators.STARTED
                             }
@@ -272,11 +283,11 @@ describe("The Typing Indicator Classes", function() {
                     },
                     "layer:///conversations/myconv2": {
                         users: {
-                            JohnMoh: {
+                            "JohnMoh": {
                                 startTime: Date.now() - 1000000,
                                 state: layer.TypingIndicators.PAUSED
                             },
-                            JaneMoh: {
+                            "JaneMoh": {
                                 startTime: Date.now() - 1000000,
                                 state: layer.TypingIndicators.STARTED
                             }
@@ -296,7 +307,7 @@ describe("The Typing Indicator Classes", function() {
                 expect(listener.state).toEqual({
                     "layer:///conversations/myconv": {
                         users: {
-                            JohnDoh: {
+                            "JohnDoh": {
                                 startTime: jasmine.any(Number),
                                 state: layer.TypingIndicators.PAUSED
                             }
@@ -319,7 +330,7 @@ describe("The Typing Indicator Classes", function() {
                 listener._poll();
                 expect(listener.trigger).toHaveBeenCalledWith("typing-indicator-change", {
                     typing: [],
-                    paused: ["JohnDoh"],
+                    paused: ['JohnDoh'],
                     conversationId: "layer:///conversations/myconv"
                 });
 
@@ -442,7 +453,7 @@ describe("The Typing Indicator Classes", function() {
 
             it("Should destroy the publisher", function() {
                 listener.destroy();
-                expect(listener.publisher.isDestroyed);
+                expect(listener.publisher.isDestroyed).toBe(true);
             });
 
             it("Should remove references to the dom", function() {
@@ -453,20 +464,20 @@ describe("The Typing Indicator Classes", function() {
 
         describe("The setConversation() method", function() {
             it("Should update the conversation property", function() {
-                var conversation = client.createConversation(["a"]);
+                var conversation = client.createConversation({participants: ["a"]});
                 listener.setConversation(conversation);
                 expect(listener.conversation).toBe(conversation);
             });
 
             it("Should call publisher.setConversation", function() {
                 spyOn(listener.publisher, "setConversation");
-                var conversation = client.createConversation(["a"]);
+                var conversation = client.createConversation({participants: ["a"]});
                 listener.setConversation(conversation);
                 expect(listener.publisher.setConversation).toHaveBeenCalledWith(conversation);
             });
 
             it("Should not call publisher.setConversation if no change", function() {
-                var conversation = client.createConversation(["a"]);
+                var conversation = client.createConversation({participants: ["a"]});
                 listener.setConversation(conversation);
                 spyOn(listener.publisher, "setConversation");
 
@@ -587,7 +598,7 @@ describe("The Typing Indicator Classes", function() {
                 spyOn(publisher, "setState").and.callFake(function() {
                     hadConversation = publisher.conversation;
                 });
-                var conversation2 = client.createConversation(["f"]);
+                var conversation2 = client.createConversation({participants: ["f"]});
                 publisher.setConversation(conversation2);
                 expect(publisher.setState).toHaveBeenCalledWith(layer.TypingIndicators.FINISHED);
                 expect(hadConversation).not.toBe(conversation2);
@@ -595,7 +606,7 @@ describe("The Typing Indicator Classes", function() {
 
             it("Should end with a FINISHED state", function() {
                 publisher.state = layer.TypingIndicators.STARTED;
-                var conversation2 = client.createConversation(["f"]);
+                var conversation2 = client.createConversation({participants: ["f"]});
                 publisher.setConversation(conversation2);
                 expect(publisher.state).toEqual(layer.TypingIndicators.FINISHED);
             });
@@ -671,14 +682,14 @@ describe("The Typing Indicator Classes", function() {
             });
 
             it("Should clear the old pause loop", function() {
-                publisher._pauseLoopId = 5;
+                publisher._pauseLoopId = 500;
                 publisher.state = layer.TypingIndicators.PAUSED;
 
                 // Run
                 publisher.setState(layer.TypingIndicators.PAUSED);
 
                 // Posttest
-                expect(publisher._pauseLoopId).not.toEqual(5);
+                expect(publisher._pauseLoopId).not.toEqual(500);
                 expect(publisher._pauseLoopId).not.toEqual(0);
             });
         });
@@ -826,7 +837,7 @@ describe("The Typing Indicator Classes", function() {
             });
 
             it("Should do nothing for a temp id", function() {
-                publisher.conversation = client.createConversation(["abc"]);
+                publisher.conversation = client.createConversation({participants: ["abc"]});
                 publisher._send(layer.TypingIndicators.STARTED);
                 expect(client.socketManager._socket.send).not.toHaveBeenCalled();
             });

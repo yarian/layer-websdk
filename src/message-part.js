@@ -26,33 +26,37 @@
  *           });
  *      });
  *
- * You can also use base64 encoded data:
+ * ### Blobs vs Strings
  *
- *      var part = new layer.MessagePart({
- *          encoding: 'base64',
- *          mimeType: 'image/png',
- *          body: 'iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAAECElEQVR4Xu2ZO44TURREa0SAWBASKST8xCdDQMAq+OyAzw4ISfmLDBASISERi2ADEICEWrKlkYWny6+77fuqalJfz0zVOXNfv/ER8mXdwJF1+oRHBDCXIAJEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8waWjX8OwHcAv5f9Me3fPRugvbuxd14C8B7AVwA3q0oQAcYwtr2+hn969faPVSWIAG2AT3rXJvz17CcAN6ptgggwrwDb4JeVIALMJ8AY/JISRIB5BGDhr3/aZwDXKxwHEWC6AJcBvAOwfuBjvuNfABcBfGGGl5yJANPabYV/B8DLaT96nndHgPYeu4c/RI8AbQJIwO9FgDMAfrVxWuRdMvB7EOA+gHsALgD4uQjO3b6pFPzqAjwA8HTF5weA8weWQA5+ZQGOw1//jR5SAkn4VQV4CODJls18CAmuAHjbcM8vc9U76ZSrdgt4BODxyLG8Twla4P8BcLfKPX/sEaeSAAz8fR4H8vArHQHXAHwYs3Xj9SU3gQX8SgKcAvBitTp38WAJCWzgVxJg+F0qSGAFv5oAh5bADn5FAQ4lwVUAb3a86nX1tL/tXK10Czj+O+7zOLCFX3UDrEXYhwTW8KsLsPRx0Ap/+A/fq12uKpVnqx4BSx8Hgb9quAcB5t4EgX/sz6sXAeaSIPA3zqOeBJgqwTMAzxuuelJn/ubzSG8CTJFg12ex4Z4vDb+HW8A2aK1XRFYCC/g9C7DkJrCB37sAS0hgBV9BgDklGODfBvCaPScU5np8CPxf71OfCSzhq2yAqZ8d2MJXE6DlOLCGryjALhLYw1cVgJEg8Dv7MKjlgXvbg2Hgd/ph0BwSBH7nHwZNkeCW4z1/rDCV/wOM5RyOg7MAvo0Nur3uIoAbVzpvBKCr0hyMAJpc6VQRgK5KczACaHKlU0UAuirNwQigyZVOFQHoqjQHI4AmVzpVBKCr0hyMAJpc6VQRgK5KczACaHKlU0UAuirNwQigyZVOFQHoqjQHI4AmVzpVBKCr0hyMAJpc6VQRgK5KczACaHKlU0UAuirNwQigyZVOFQHoqjQHI4AmVzpVBKCr0hyMAJpc6VQRgK5KczACaHKlU0UAuirNwQigyZVOFQHoqjQHI4AmVzpVBKCr0hyMAJpc6VQRgK5KczACaHKlU0UAuirNwQigyZVOFQHoqjQHI4AmVzpVBKCr0hz8BzIXtYE3VcPnAAAAAElFTkSuQmCC'
- *      });
+ * You should always expect to see the `body` property be a Blob **unless** the mimeType is listed in layer.MessagePart.TextualMimeTypes,
+ * in which case the value will be a String.  You can add mimeTypes to TextualMimeTypes:
+ *
+ * ```
+ * layer.MessagePart.TextualMimeTypes.push('location/coordinates');
+ * ```
+ *
+ * Any mimeType matching any existing values in `TextualMimeTypes` or `location/coordinates` will be transformed to text before
+ * being delivered to your app; otherwise it must be a Blob.  Note that you can push strings and Regular Expressions.
  *
  * ### Accesing Rich Content
  *
  * There are two ways of accessing rich content
  *
  * 1. Access the data directly: `part.fetchContent(function(data) {myRenderData(data);})`. This approach downloads the data,
- *    writes it to the the `body` property, writes a Data URI to the part's `url` property, and then calls your callback.
+ *    writes it to the `body` property, writes a Data URI to the part's `url` property, and then calls your callback.
  *    By downloading the data and storing it in `body`, the data does not expire.
- * 2. Access the URL rather than the data: `part.fetchStream(callback)`.  URLs are needed for streaming, and for content that doesn't
- *    yet need to be rendered (hyperlinks to data that will render when clicked).  These URLs expire.  The url property will return a
- *    string if the url is valid, or '' if its expired and fetchStream must be called to update the url.
+ * 2. Access the URL rather than the data.  When you first receive the Message Part it will have a valid `url` property; however, this URL expires.  *    URLs are needed for streaming, and for content that doesn't
+ *    yet need to be rendered (e.g. hyperlinks to data that will render when clicked).  The url property will return a
+ *    string if the url is valid, or '' if its expired.  Call `part.fetchStream(callback)` to get an updated URL.
  *    The following pattern is recommended:
  *
- *        if (!part.url) {
- *          part.fetchStream(function(url) {myRenderUrl(url)});
- *        } else {
- *          myRenderUrl(part.url);
- *        }
- *
- * NOTE: `layer.MessagePart.url` should have a value when the message is first received, and will only fail `if (!part.url)` once the url has expired.
+ * ```
+ * if (!part.url) {
+ *    part.fetchStream(function(url) {myRenderUrl(url)});
+ * } else {
+ *   myRenderUrl(part.url);
+ * }
+ * ```
  *
  * @class  layer.MessagePart
  * @extends layer.Root
@@ -64,11 +68,8 @@ const Content = require('./content');
 const xhr = require('./xhr');
 const ClientRegistry = require('./client-registry');
 const LayerError = require('./layer-error');
-const HasBlob = typeof Blob !== 'undefined';
-
-/* istanbul ignore next */
-const LocalFileReader = typeof window === 'undefined' ? require('filereader') : FileReader;
-
+const Util = require('./client-utils');
+const logger = require('./logger');
 
 class MessagePart extends Root {
 
@@ -77,9 +78,8 @@ class MessagePart extends Root {
    *
    * @method constructor
    * @param  {Object} options - Can be an object with body and mimeType, or it can be a string, or a Blob/File
-   * @param  {string} options.body - To send binary, use base64 encoded string
+   * @param  {string} options.body - Any string larger than 2kb will be sent as Rich Content, meaning it will be uploaded to cloud storage and must be separately downloaded from the Message when its received.
    * @param  {string} [options.mimeType=text/plain] - Mime type; can be anything; if your client doesn't have a renderer for it, it will be ignored.
-   * @param  {string} [options.encoding=] - Encoding for your MessagePart; use 'base64' if the body is a base64 string; else leave blank.
    * @param  {number} [options.size=0] - Size of your part. Will be calculated for you if not provided.
    *
    * @return {layer.MessagePart}
@@ -93,21 +93,42 @@ class MessagePart extends Root {
       } else {
         newOptions.mimeType = 'text/plain';
       }
-    } else if (HasBlob && (options instanceof Blob || options.body instanceof Blob)) {
-      const bodyBlob = options instanceof Blob ? options : options.body;
+    } else if (Util.isBlob(options) || Util.isBlob(options.body)) {
+      const body = options instanceof Blob ? options : options.body;
+      const mimeType = Util.isBlob(options.body) ? options.mimeType : body.type;
       newOptions = {
-        mimeType: bodyBlob.type,
-        body: bodyBlob,
-        size: bodyBlob.size,
+        mimeType,
+        body,
+        size: body.size,
         hasContent: true,
       };
     }
     super(newOptions);
     if (!this.size && this.body) this.size = this.body.length;
-    if (HasBlob && this.body instanceof Blob) {
-      this.url = URL.createObjectURL(this.body);
+
+    // Don't expose encoding; blobify it if its encoded.
+    if (options.encoding === 'base64') {
+      this.body = Util.base64ToBlob(this.body);
     }
+
+    // Could be a blob because it was read out of indexedDB,
+    // or because it was created locally with a file
+    // Or because of base64 encoded data.
+    const isBlobBody = Util.isBlob(this.body);
+    const textual = this.isTextualMimeType();
+
+    // Custom handling for non-textual content
+    if (!textual) {
+      // If the body exists and is a blob, extract the data uri for convenience; only really relevant for image and video HTML tags.
+      if (!isBlobBody && this.body) this.body = new Blob([this.body], { type: this.mimeType });
+      if (this.body) this.url = URL.createObjectURL(this.body);
+    }
+
+    // If our textual content is a blob, turning it into text is asychronous, and can't be done in the synchronous constructor
+    // This will only happen when the client is attaching a file.  Conversion for locally created messages is done while calling `Message.send()`
   }
+
+
 
   destroy() {
     if (this.__url) {
@@ -145,17 +166,28 @@ class MessagePart extends Root {
   /**
    * Download Rich Content from cloud server.
    *
-   * For MessageParts with rich content, will load the data from google's cloud storage.
-   * The body property of this MessagePart is set to the result.
+   * For MessageParts with rich content, this method will load the data from google's cloud storage.
+   * The `body` property of this MessagePart is set to the result.
    *
    *      messagepart.fetchContent()
    *      .on("content-loaded", function() {
    *          render(messagepart.body);
    *      });
    *
+   * Note that a successful call to `fetchContent` will also cause Query change events to fire.
+   * In this example, `render` will be called by the query change event that will occur once the content has downloaded:
+   *
+   * ```
+   *  query.on('change', function(evt) {
+   *    render(query.data);
+   *  });
+   *  messagepart.fetchContent();
+   * ```
+   *
    * @method fetchContent
    * @param {Function} [callback]
    * @param {Mixed} callback.data - Either a string (mimeType=text/plain) or a Blob (all other mimeTypes)
+   * @return {layer.Content} this
    */
   fetchContent(callback) {
     if (this._content && !this.isFiring) {
@@ -166,24 +198,38 @@ class MessagePart extends Root {
     return this;
   }
 
+
+  /**
+   * Callback with result or error from calling fetchContent.
+   *
+   * @private
+   * @method _fetchContentCallback
+   * @param {layer.LayerError} err
+   * @param {Object} result
+   * @param {Function} callback
+   */
   _fetchContentCallback(err, result, callback) {
     if (err) {
       this.trigger('content-loaded-error', err);
     } else {
-      this.url = URL.createObjectURL(result);
       this.isFiring = false;
-      if (this.mimeType === 'text/plain') {
-        const reader = new LocalFileReader();
-        reader.addEventListener('loadend', () => {
-          this._fetchContentComplete(reader.result, callback);
-        });
-        reader.readAsText(result);
+      if (this.isTextualMimeType()) {
+        Util.fetchTextFromFile(result, text => this._fetchContentComplete(text, callback));
       } else {
+        this.url = URL.createObjectURL(result);
         this._fetchContentComplete(result, callback);
       }
     }
   }
 
+  /**
+   * Callback with Part Body from _fetchContentCallback.
+   *
+   * @private
+   * @method _fetchContentComplete
+   * @param {Blob|String} body
+   * @param {Function} callback
+   */
   _fetchContentComplete(body, callback) {
     const message = this._getMessage();
 
@@ -203,15 +249,27 @@ class MessagePart extends Root {
    * Access the URL to the remote resource.
    *
    * For MessageParts with Rich Content, will lookup a URL to your Rich Content.
-   * Useful for streaming and content so that you don't have to download the entire file before rendering it.
+   * Useful for streaming the content so that you don't have to download the entire file before rendering it.
+   * Also useful for content that will be openned in a new window, and does not need to be fetched now.
    *
    *      messagepart.fetchStream(function(url) {
    *          render(url);
    *      });
    *
+   * Note that a successful call to `fetchStream` will also cause Query change events to fire.
+   * In this example, `render` will be called by the query change event that will occur once the `url` has been refreshed:
+   *
+   * ```
+   *  query.on('change', function(evt) {
+   *    render(query.data);
+   *  });
+   *  messagepart.fetchStream();
+   * ```
+   *
    * @method fetchStream
    * @param {Function} [callback]
    * @param {Mixed} callback.url
+   * @return {layer.Content} this
    */
   fetchStream(callback) {
     if (!this._content) throw new Error(LayerError.dictionary.contentRequired);
@@ -220,6 +278,7 @@ class MessagePart extends Root {
     } else {
       this._fetchStreamComplete(this._content.downloadUrl, callback);
     }
+    return this;
   }
 
   // Does not set this.url; instead relies on fact that this._content.downloadUrl has been updated
@@ -254,12 +313,12 @@ class MessagePart extends Root {
     }
 
     // If the size is large, Create and upload the Content
-    if (this.size > 2048) {
+    else if (this.size > 2048) {
       this._generateContentAndSend(client);
     }
 
-    // If the body is a blob either base64 encode it
-    else if (typeof Blob !== 'undefined' && this.body instanceof Blob) {
+    // If the body is a blob, but is not YET Rich Content, do some custom analysis/processing:
+    else if (Util.isBlob(this.body)) {
       this._sendBlob(client);
     }
 
@@ -270,11 +329,16 @@ class MessagePart extends Root {
   }
 
   _sendBody() {
+    if (typeof this.body !== 'string') {
+      const err = 'MessagePart.body must be a string in order to send it';
+      logger.error(err, { mimeType: this.mimeType, body: this.body });
+      throw new Error(err);
+    }
+
     const obj = {
       mime_type: this.mimeType,
       body: this.body,
     };
-    if (this.encoding) obj.encoding = this.encoding;
     this.trigger('parts:send', obj);
   }
 
@@ -288,21 +352,31 @@ class MessagePart extends Root {
     });
   }
 
+  /**
+   * This method is only called if Blob.size < 2048.
+   *
+   * However, conversion to base64 can impact the size, so we must retest the size
+   * after conversion, and then decide to send the original blob or the base64 encoded data.
+   *
+   * @method _sendBlob
+   * @private
+   * @param {layer.Client} client
+   */
   _sendBlob(client) {
     /* istanbul ignore else */
-    const reader = new LocalFileReader();
-    reader.onloadend = () => {
-      const base64data = reader.result;
+    Util.blobToBase64(this.body, (base64data) => {
       if (base64data.length < 2048) {
-        this.body = base64data;
-        this.body = this.body.substring(this.body.indexOf(',') + 1);
-        this.encoding = 'base64';
-        this._sendBody(client);
+        const body = base64data.substring(base64data.indexOf(',') + 1);
+        const obj = {
+          body,
+          mime_type: this.mimeType,
+        };
+        obj.encoding = 'base64';
+        this.trigger('parts:send', obj);
       } else {
         this._generateContentAndSend(client);
       }
-    };
-    reader.readAsDataURL(this.body); // encodes to base64
+    });
   }
 
   /**
@@ -357,7 +431,7 @@ class MessagePart extends Root {
       if (!client.onlineManager.isOnline) {
         client.onlineManager.once('connected', this._processContentResponse.bind(this, contentResponse, client), this);
       } else {
-        console.error('We don\'t yet handle this!');
+        logger.error('We don\'t yet handle this!');
       }
     } else {
       this.trigger('parts:send', {
@@ -379,7 +453,7 @@ class MessagePart extends Root {
    * @return {string}
    */
   getText() {
-    if (this.mimeType === 'text/plain') {
+    if (this.isTextualMimeType()) {
       return this.body;
     } else {
       return '';
@@ -405,6 +479,29 @@ class MessagePart extends Root {
   }
 
   /**
+   * Is the mimeType for this MessagePart defined as textual content?
+   *
+   * If the answer is true, expect a `body` of string, else expect `body` of Blob.
+   *
+   * To change whether a given MIME Type is treated as textual, see layer.MessagePart.TextualMimeTypes.
+   *
+   * @method isTextualMimeType
+   * @returns {Boolean}
+   */
+  isTextualMimeType() {
+    let i = 0;
+    for (i = 0; i < MessagePart.TextualMimeTypes.length; i++) {
+      const test = MessagePart.TextualMimeTypes[i];
+      if (typeof test === 'string') {
+        if (test === this.mimeType) return true;
+      } else if (test instanceof RegExp) {
+        if (this.mimeType.match(test)) return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Creates a MessagePart from a server representation of the part
    *
    * @method _createFromServer
@@ -415,6 +512,10 @@ class MessagePart extends Root {
   static _createFromServer(part) {
     const content = (part.content) ? Content._createFromServer(part.content) : null;
 
+    // Turn base64 data into a Blob
+    if (part.encoding === 'base64') part.body = Util.base64ToBlob(part.body, part.mimeType);
+
+    // Create the MessagePart
     return new MessagePart({
       id: part.id,
       mimeType: part.mime_type,
@@ -422,7 +523,6 @@ class MessagePart extends Root {
       _content: content,
       hasContent: Boolean(content),
       size: part.size || 0,
-      encoding: part.encoding || '',
     });
   }
 }
@@ -445,6 +545,10 @@ MessagePart.prototype.id = '';
  * Body of your message part.
  *
  * This is the core data of your part.
+ *
+ * If this is `null` then most likely layer.Message.hasContent is true, and you
+ * can either use the layer.MessagePart.url property or the layer.MessagePart.fetchContent method.
+ *
  * @type {string}
  */
 MessagePart.prototype.body = null;
@@ -490,29 +594,42 @@ Object.defineProperty(MessagePart.prototype, 'url', {
 });
 
 /**
- * Mime Type for the data in layer.MessagePart.body.
+ * Mime Type for the data represented by the MessagePart.
+ *
+ * Typically this is the type for the data in layer.MessagePart.body;
+ * if there is Rich Content, then its the type of Content that needs to be
+ * downloaded.
  *
  * @type {String}
  */
 MessagePart.prototype.mimeType = 'text/plain';
 
 /**
- * Encoding used for the body of this part.
+ * Size of Rich Content we are preparing to send.
  *
- * No value is the default encoding.  'base64' is also a common value.
- * @type {String}
- */
-MessagePart.prototype.encoding = '';
-
-/**
- * Size of the layer.MessagePart.body.
- *
- * Will be set for you if not provided.
- * Only needed for use with rich content.
+ * Will be set for you if not provided in the constructor.
  *
  * @type {number}
+ * @readonly
  */
 MessagePart.prototype.size = 0;
+
+/**
+ * Array of mime types that should be treated as text.
+ *
+ * Treating a MessagePart as text means that even if the `body` gets a File or Blob,
+ * it will be transformed to a string before being delivered to your app.
+ *
+ * This value can be customized using strings and regular expressions:
+ *
+ * ```
+ * layer.MessagePart.TextualMimeTypes = ['text/plain', 'text/mountain', /^application\/json(\+.+)$/]
+ * ```
+ *
+ * @static
+ * @type {Mixed[]}
+ */
+MessagePart.TextualMimeTypes = [/^text\/.+$/, /^application\/json(\+.+)?$/];
 
 MessagePart._supportedEvents = [
   'parts:send',

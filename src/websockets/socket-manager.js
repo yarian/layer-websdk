@@ -17,6 +17,7 @@
 const Root = require('../root');
 const Utils = require('../client-utils');
 const logger = require('../logger');
+const { WEBSOCKET_PROTOCOL } = require('../const');
 
 class SocketManager extends Root {
   /**
@@ -124,10 +125,9 @@ class SocketManager extends Root {
     const WS = typeof WebSocket === 'undefined' ? require('websocket').w3cwebsocket : WebSocket;
 
     // Get the URL and connect to it
-    const url = this.client.url.replace(/^http/, 'ws') +
-      '/websocket?session_token=' +
-      this.client.sessionToken;
-    this._socket = new WS(url, 'layer-1.0');
+    const url = `${this.client.websocketUrl}/?session_token=${this.client.sessionToken}`;
+
+    this._socket = new WS(url, WEBSOCKET_PROTOCOL);
 
     // If its the shim, set the event hanlers
     /* istanbul ignore if */
@@ -182,8 +182,10 @@ class SocketManager extends Root {
     try {
       this.isOpen = false;
       this._removeSocketEvents();
-      this._socket.close();
-      this._socket = null;
+      if (this._socket) {
+        this._socket.close();
+        this._socket = null;
+      }
     } catch (e) {
       // No-op
     }
@@ -268,10 +270,12 @@ class SocketManager extends Root {
    * @param  {Object} body - Signal body
    */
   sendSignal(body) {
-    this._socket.send(JSON.stringify({
-      type: 'signal',
-      body: body,
-    }));
+    if (this._isOpen()) {
+      this._socket.send(JSON.stringify({
+        type: 'signal',
+        body,
+      }));
+    }
   }
 
 
@@ -528,7 +532,27 @@ class SocketManager extends Root {
     const maxDelay = (this.client.onlineManager.pingFrequency - 1000) / 1000;
     const delay = Utils.getExponentialBackoffSeconds(maxDelay, Math.min(15, this._lostConnectionCount));
     logger.debug('Websocket Reconnect in ' + delay + ' seconds');
-    this._reconnectId = setTimeout(this.connect.bind(this), delay * 1000);
+    this._reconnectId = setTimeout(this._validateSessionBeforeReconnect.bind(this), delay * 1000);
+  }
+
+  /**
+   * Before the scheduled reconnect can call `connect()` validate that we didn't lose the websocket
+   * due to loss of authentication.
+   *
+   * @method _validateSessionBeforeReconnect
+   * @private
+   */
+  _validateSessionBeforeReconnect() {
+    if (this.isDestroyed || !this.client.isOnline) return;
+
+    this.client.xhr({
+      url: '/',
+      method: 'GET',
+      sync: false,
+    }, (result) => {
+      if (result.success) this.connect();
+      // if not successful, the this.client.xhr will handle reauthentication
+    });
   }
 }
 

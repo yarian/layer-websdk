@@ -2,6 +2,7 @@
 describe("Conversation Integration Tests", function() {
     var socket, client, syncManager, request;
     var appId = "Fred's App";
+    var userId = "Frodo";
 
     beforeEach(function() {
         jasmine.clock().install();
@@ -9,15 +10,15 @@ describe("Conversation Integration Tests", function() {
         requests = jasmine.Ajax.requests;
         client = new layer.Client({
             appId: appId,
-            url: "https://huh.com"
+            url: "https://huh.com",
+            isTrustedDevice: false
         });
         client.sessionToken = "sessionToken";
-        client.userId = "Frodo";
+        client.user = {userId: userId};
 
-        conversation = client._createObject(JSON.parse(JSON.stringify(responses.conversation1))).conversation;
-        requests.reset();
-        client.syncManager.queue = [];
-        jasmine.clock().tick(1);
+        client._clientAuthenticated();
+        conversation = client._createObject(JSON.parse(JSON.stringify(responses.conversation1)));
+
         syncManager = new layer.SyncManager({
             client: client,
             onlineManager: client.onlineManager,
@@ -32,13 +33,19 @@ describe("Conversation Integration Tests", function() {
             close: function() {},
             readyState: WebSocket.OPEN
         };
+
         request = new layer.XHRSyncEvent({
             method: "POST",
             data: {hey: "ho"},
             target: "fred",
             callback: function() {}
         });
+
+        jasmine.clock().tick(1);
+        requests.reset();
         syncManager.queue = [request];
+        client.syncManager.queue = [];
+        client._clientReady();
     });
 
     afterAll(function() {
@@ -47,9 +54,10 @@ describe("Conversation Integration Tests", function() {
 
 
     it("Should reload participants on error and refire a conversations:change event", function() {
+      syncManager.queue = [];
 
       // Run replaceParticipant and have it fail
-      conversation.replaceParticipants([client.userId, "argh"]);
+      conversation.replaceParticipants([client.user.userId, "6"]);
       requests.mostRecent().response({
         status: 500,
         data: {}
@@ -65,8 +73,8 @@ describe("Conversation Integration Tests", function() {
 
       // Posttest
       expect(conversation._triggerAsync).toHaveBeenCalledWith("conversations:change", jasmine.objectContaining({
-        oldValue: [client.userId, "argh"],
-        newValue: responses.conversation1.participants,
+        oldValue: [client.user.userId, "6"],
+        newValue: client._fixIdentities(responses.conversation1.participants),
         property: "participants"
       }));
     });

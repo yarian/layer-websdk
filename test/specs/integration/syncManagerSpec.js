@@ -2,18 +2,20 @@
 describe("SyncManager Integration Tests", function() {
     var socket, client, syncManager, request;
     var appId = "Fred's App";
-
+    var userId = "Frodo";
     beforeEach(function() {
         jasmine.clock().install();
         jasmine.Ajax.install();
         requests = jasmine.Ajax.requests;
         client = new layer.Client({
             appId: appId,
-            url: "https://huh.com"
+            url: "https://huh.com",
+            isTrustedDevice: false
         });
         client.sessionToken = "sessionToken";
-        client.userId = "Frodo";
+        client.user = {userId: userId};
 
+        client._clientAuthenticated();
         conversation = client._createObject(responses.conversation1).conversation;
         requests.reset();
         client.syncManager.queue = [];
@@ -39,6 +41,7 @@ describe("SyncManager Integration Tests", function() {
             callback: function() {}
         });
         syncManager.queue = [request];
+
     });
 
     afterAll(function() {
@@ -73,6 +76,7 @@ describe("SyncManager Integration Tests", function() {
                 data: {}
             });
             jasmine.clock().tick(5002);
+            client.onlineManager.isOnline = true;
         }
 
         syncManager._xhrError({

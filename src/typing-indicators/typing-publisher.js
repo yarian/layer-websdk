@@ -219,6 +219,7 @@ class TypingPublisher {
     delete this.conversation;
     clearTimeout(this._scheduleId);
     clearInterval(this._pauseLoopId);
+    this.isDestroyed = true;
   }
 }
 module.exports = TypingPublisher;

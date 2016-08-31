@@ -1,6 +1,7 @@
 /* eslint-disable */
 describe("The Content class", function() {
     var appId = "Fred's App";
+    var userId = "Frodo";
     var conversation,
         client,
         requests;
@@ -17,10 +18,21 @@ describe("The Content class", function() {
             reset: true,
             url: "https://doh.com"
         });
-        client.userId = "999";
+        client.user = {userId: userId};
+
+        client._clientAuthenticated();
+        getObjectsResult = [];
+        spyOn(client.dbManager, "getObjects").and.callFake(function(tableName, ids, callback) {
+            setTimeout(function() {
+                callback(getObjectsResult);
+            }, 10);
+        });
+        client._clientReady();
+        client.onlineManager.isOnline = true;
+
         conversation = layer.Conversation._createFromServer(responses.conversation2, client).conversation;
         requests.reset();
-        client._clientReady();
+        client.syncManager.queue = [];
     });
     afterEach(function() {
         client.destroy();
@@ -151,7 +163,7 @@ describe("The Content class", function() {
           })
         });
         expect(content.downloadUrl).toEqual("http://there.com");
-        expect(content.expiration).toEqual(300000);
+        expect(content.expiration.getTime()).toEqual(300000);
       });
 
       it("Should call the callback", function() {

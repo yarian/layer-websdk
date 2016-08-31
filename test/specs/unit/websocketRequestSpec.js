@@ -2,6 +2,7 @@
 describe("The Websocket Request Manager Class", function() {
     var socket, client, requestManager;
     var appId = "Fred's App";
+    var userId = "Frodo";
 
     beforeEach(function() {
         jasmine.clock().install();
@@ -12,7 +13,19 @@ describe("The Websocket Request Manager Class", function() {
             url: "https://huh.com"
         });
         client.sessionToken = "sessionToken";
-        client.userId = "Frodo";
+
+        client.user = {userId: userId};
+
+        client._clientAuthenticated();
+        getObjectsResult = [];
+        spyOn(client.dbManager, "getObjects").and.callFake(function(tableName, ids, callback) {
+            setTimeout(function() {
+                callback(getObjectsResult);
+            }, 10);
+        });
+        client._clientReady();
+        client.onlineManager.isOnline = true;
+
         requestManager = client.socketRequestManager;
 
         conversation = client._createObject(responses.conversation1).conversation;

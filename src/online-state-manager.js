@@ -27,6 +27,7 @@ const Root = require('./root');
 const xhr = require('./xhr');
 const logger = require('./logger');
 const Utils = require('./client-utils');
+const { ACCEPT } = require('./const');
 
 class OnlineStateManager extends Root {
   /**
@@ -73,11 +74,8 @@ class OnlineStateManager extends Root {
     logger.info('OnlineStateManager: start');
     this.isClientReady = true;
     this.isOnline = true;
-    if (!this._firstStart) {
-      this.trigger('connected', { offlineDuration: 0 });
-    }
-    this._firstStart = false;
-    this._scheduleNextOnlineCheck();
+
+    this.checkOnlineStatus();
   }
 
   /**
@@ -192,7 +190,7 @@ class OnlineStateManager extends Root {
       url: this.testUrl,
       method: 'POST',
       headers: {
-        accept: 'application/vnd.layer+json; version=1.0',
+        accept: ACCEPT,
       },
     }, () => {
       // this.isOnline will be updated via _connectionListener prior to this line executing
@@ -322,12 +320,6 @@ OnlineStateManager.prototype.isOnline = false;
  * @type {Number}
  */
 OnlineStateManager.prototype.onlineCheckId = 0;
-
-/**
- * True until the first time start() is called.
- * @type {boolean}
- */
-OnlineStateManager.prototype._firstStart = true;
 
 /**
  * If we are online, how often do we need to ping to verify we are still online.

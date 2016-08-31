@@ -2,6 +2,7 @@
 describe("The SyncManager Class", function() {
     var socket, client, syncManager;
     var appId = "Fred's App";
+    var userId = "Frodo";
 
     beforeEach(function() {
         jasmine.clock().install();
@@ -12,7 +13,17 @@ describe("The SyncManager Class", function() {
             url: "https://huh.com"
         });
         client.sessionToken = "sessionToken";
-        client.userId = "Frodo";
+        client.user = {userId: userId};
+
+        client._clientAuthenticated();
+        getObjectsResult = [];
+        spyOn(client.dbManager, "getObjects").and.callFake(function(tableName, ids, callback) {
+            setTimeout(function() {
+                callback(getObjectsResult);
+            }, 10);
+        });
+        client._clientReady();
+        client.onlineManager.isOnline = true;
 
         conversation = client._createObject(responses.conversation1).conversation;
         requests.reset();
@@ -58,9 +69,11 @@ describe("The SyncManager Class", function() {
             syncManager.destroy();
         });
 
-        it("Should listen for client.authenticated", function() {
+        it("Should listen for client.ready", function() {
             var tmp = layer.SyncManager.prototype._processNextRequest;
-            spyOn(layer.SyncManager.prototype  ,"_processNextRequest");
+            spyOn(layer.SyncManager.prototype , "_processNextRequest");
+            spyOn(layer.SyncManager.prototype , "_loadPersistedQueue");
+
             var syncManager = new layer.SyncManager({
                 client: client,
                 onlineManager: client.onlineManager,
@@ -70,10 +83,11 @@ describe("The SyncManager Class", function() {
 
 
             // Run
-            client.trigger("authenticated");
+            client.trigger("ready");
 
             // Posttest
             expect(syncManager._processNextRequest).toHaveBeenCalled();
+            expect(syncManager._loadPersistedQueue).toHaveBeenCalledWith();
 
             // Restore
             layer.SyncManager.prototype._processNextRequest = tmp;
@@ -174,7 +188,7 @@ describe("The SyncManager Class", function() {
             expect(syncManager.queue[0].returnToOnlineCount).toEqual(2);
         });
 
-        it("Should reset firing property if disconnected", function() {
+        it("Should reset syncQueue firing property if disconnected", function() {
             spyOn(syncManager, "_processNextRequest");
             syncManager.queue = [new layer.XHRSyncEvent({isFiring: true})];
             expect(syncManager.queue[0].isFiring).toBe(true);
@@ -185,11 +199,26 @@ describe("The SyncManager Class", function() {
             // Posttest
             expect(syncManager.queue[0].isFiring).toBe(false);
         });
+
+        it("Should reset receiptQueue firing property if disconnected", function() {
+            spyOn(syncManager, "_processNextRequest");
+            syncManager.receiptQueue = [new layer.XHRSyncEvent({isFiring: true}), new layer.XHRSyncEvent({isFiring: true}), new layer.XHRSyncEvent({isFiring: true})];
+            expect(syncManager.receiptQueue[1].isFiring).toBe(true);
+
+            // Run
+            client.socketManager.trigger("disconnected");
+
+            // Posttest
+            expect(syncManager.receiptQueue[0].isFiring).toBe(false);
+            expect(syncManager.receiptQueue[1].isFiring).toBe(false);
+            expect(syncManager.receiptQueue[2].isFiring).toBe(false);
+        });
     });
 
     describe("The request() method", function() {
         var evt;
         beforeEach(function() {
+            client._clientReady();
             evt = new layer.XHRSyncEvent({
                 operation: "PATCH",
                 target: "fred"
@@ -253,23 +282,96 @@ describe("The SyncManager Class", function() {
             expect(syncManager._purgeOnDelete).toHaveBeenCalledWith(evt);
         });
 
-        it("Should call _processNextRequest if this is the first request in the queue", function() {
+        it("Should call _processNextRequest", function() {
             spyOn(syncManager, "_processNextRequest");
             syncManager.request(evt);
-            expect(syncManager._processNextRequest).toHaveBeenCalledWith();
+            expect(syncManager._processNextRequest).toHaveBeenCalledWith(evt);
         });
 
-        it("Should not fire any requests if its NOT the first request in the queue", function() {
-            syncManager.queue = [new layer.XHRSyncEvent({})];
-            spyOn(syncManager, "_processNextRequest");
-            syncManager.request(evt);
-            expect(syncManager._processNextRequest).not.toHaveBeenCalled();
+        it("Should add a receipt request to the receipts queue", function() {
+            var receiptEvt = new layer.XHRSyncEvent({
+                operation: "RECEIPT"
+            });
+
+            // Run
+            syncManager.request(receiptEvt);
+
+            // Posttest
+            expect(syncManager.receiptQueue).toEqual([receiptEvt]);
+        });
+    });
+
+    describe("The _processNextRequest() method", function() {
+        var evt;
+        beforeEach(function() {
+            client._clientReady();
+            evt = new layer.XHRSyncEvent({
+                operation: "PATCH",
+                target: "fred"
+            });
+        });
+
+        it("Should call _processNextStandardRequest if this is the first request in the queue and no arguments", function() {
+            spyOn(syncManager, "_processNextStandardRequest");
+            syncManager.queue = [evt];
+            syncManager._processNextRequest();
+            expect(syncManager._processNextStandardRequest).toHaveBeenCalledWith();
+        });
+
+        it("Should not fire any requests if there are firing requests in the queue and no arguments", function() {
+            syncManager.queue = [evt];
+            evt.isFiring = true;
+            spyOn(syncManager, "_processNextStandardRequest");
+            syncManager._processNextRequest();
+            expect(syncManager._processNextStandardRequest).not.toHaveBeenCalled();
+        });
+
+        it("Should call dbManager.writeSyncEvents and then _processNextStandardRequest if this is the first request in the queue and an argument", function() {
+            spyOn(syncManager, "_processNextStandardRequest");
+            spyOn(client.dbManager, "writeSyncEvents").and.callFake(function(data, isUpdate, callback) {
+                expect(syncManager._processNextStandardRequest).not.toHaveBeenCalled();
+                callback();
+            });
+            syncManager.queue = [evt];
+            syncManager._processNextRequest(evt);
+            expect(syncManager._processNextStandardRequest).toHaveBeenCalledWith();
+        });
+
+        it("Should fire requests if there are multiple nonfiring requests in the queue", function() {
+            syncManager.queue = [evt, new layer.XHRSyncEvent({})];
+            evt.isFiring = false;
+            spyOn(syncManager, "_processNextStandardRequest");
+            syncManager._processNextRequest();
+            expect(syncManager._processNextStandardRequest).toHaveBeenCalledWith();
+        });
+
+        it("Should call _processNextReceiptRequest if there are ANY requests in the receipts queue", function() {
+            syncManager.queue = [];
+            syncManager.receiptQueue = [
+                new layer.XHRSyncEvent({
+                    operation: "RECEIPT"
+                }),
+                new layer.XHRSyncEvent({
+                    operation: "RECEIPT"
+                })
+            ];
+            syncManager.receiptQueue.isFiring = true;
+            spyOn(syncManager, "_processNextReceiptRequest");
+
+            // Run
+            syncManager._processNextRequest();
+
+            // Posttest
+            expect(syncManager._processNextReceiptRequest).toHaveBeenCalledWith();
         });
     });
 
 
-    describe("The _processNextRequest() method", function() {
-        it("Should call bsocketManager.sendRequest", function() {
+    describe("The _processNextStandardRequest() method", function() {
+        beforeEach(function() {
+          client._clientReady();
+        });
+        it("Should call socketManager.sendRequest", function() {
             var data = {name: "fred"}
             syncManager.queue = [new layer.WebsocketSyncEvent({
                 data: data
@@ -277,7 +379,7 @@ describe("The SyncManager Class", function() {
             spyOn(syncManager.requestManager, "sendRequest");
 
             // Run
-            syncManager._processNextRequest();
+            syncManager._processNextStandardRequest();
 
             // Posttest
             expect(syncManager.requestManager.sendRequest).toHaveBeenCalledWith(data, jasmine.any(Function));
@@ -291,7 +393,7 @@ describe("The SyncManager Class", function() {
             })];
 
             // Run
-            syncManager._processNextRequest();
+            syncManager._processNextStandardRequest();
 
             // Posttest
             expect(requests.mostRecent().url).toEqual("fred2");
@@ -306,10 +408,115 @@ describe("The SyncManager Class", function() {
             expect(syncManager.queue[0].isFiring).toBe(false);
 
             // Run
-            syncManager._processNextRequest();
+            syncManager._processNextStandardRequest();
 
             // Posttest
             expect(syncManager.queue[0].isFiring).toBe(true);
+        });
+
+        it("Should only allow one call to be within _validateRequest", function() {
+            spyOn(syncManager, "_validateRequest");
+            syncManager.queue = [new layer.WebsocketSyncEvent({
+                data: {name: "fred"}
+            })];
+
+            // Run
+            syncManager._processNextStandardRequest();
+            expect(syncManager.queue[0]._isValidating).toBe(true);
+            expect(syncManager._validateRequest.calls.count()).toEqual(1);
+            syncManager._processNextStandardRequest();
+
+            // Posttest
+            expect(syncManager.queue[0]._isValidating).toBe(true);
+            expect(syncManager._validateRequest.calls.count()).toEqual(1);
+        });
+
+        it("Should call abort if isDestroyed", function() {
+            var data = {name: "fred"}
+            syncManager.queue = [new layer.WebsocketSyncEvent({
+                data: data
+            })];
+            spyOn(syncManager.requestManager, "sendRequest");
+            syncManager.isDestroyed = true;
+
+            // Run
+            syncManager._processNextStandardRequest();
+
+            // Posttest
+            expect(syncManager.requestManager.sendRequest).not.toHaveBeenCalled();
+            syncManager.isDestroyed = false;
+        });
+
+        it("Should call abort if not authenticated", function() {
+            var data = {name: "fred"}
+            syncManager.queue = [new layer.WebsocketSyncEvent({
+                data: data
+            })];
+            spyOn(syncManager.requestManager, "sendRequest");
+            client.isAuthenticated = false;
+
+            // Run
+            syncManager._processNextStandardRequest();
+
+            // Posttest
+            expect(syncManager.requestManager.sendRequest).not.toHaveBeenCalled();
+        });
+
+        it("Should call xhr with forced update of auth header", function() {
+            var token = client.sessionToken
+            client.xhr({
+                url: "fred",
+                method: "POST",
+                sync: {}
+            });
+            syncManager.queue = [new layer.XHRSyncEvent({
+                data: "fred",
+                url: "fred2",
+                method: "PATCH"
+            })];
+
+            client.sessionToken = "fred";
+            expect(token).not.toEqual("fred");
+
+            // Run
+            syncManager._processNextStandardRequest();
+
+            // Posttest
+            expect(requests.mostRecent().requestHeaders.authorization).toEqual("Layer session-token=\"fred\"");
+            expect(requests.mostRecent().method).toEqual("PATCH");
+            expect(requests.mostRecent().params).toEqual("fred");
+        });
+    });
+
+    describe("The _processNextReceiptRequest() method", function() {
+        beforeEach(function() {
+          client._clientReady();
+        });
+        it("Should fire up to 5 receiptRequests", function() {
+            syncManager.receiptQueue = [
+                new layer.XHRSyncEvent({operation: "RECEIPT"}),
+                new layer.XHRSyncEvent({operation: "RECEIPT"}),
+                new layer.XHRSyncEvent({operation: "RECEIPT"}),
+                new layer.XHRSyncEvent({operation: "RECEIPT"}),
+                new layer.XHRSyncEvent({operation: "RECEIPT"}),
+                new layer.XHRSyncEvent({operation: "RECEIPT"}),
+                new layer.XHRSyncEvent({operation: "RECEIPT"}),
+                new layer.XHRSyncEvent({operation: "RECEIPT"})
+            ];
+
+            // Run
+            syncManager._processNextReceiptRequest();
+
+            // Posttest
+            expect(syncManager.receiptQueue[0].isFiring).toBe(true);
+            expect(syncManager.receiptQueue[1].isFiring).toBe(true);
+            expect(syncManager.receiptQueue[2].isFiring).toBe(true);
+            expect(syncManager.receiptQueue[3].isFiring).toBe(true);
+            expect(syncManager.receiptQueue[4].isFiring).toBe(false);
+            expect(syncManager.receiptQueue[5].isFiring).toBe(false);
+            expect(syncManager.receiptQueue[6].isFiring).toBe(false);
+            expect(syncManager.receiptQueue[7].isFiring).toBe(false);
+            expect(requests.count()).toEqual(4);
         });
     });
 
@@ -343,12 +550,112 @@ describe("The SyncManager Class", function() {
             expect(syncManager._xhrError).not.toHaveBeenCalled();
         });
 
+        it("Should call _xhrSuccess if _handleDeduplicationErrors changes success to true", function() {
+            var result = {success: false};
+            spyOn(syncManager, "_handleDeduplicationErrors").and.callFake(function(result) {
+              result.success = true;
+            });
+
+            syncManager._xhrResult(result, syncManager.queue[0]);
+            expect(syncManager._xhrSuccess).toHaveBeenCalledWith(result);
+            expect(syncManager._xhrError).not.toHaveBeenCalled();
+        });
+
         it("Should call _xhrError", function() {
             var result = {success: false};
             syncManager._xhrResult(result, syncManager.queue[0]);
             expect(syncManager._xhrSuccess).not.toHaveBeenCalled();
             expect(syncManager._xhrError).toHaveBeenCalledWith(result);
         });
+    });
+
+    describe("The _handleDeduplicationErrors() method", function() {
+      beforeEach(function() {
+          syncManager.queue = [new layer.WebsocketSyncEvent({
+              data: {
+                method: 'Message.create',
+                data: {
+                  id: 'myobjid'
+                }
+              },
+              url: "fred2",
+              operation: "POST"
+          })];
+          spyOn(syncManager, "_xhrError");
+          spyOn(syncManager, "_xhrSuccess");
+      });
+
+      it("Should ignore errors that are not id_in_use", function() {
+        var result = {
+          success: false,
+          data: {
+            id: 'fred',
+            data: {
+              id: 'myobjid'
+            }
+          },
+          request: syncManager.queue[0]
+        };
+        syncManager._handleDeduplicationErrors(result);
+        expect(result.success).toBe(false);
+      });
+
+      it("Should ignore errors that are id_in_use but lack an Object", function() {
+        var result = {
+          success: false,
+          data: {
+            id: 'id_in_use'
+          },
+          request: syncManager.queue[0]
+        };
+        syncManager._handleDeduplicationErrors(result);
+        expect(result.success).toBe(false);
+      });
+
+      it("Should ignore errors that are id_in_use but lack an Object with matching ID", function() {
+        var result = {
+          success: false,
+          data: {
+            id: 'id_in_use',
+            data: {
+              id: 'myobjid2'
+            }
+          },
+          request: syncManager.queue[0]
+        };
+        syncManager._handleDeduplicationErrors(result);
+        expect(result.success).toBe(false);
+      });
+
+      it("Should handle errors marking them as Success", function() {
+        var result = {
+          success: false,
+          data: {
+            id: 'id_in_use',
+            data: {
+              id: 'myobjid'
+            }
+          },
+          request: syncManager.queue[0]
+        };
+        syncManager._handleDeduplicationErrors(result);
+        expect(result.success).toBe(true);
+      });
+
+      it("Should handle errors changing data to the Object", function() {
+        var result = {
+          success: false,
+          data: {
+            id: 'id_in_use',
+            data: {
+              id: 'myobjid'
+            }
+          },
+          request: syncManager.queue[0]
+        };
+        syncManager._handleDeduplicationErrors(result);
+        expect(result.data).toEqual({id: 'myobjid'});
+      });
     });
 
     describe("The _xhrSuccess() method", function() {
@@ -426,12 +733,17 @@ describe("The SyncManager Class", function() {
         });
 
         it("Should return notFound if server returns not_found", function() {
-            expect(syncManager._getErrorState({status: 404, data: {code: 102}}, {retryCount: layer.SyncManager.MAX_RETRIES }, true)).toEqual("notFound");
+            expect(syncManager._getErrorState({status: 404, data: {id: 'not_found'}}, {retryCount: layer.SyncManager.MAX_RETRIES }, true)).toEqual("notFound");
+        });
+
+         it("Should return invalidId if server returns id_in_use", function() {
+            expect(syncManager._getErrorState({status: 404, data: {id: 'id_in_use'}}, {retryCount: layer.SyncManager.MAX_RETRIES }, true)).toEqual("invalidId");
         });
 
         it("Should return reauthorize if there is a nonce", function() {
-            expect(syncManager._getErrorState({status: 401, data: {data: {nonce: "fred"}}}, {retryCount: 0}, true)).toEqual("reauthorize");
-            expect(syncManager._getErrorState({status: 402, data: {data: {nonce: "fred"}}}, {retryCount: 0}, true)).not.toEqual("reauthorize");
+            expect(syncManager._getErrorState({status: 401, data: {id: 'authentication_required', data: {nonce: "fred"}}}, {retryCount: 0}, true)).toEqual("reauthorize");
+            expect(syncManager._getErrorState({status: 402, data: {id: 'authentication_required', data: {nonce: "fred"}}}, {retryCount: 0}, true)).toEqual("reauthorize");
+            expect(syncManager._getErrorState({status: 401, data: {id: 'authentication_required2', data: {nonce: "fred"}}}, {retryCount: 0}, true)).not.toEqual("reauthorize");
         });
 
         it("Should return serverRejectedRequest for anything else", function() {
@@ -444,7 +756,8 @@ describe("The SyncManager Class", function() {
         var request;
         beforeEach(function() {
             syncManager.onlineManager.isOnline = true;
-            request = new layer.SyncEvent({
+            client._clientReady();
+            request = new layer.XHRSyncEvent({
                 operation: "PATCH",
                 target: "fred"
             });
@@ -471,7 +784,7 @@ describe("The SyncManager Class", function() {
             syncManager._xhrError(result);
 
             // Posttest
-            expect(syncManager._xhrHandleServerError).toHaveBeenCalledWith(result, jasmine.any(String));
+            expect(syncManager._xhrHandleServerError).toHaveBeenCalledWith(result, jasmine.any(String), false);
         });
 
         it("Should call _xhrHandleServerError if tooManyFailuresWhileOnline if too many 408s", function() {
@@ -483,7 +796,7 @@ describe("The SyncManager Class", function() {
             syncManager._xhrError(result);
 
             // Posttest
-            expect(syncManager._xhrHandleServerError).toHaveBeenCalledWith(result, jasmine.any(String));
+            expect(syncManager._xhrHandleServerError).toHaveBeenCalledWith(result, jasmine.any(String), false);
         });
 
         it("Should call _xhrHandleServerError if CORS error", function() {
@@ -495,7 +808,19 @@ describe("The SyncManager Class", function() {
             syncManager._xhrError(result);
 
             // Posttest
-            expect(syncManager._xhrHandleServerError).toHaveBeenCalledWith(result, jasmine.any(String));
+            expect(syncManager._xhrHandleServerError).toHaveBeenCalledWith(result, jasmine.any(String), false);
+        });
+
+        it("Should call _xhrHandleServerError if invalidId error", function() {
+            spyOn(syncManager, "_xhrHandleServerError");
+            spyOn(syncManager, "_getErrorState").and.returnValue("invalidId");
+            var result = {request: request};
+
+            // Run
+            syncManager._xhrError(result);
+
+            // Posttest
+            expect(syncManager._xhrHandleServerError).toHaveBeenCalledWith(result, jasmine.any(String), false);
         });
 
         it("Should call _xhrValidateIsOnline if validateOnlineAndRetry", function() {
@@ -507,7 +832,7 @@ describe("The SyncManager Class", function() {
             syncManager._xhrError(result);
 
             // Posttest
-            expect(syncManager._xhrValidateIsOnline).toHaveBeenCalledWith();
+            expect(syncManager._xhrValidateIsOnline).toHaveBeenCalledWith(request);
         });
 
         it("Should call _xhrHandleServerUnavailableError if serverUnavailable", function() {
@@ -544,7 +869,7 @@ describe("The SyncManager Class", function() {
             syncManager._xhrError(result);
 
             // Posttest
-            expect(syncManager._xhrHandleServerError).toHaveBeenCalledWith(result, jasmine.any(String));
+            expect(syncManager._xhrHandleServerError).toHaveBeenCalledWith(result, jasmine.any(String), true);
         });
 
         it("Should call _xhrHandleConnectionError if offline", function() {
@@ -557,6 +882,44 @@ describe("The SyncManager Class", function() {
 
             // Posttest
             expect(syncManager._xhrHandleConnectionError).toHaveBeenCalledWith();
+        });
+
+        it("Should write failed requests back database if the request wasn't removed from queue", function() {
+            spyOn(client.dbManager, "writeSyncEvents");
+            var result = {request: request};
+            spyOn(syncManager, "_getErrorState").and.returnValue('fred');
+
+            // Run
+            syncManager._xhrError(result);
+
+            // Posttest
+            expect(client.dbManager.writeSyncEvents).toHaveBeenCalledWith([request], false);
+        });
+
+        it("Should write failed requests back database if the request wasn't removed from receiptQueue", function() {
+            spyOn(client.dbManager, "writeSyncEvents");
+            var result = {request: request};
+            syncManager.queue = [];
+            syncManager.receiptQueue = [request];
+
+            // Run
+            syncManager._xhrError(result);
+
+            // Posttest
+            expect(client.dbManager.writeSyncEvents).toHaveBeenCalledWith([request], false);
+        });
+
+        it("Should not write failed requests back database if the request was removed", function() {
+            spyOn(client.dbManager, "writeSyncEvents");
+            var result = {request: request};
+            syncManager.queue = [];
+            syncManager.receiptQueue = [];
+
+            // Run
+            syncManager._xhrError(result);
+
+            // Posttest
+            expect(client.dbManager.writeSyncEvents).not.toHaveBeenCalled();
         });
     });
 
@@ -621,6 +984,7 @@ describe("The SyncManager Class", function() {
         var request, result;
         beforeEach(function() {
             syncManager.onlineManager.isOnline = true;
+            client._clientReady();
             request = new layer.XHRSyncEvent({
                 operation: "PATCH",
                 target: "fred",
@@ -686,7 +1050,7 @@ describe("The SyncManager Class", function() {
             syncManager._xhrHandleServerError(result);
 
             // Posttest
-            expect(syncManager._removeRequest).toHaveBeenCalledWith(request);
+            expect(syncManager._removeRequest).toHaveBeenCalledWith(request, true);
         });
 
         it("Should call processNextRequest to start the next request", function() {
@@ -712,8 +1076,9 @@ describe("The SyncManager Class", function() {
                 func(true);
             });
             spyOn(syncManager, "_xhrValidateIsOnlineCallback");
-            syncManager._xhrValidateIsOnline();
-            expect(syncManager._xhrValidateIsOnlineCallback).toHaveBeenCalledWith(true);
+            var request = new layer.SyncEvent({});
+            syncManager._xhrValidateIsOnline(request);
+            expect(syncManager._xhrValidateIsOnlineCallback).toHaveBeenCalledWith(true, request);
         });
     });
 
@@ -721,6 +1086,7 @@ describe("The SyncManager Class", function() {
         var request;
         beforeEach(function() {
             syncManager.onlineManager.isOnline = true;
+            client._clientReady();
             request = new layer.XHRSyncEvent({
                 operation: "PATCH",
                 target: "fred"
@@ -734,17 +1100,17 @@ describe("The SyncManager Class", function() {
         });
 
         it("Should increment retryCount if online", function() {
-            syncManager._xhrValidateIsOnlineCallback(true);
+            syncManager._xhrValidateIsOnlineCallback(true, request);
             expect(request.retryCount).toEqual(1);
-            syncManager._xhrValidateIsOnlineCallback(true);
+            syncManager._xhrValidateIsOnlineCallback(true, request);
             expect(request.retryCount).toEqual(2);
-            syncManager._xhrValidateIsOnlineCallback(true);
+            syncManager._xhrValidateIsOnlineCallback(true, request);
             expect(request.retryCount).toEqual(3);
         })
 
         it("Should call processNextRequest if online", function() {
             spyOn(syncManager, "_processNextRequest");
-            syncManager._xhrValidateIsOnlineCallback(true);
+            syncManager._xhrValidateIsOnlineCallback(true, request);
             expect(syncManager._processNextRequest).toHaveBeenCalledWith();
         });
     });
@@ -765,6 +1131,15 @@ describe("The SyncManager Class", function() {
             expect(syncManager.queue).toEqual([]);
         });
 
+        it("Should remove the request from the receiptQueue", function() {
+            syncManager.receiptQueue = [request];
+            syncManager.queue = [];
+            request.operation = 'RECEIPT';
+            syncManager._removeRequest(request);
+            expect(syncManager.queue).toEqual([]);
+            expect(syncManager.receiptQueue).toEqual([]);
+        });
+
         it("Should do nothing if request not in the queue", function() {
             var request2 = new layer.SyncEvent({
                 operation: "PATCH",
@@ -772,6 +1147,18 @@ describe("The SyncManager Class", function() {
             });
             syncManager._removeRequest(request2);
             expect(syncManager.queue).toEqual([request]);
+        });
+
+        it("Should remove the request from the indexedDB if deleteDB true", function() {
+            spyOn(client.dbManager, "deleteObjects");
+            syncManager._removeRequest(request, true);
+            expect(client.dbManager.deleteObjects).toHaveBeenCalledWith('syncQueue', [request]);
+        });
+
+        it("Should skip removing the request from the indexedDB if deleteDB false", function() {
+            spyOn(client.dbManager, "deleteObjects");
+            syncManager._removeRequest(request, false);
+            expect(client.dbManager.deleteObjects).not.toHaveBeenCalled();
         });
     });
 
@@ -834,5 +1221,59 @@ describe("The SyncManager Class", function() {
             expect(syncManager.queue).toEqual([request2]);
         });
     });
+    describe("The _loadPersistedQueue() method", function() {
+      beforeEach(function() {
+        client._clientReady();
+      });
 
+      it("Should append to the queue", function() {
+        // Setup
+        var request = new layer.XHRSyncEvent({
+            operation: "PATCH",
+            depends: ["fred"],
+            url: ''
+        });
+        var request2 = new layer.XHRSyncEvent({
+            operation: "PATCH",
+            depends: ["fred2"],
+            url: ''
+        });
+        syncManager.queue = [request];
+        spyOn(client.dbManager, "loadSyncQueue").and.callFake(function(callback) {
+          callback([request2]);
+        });
+
+        // Run
+        syncManager._loadPersistedQueue();
+
+        // Posttest
+        expect(syncManager.queue).toEqual([request, request2]);
+      });
+
+      it("Should call processNextRequest", function() {
+        // Setup
+        var request = new layer.XHRSyncEvent({
+            operation: "PATCH",
+            depends: ["fred"],
+            url: ''
+        });
+        var request2 = new layer.XHRSyncEvent({
+            operation: "PATCH",
+            depends: ["fred2"],
+            url: ''
+        });
+        syncManager.queue = [request];
+        spyOn(client.dbManager, "loadSyncQueue").and.callFake(function(callback) {
+          callback([request2]);
+        });
+        spyOn(syncManager, "_processNextRequest");
+
+        // Run
+        syncManager._loadPersistedQueue();
+
+        // Posttest
+        expect(syncManager._processNextRequest).toHaveBeenCalledWith();
+
+      });
+    });
 });

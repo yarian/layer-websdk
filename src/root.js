@@ -14,7 +14,7 @@ EventClass.prototype = Events;
 
 const SystemBus = new EventClass();
 if (typeof postMessage === 'function') {
-  addEventListener('message', function (event) {
+  addEventListener('message', (event) => {
     if (event.data.type === 'layer-delayed-event') {
       SystemBus.trigger(event.data.internalId + '-delayed-event');
     }
@@ -150,7 +150,7 @@ class Root extends EventClass {
 
     // Generate a temporary id if there isn't an id
     if (!this.id && !options.id && this.constructor.prefixUUID) {
-      this.id = 'temp_' + this.constructor.prefixUUID + Utils.generateUUID();
+      this.id = this.constructor.prefixUUID + Utils.generateUUID();
     }
 
     // Copy in all properties; setup all event handlers
@@ -163,22 +163,6 @@ class Root extends EventClass {
       }
     }
     this.isInitializing = false;
-  }
-
-
-  /**
-   * Takes as input an id, returns boolean reporting on whether its a valid id for this class.
-   *
-   * @method _validateId
-   * @protected
-   * @return {boolean}
-   */
-  _validateId() {
-    const id = String(this.id);
-    const prefix = this.constructor.prefixUUID;
-    if (id.indexOf(prefix) !== 0 && id.indexOf('temp_' + prefix) !== 0) return false;
-    if (!id.substring(prefix.length).match(/.{8}-.{4}-.{4}-.{4}-.{12}$/)) return false;
-    return true;
   }
 
   /**
@@ -211,6 +195,10 @@ class Root extends EventClass {
     this.isDestroyed = true;
   }
 
+  static isValidId(id) {
+    return id.indexOf(this.prefixUUID) === 0;
+  }
+
   /**
    * Convert class instance to Plain Javascript Object.
    *
@@ -234,7 +222,9 @@ class Root extends EventClass {
 
     // Iterate over all formally defined properties
     try {
-      const keys = Object.keys(this.constructor.prototype);
+      const keys = [];
+      for (let key in this.constructor.prototype) if (!(key in Root.prototype)) keys.push(key);
+
       keys.forEach(key => {
         const v = this[key];
 
@@ -330,12 +320,16 @@ class Root extends EventClass {
    * 2. Create a backlink so that if either subscriber or subscribee is destroyed,
    *    all pointers between them can be found and removed.
    *
-   *      obj.on('someEventName someOtherEventName', mycallback, mycontext);
+   * ```
+   * obj.on('someEventName someOtherEventName', mycallback, mycontext);
+   * ```
    *
-   *      obj.on({
-   *          eventName1: callback1,
-   *          eventName2: callback2
-   *      }, mycontext);
+   * ```
+   * obj.on({
+   *     eventName1: callback1,
+   *     eventName2: callback2
+   * }, mycontext);
+   * ```
    *
    * @method on
    * @param  {String} name - Name of the event
@@ -354,6 +348,7 @@ class Root extends EventClass {
    * Subscribe to the first occurance of the specified event.
    *
    * @method once
+   * @return {layer.Root} this
    */
   once(name, handler, context) {
     this._prepareOn(name, handler, context);
@@ -364,20 +359,23 @@ class Root extends EventClass {
   /**
    * Unsubscribe from events.
    *
-   *      // Removes all event handlers for this event:
-   *      obj.off('someEventName');
+   * ```
+   * // Removes all event handlers for this event:
+   * obj.off('someEventName');
    *
-   *      // Removes all event handlers using this function pointer as callback
-   *      obj.off(null, f, null);
+   * // Removes all event handlers using this function pointer as callback
+   * obj.off(null, f, null);
    *
-   *      // Removes all event handlers that `this` has subscribed to; requires
-   *      // obj.on to be called with `this` as its `context` parameter.
-   *      obj.off(null, null, this);
+   * // Removes all event handlers that `this` has subscribed to; requires
+   * // obj.on to be called with `this` as its `context` parameter.
+   * obj.off(null, null, this);
+   * ```
    *
    * @method off
    * @param  {String} name - Name of the event; null for all event names
    * @param  {Function} handler - Event handler; null for all functions
    * @param  {Object} context - The context from the `on()` call to search for; null for all contexts
+   * @return {layer.Root} this
    */
 
 
@@ -401,8 +399,8 @@ class Root extends EventClass {
    *
    * @method trigger
    * @private
-   * @param {string} eventName - Name of the event
-   * @return {Object} Return *this* for chaining
+   * @param {string} eventName    Name of the event that one should subscribe to in order to receive this event
+   * @param {Mixed} arg           Values that will be placed within a layer.LayerEvent
    */
   _trigger(...args) {
     if (!Utils.includes(this.constructor._supportedEvents, args[0])) {
@@ -507,6 +505,7 @@ class Root extends EventClass {
    *
    * Given an event structure of
    *
+   * ```
    *      {
    *          customName: [value1]
    *      }
@@ -516,12 +515,15 @@ class Root extends EventClass {
    *      {
    *          customName: [value3]
    *      }
+   * ```
    *
    * Merge them into
    *
+   * ```
    *      {
    *          customName: [value1, value2, value3]
    *      }
+   * ```
    *
    * @method _foldEvents
    * @private
@@ -532,12 +534,12 @@ class Root extends EventClass {
   _foldEvents(events, name, newTarget) {
     const firstEvt = events.length ? events[0][1] : null;
     const firstEvtProp = firstEvt ? firstEvt[name] : null;
-    events.forEach(function (evt, i) {
+    events.forEach((evt, i) => {
       if (i > 0) {
         firstEvtProp.push(evt[1][name][0]);
         this._delayedTriggers.splice(this._delayedTriggers.indexOf(evt), 1);
       }
-    }, this);
+    });
     if (events.length && newTarget) events[0][1].target = newTarget;
   }
 
@@ -580,7 +582,7 @@ class Root extends EventClass {
 
 
   /**
-   * Returns a string representation of the class that is nicer than [Object].
+   * Returns a string representation of the class that is nicer than `[Object]`.
    *
    * @method toString
    * @return {String}
@@ -652,6 +654,7 @@ function initClass(newClass, className) {
  * to call methods on it, and will no longer trigger events.
  *
  * @type {boolean}
+ * @readonly
  */
 Root.prototype.isDestroyed = false;
 
@@ -663,6 +666,7 @@ Root.prototype.isDestroyed = false;
  * it is possible, on creating a new object, for its `id` property to change.
  *
  * @type {string}
+ * @readonly
  */
 Root.prototype.internalId = '';
 
@@ -670,6 +674,7 @@ Root.prototype.internalId = '';
  * True while we are in the constructor.
  *
  * @type {boolean}
+ * @readonly
  */
 Root.prototype.isInitializing = true;
 
@@ -677,12 +682,14 @@ Root.prototype.isInitializing = true;
  * Objects that this object is listening for events from.
  *
  * @type {layer.Root[]}
+ * @private
  */
 Root.prototype._subscriptions = null;
 
 /**
  * Disable all events triggered on this object.
  * @type {boolean}
+ * @protected
  */
 Root.prototype._disableEvents = false;
 

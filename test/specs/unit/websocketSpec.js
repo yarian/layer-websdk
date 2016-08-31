@@ -2,6 +2,7 @@
 describe("The Websocket Socket Manager Class", function() {
     var socket, client, websocketManager;
     var appId = "Fred's App";
+    var userId = "Frodo";
     var nativeWebsocket;
 
     beforeAll(function() {
@@ -29,7 +30,18 @@ describe("The Websocket Socket Manager Class", function() {
             url: "https://huh.com"
         });
         client.sessionToken = "sessionToken";
-        client.userId = "Frodo";
+        client.user = {userId: userId};
+
+        client._clientAuthenticated();
+        getObjectsResult = [];
+        spyOn(client.dbManager, "getObjects").and.callFake(function(tableName, ids, callback) {
+            setTimeout(function() {
+                callback(getObjectsResult);
+            }, 10);
+        });
+        client._clientReady();
+        client.onlineManager.isOnline = true;
+
         websocketManager = client.socketManager;
 
         conversation = client._createObject(responses.conversation1).conversation;
@@ -202,10 +214,17 @@ describe("The Websocket Socket Manager Class", function() {
             expect(websocketManager._socket).toEqual(jasmine.any(WebSocket));
         });
 
-        it("Should use the correct url", function() {
+        it("Should use the correct default url", function() {
            websocketManager._socket = null;
            websocketManager.connect();
-           expect(websocketManager._socket.url).toEqual(client.url.replace(/https/, "wss") + "/websocket?session_token=sessionToken");
+           expect(websocketManager._socket.url).toEqual('wss://websockets.layer.com/?session_token=sessionToken');
+        });
+
+        it("Should allow customization of the websocket url", function() {
+            client.websocketUrl = 'wss://staging-websockets.layer.com';
+            websocketManager._socket = null;
+            websocketManager.connect();
+            expect(websocketManager._socket.url).toEqual('wss://staging-websockets.layer.com/?session_token=sessionToken');
         });
 
         it("Should be subscribed to websocket events", function(done) {
@@ -423,12 +442,20 @@ describe("The Websocket Socket Manager Class", function() {
 
     describe("The sendSignal() method", function() {
         it("Should call _socket.send", function() {
+            spyOn(websocketManager, "_isOpen").and.returnValue(true);
             websocketManager._socket.send = jasmine.createSpy('send');
             websocketManager.sendSignal({hey: "ho"});
             expect(websocketManager._socket.send).toHaveBeenCalledWith(JSON.stringify({
                 type: "signal",
                 body: {hey: "ho"}
             }));
+        });
+
+        it("Should not call _socket.send if not open", function() {
+            spyOn(websocketManager, "_isOpen").and.returnValue(false);
+            websocketManager._socket.send = jasmine.createSpy('send');
+            websocketManager.sendSignal({hey: "ho"});
+            expect(websocketManager._socket.send).not.toHaveBeenCalled();
         });
     });
 
@@ -866,25 +893,25 @@ describe("The Websocket Socket Manager Class", function() {
     });
 
     describe("The _scheduleReconnect() method", function() {
-      it("Should schedule connect to be called using exponential backoff", function() {
+      it("Should schedule _validateSessionBeforeReconnect to be called using exponential backoff", function() {
         var tmp = layer.Util.getExponentialBackoffSeconds;
         layer.Util.getExponentialBackoffSeconds = function() {return 100;}
         websocketManager._lostConnectionCount = 10;
-        spyOn(websocketManager, "connect");
+        spyOn(websocketManager, "_validateSessionBeforeReconnect");
         expect(websocketManager._reconnectId).toEqual(0);
 
         // Run
         websocketManager._scheduleReconnect();
         expect(websocketManager._reconnectId).not.toEqual(0);
-        expect(websocketManager.connect).not.toHaveBeenCalled();
+        expect(websocketManager._validateSessionBeforeReconnect).not.toHaveBeenCalled();
 
         // Midtest
         jasmine.clock().tick(1000 * layer.Util.getExponentialBackoffSeconds(100, 10) - 1);
-        expect(websocketManager.connect).not.toHaveBeenCalled();
+        expect(websocketManager._validateSessionBeforeReconnect).not.toHaveBeenCalled();
 
         // Posttest
         jasmine.clock().tick(10);
-        expect(websocketManager.connect).toHaveBeenCalled();
+        expect(websocketManager._validateSessionBeforeReconnect).toHaveBeenCalled();
 
         // Cleanup
         layer.Util.getExponentialBackoffSeconds = tmp;
@@ -895,5 +922,36 @@ describe("The Websocket Socket Manager Class", function() {
         websocketManager._scheduleReconnect();
         expect(websocketManager._reconnectId).toEqual(0);
       });
+    });
+
+    describe("The _validateSessionBeforeReconnect() method", function() {
+       it("Should validate the session", function() {
+          spyOn(client, "xhr");
+          websocketManager._validateSessionBeforeReconnect();
+          expect(client.xhr).toHaveBeenCalledWith({
+              url: "/",
+              sync: false,
+              method: "GET"
+            }, jasmine.any(Function));
+       });
+
+       it("Should call connect if successful", function() {
+          spyOn(websocketManager, "connect");
+          websocketManager._validateSessionBeforeReconnect();
+          requests.mostRecent().response({
+              status: 200
+          });
+          expect(websocketManager.connect).toHaveBeenCalledWith();
+       });
+
+       it("Should not call connect if unsuccessful", function() {
+          spyOn(websocketManager, "connect");
+          websocketManager._validateSessionBeforeReconnect();
+          requests.mostRecent().response({
+              status: 400
+          });
+          expect(websocketManager.connect).not.toHaveBeenCalled();
+       });
+
     });
 });

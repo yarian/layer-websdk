@@ -3,7 +3,7 @@
  *
  *      // 1. Using a Query Builder
  *      var queryBuilder = QueryBuilder.conversations().sortBy('lastMessage');
- *      var query = client.createQuery(client, queryBuilder);
+ *      var query = client.createQuery(queryBuilder);
  *
  *      // 2. Passing properties directly
  *      var query = client.createQuery({
@@ -30,9 +30,14 @@
  *
  *      query.destroy();
  *
+ * #### predicate
+ *
+ * Note that the `predicate` property is only supported for Messages, and only supports
+ * querying by Conversation: `conversation.id = 'layer:///conversations/UUIUD'`
+ *
  * #### sortBy
  *
- * Note that the sortBy property is only supported for Conversations at this time and only
+ * Note that the `sortBy` property is only supported for Conversations at this time and only
  * supports "createdAt" and "lastMessage.sentAt" as sort fields.
  *
  * #### dataType
@@ -56,9 +61,9 @@
  * The property defaults to layer.Query.InstanceDataType.  Instances support methods and let you subscribe to events for direct notification
  * of changes to any of the results of your query:
  *
- * ```javascript
- * query.data[0].on('messages:read', function() {
- *     alert('The first message has been read!');
+* ```javascript
+ * query.data[0].on('messages:change', function(evt) {
+ *     alert('The first message has had a property change; probably isRead or recipient_status!');
  * });
  * ```
  *
@@ -66,8 +71,8 @@
  *
  * ```javascript
  * var m = client.getMessage(query.data[0].id);
- * m.on('messages:read', function() {
- *     alert('The first message has been read!');
+ * m.on('messages:change', function(evt) {
+ *     alert('The first message has had a property change; probably isRead or recipient_status!');
  * });
  * ```
  *
@@ -176,11 +181,13 @@ const Root = require('./root');
 const LayerError = require('./layer-error');
 const Util = require('./client-utils');
 const Logger = require('./logger');
+const { SYNC_STATE } = require('./const');
 
 const CONVERSATION = 'Conversation';
 const MESSAGE = 'Message';
+const ANNOUNCEMENT = 'Announcement';
 const findConvIdRegex = new RegExp(
-  /^conversation.id\s*=\s*['"]((temp_)?layer:\/\/\/conversations\/.{8}-.{4}-.{4}-.{4}-.{12})['"]$/);
+  /^conversation.id\s*=\s*['"]((layer:\/\/\/conversations\/)?.{8}-.{4}-.{4}-.{4}-.{12})['"]$/);
 
 class Query extends Root {
 
@@ -192,16 +199,19 @@ class Query extends Root {
     } else {
       options = args[0];
     }
+
+    super(options);
+    this.predicate = this._fixPredicate(options.predicate || '');
+
     if ('paginationWindow' in options) {
       const paginationWindow = options.paginationWindow;
-      options.paginationWindow = Math.min(Query.MaxPageSize, options.paginationWindow);
+      this.paginationWindow = Math.min(this._getMaxPageSize(), options.paginationWindow);
       if (options.paginationWindow !== paginationWindow) {
         Logger.warn(`paginationWindow value ${paginationWindow} in Query constructor ` +
-          `excedes Query.MaxPageSize of ${Query.MaxPageSize}`);
+          `excedes Query.MaxPageSize of ${this._getMaxPageSize()}`);
       }
     }
 
-    super(options);
     this.data = [];
     this._initialPaginationWindow = this.paginationWindow;
     if (!this.client) throw new Error(LayerError.dictionary.clientMissing);
@@ -220,10 +230,29 @@ class Query extends Root {
    * @method destroy
    */
   destroy() {
+    this.data = [];
+    this._triggerChange({
+      type: 'data',
+      target: this.client,
+      query: this,
+      isChange: false,
+      data: [],
+    });
     this.client.off(null, null, this);
     this.client._removeQuery(this);
     this.data = null;
     super.destroy();
+  }
+
+  /**
+   * Get the maximum number of items allowed in a page
+   *
+   * @method _getMaxPageSize
+   * @private
+   * @returns {number}
+   */
+  _getMaxPageSize() {
+    return Query.MaxPageSize;
   }
 
   /**
@@ -252,19 +281,24 @@ class Query extends Root {
     const optionsBuilt = (typeof options.build === 'function') ? options.build() : options;
 
     if ('paginationWindow' in optionsBuilt && this.paginationWindow !== optionsBuilt.paginationWindow) {
-      this.paginationWindow = Math.min(Query.MaxPageSize + this.size, optionsBuilt.paginationWindow);
+      this.paginationWindow = Math.min(this._getMaxPageSize() + this.size, optionsBuilt.paginationWindow);
       if (this.paginationWindow < optionsBuilt.paginationWindow) {
-        Logger.warn(`paginationWindow value ${optionsBuilt.paginationWindow} in Query.update() increases size greater than Query.MaxPageSize of ${Query.MaxPageSize}`);
+        Logger.warn(`paginationWindow value ${optionsBuilt.paginationWindow} in Query.update() ` +
+          `increases size greater than Query.MaxPageSize of ${this._getMaxPageSize()}`);
       }
       needsRefresh = true;
-    }
-    if ('predicate' in optionsBuilt && this.predicate !== optionsBuilt.predicate) {
-      this.predicate = optionsBuilt.predicate || '';
-      needsRecreate = true;
     }
     if ('model' in optionsBuilt && this.model !== optionsBuilt.model) {
       this.model = optionsBuilt.model;
       needsRecreate = true;
+    }
+
+    if ('predicate' in optionsBuilt) {
+      const predicate = this._fixPredicate(optionsBuilt.predicate || '');
+      if (this.predicate !== predicate) {
+        this.predicate = predicate;
+        needsRecreate = true;
+      }
     }
     if ('sortBy' in optionsBuilt && JSON.stringify(this.sortBy) !== JSON.stringify(optionsBuilt.sortBy)) {
       this.sortBy = optionsBuilt.sortBy;
@@ -278,6 +312,25 @@ class Query extends Root {
   }
 
   /**
+   * Normalizes the predicate.
+   *
+   * @method _fixPredicate
+   * @param {String} inValue
+   * @private
+   */
+  _fixPredicate(inValue) {
+    if (inValue === '') return '';
+    if (this.model === Query.Message) {
+      let conversationId = inValue.match(findConvIdRegex) ? inValue.replace(findConvIdRegex, '$1') : null;
+      if (!conversationId) throw new Error(LayerError.dictionary.invalidPredicate);
+      if (conversationId.indexOf('layer:///conversations/') !== 0) conversationId = 'layer:///conversations/' + conversationId;
+      return `conversation.id = '${conversationId}'`;
+    } else {
+      throw new Error(LayerError.dictionary.predicateNotSupported);
+    }
+  }
+
+  /**
    * After redefining the query, reset it: remove all data/reset all state.
    *
    * @method _reset
@@ -287,9 +340,13 @@ class Query extends Root {
     this.totalSize = 0;
     const data = this.data;
     this.data = [];
-    this.client._checkCache(data);
+    this.client._checkAndPurgeCache(data);
     this.isFiring = false;
     this._predicate = null;
+    this._nextDBFromId = '';
+    this._nextServerFromId = '';
+    this._isServerSyncing = false;
+    this.pagedToEnd = false;
     this.paginationWindow = this._initialPaginationWindow;
     this._triggerChange({
       data: [],
@@ -318,21 +375,30 @@ class Query extends Root {
    */
   _run() {
     // Find the number of items we need to request.
-    const pageSize = Math.min(this.paginationWindow - this.size, Query.MaxPageSize);
+    const pageSize = Math.min(this.paginationWindow - this.size, this._getMaxPageSize());
 
     // If there is a reduction in pagination window, then this variable will be negative, and we can shrink
     // the data.
     if (pageSize < 0) {
       const removedData = this.data.slice(this.paginationWindow);
       this.data = this.data.slice(0, this.paginationWindow);
-      this.client._checkCache(removedData);
+      this.client._checkAndPurgeCache(removedData);
+      this.pagedToEnd = false;
       this._triggerAsync('change', { data: [] });
-    } else if (pageSize === 0) {
+    } else if (pageSize === 0 || this.pagedToEnd) {
       // No need to load 0 results.
-    } else if (this.model === CONVERSATION) {
-      this._runConversation(pageSize);
-    } else if (this.model === MESSAGE && this.predicate) {
-      this._runMessage(pageSize);
+    } else {
+      switch (this.model) {
+        case CONVERSATION:
+          this._runConversation(pageSize);
+          break;
+        case MESSAGE:
+          if (this.predicate) this._runMessage(pageSize);
+          break;
+        case ANNOUNCEMENT:
+          this._runAnnouncement(pageSize);
+          break;
+      }
     }
   }
 
@@ -344,21 +410,24 @@ class Query extends Root {
    * @param  {number} pageSize - Number of new results to request
    */
   _runConversation(pageSize) {
-    // This is a pagination rather than an initial request if there is already data; get the fromId
-    // which is the id of the last result.
-    const lastConversation = this.data[this.data.length - 1];
-    const lastConversationInstance = !lastConversation ? null : this._getInstance(lastConversation);
-    const fromId = (lastConversationInstance && lastConversationInstance.isSaved() ?
-      '&from_id=' + lastConversationInstance.id : '');
     const sortBy = this._getSortField();
 
-    this.isFiring = true;
-    const firingRequest = this._firingRequest = `conversations?sort_by=${sortBy}&page_size=${pageSize}${fromId}`;
-    this.client.xhr({
-      url: firingRequest,
-      method: 'GET',
-      sync: false,
-    }, results => this._processRunResults(results, firingRequest));
+    this.client.dbManager.loadConversations(sortBy, this._nextDBFromId, pageSize, (conversations) => {
+      if (conversations.length) this._appendResults({ data: conversations }, true);
+    });
+
+    const newRequest = `conversations?sort_by=${sortBy}&page_size=${pageSize}` +
+      (this._nextServerFromId ? '&from_id=' + this._nextServerFromId : '');
+
+    if (newRequest !== this._firingRequest) {
+      this.isFiring = true;
+      this._firingRequest = newRequest;
+      this.client.xhr({
+        url: this._firingRequest,
+        method: 'GET',
+        sync: false,
+      }, results => this._processRunResults(results, this._firingRequest, pageSize));
+    }
   }
 
   /**
@@ -371,9 +440,10 @@ class Query extends Root {
    * * 'created_at' (Conversations only)
    * @method _getSortField
    * @private
+   * @return {String} sort key used by server
    */
   _getSortField() {
-    if (this.model === MESSAGE) return 'position';
+    if (this.model === MESSAGE || this.model === ANNOUNCEMENT) return 'position';
     if (this.sortBy && this.sortBy[0] && this.sortBy[0]['lastMessage.sentAt']) return 'last_message';
     return 'created_at';
   }
@@ -383,7 +453,7 @@ class Query extends Root {
    *
    * Extract the Conversation's UUID from the predicate... or returned the cached value.
    *
-   * @method _getConversationUUID
+   * @method _getConversationPredicateIds
    * @private
    */
   _getConversationPredicateIds() {
@@ -392,7 +462,7 @@ class Query extends Root {
 
       // We will already have a this._predicate if we are paging; else we need to extract the UUID from
       // the conversationId.
-      const uuid = (this._predicate || conversationId).replace(/^(temp_)?layer\:\/\/\/conversations\//, '');
+      const uuid = (this._predicate || conversationId).replace(/^layer:\/\/\/conversations\//, '');
       if (uuid) {
         return {
           uuid,
@@ -410,11 +480,6 @@ class Query extends Root {
    * @param  {number} pageSize - Number of new results to request
    */
   _runMessage(pageSize) {
-    // This is a pagination rather than an initial request if there is already data; get the fromId
-    // which is the id of the last result.
-    const lastMessage = this.data[this.data.length - 1];
-    const lastMessageInstance = !lastMessage ? null : this._getInstance(lastMessage);
-    let fromId = (lastMessageInstance && lastMessageInstance.isSaved() ? '&from_id=' + lastMessageInstance.id : '');
     const predicateIds = this._getConversationPredicateIds();
 
     // Do nothing if we don't have a conversation to query on
@@ -423,30 +488,23 @@ class Query extends Root {
       if (!this._predicate) this._predicate = predicateIds.id;
       const conversation = this.client.getConversation(conversationId);
 
-      // If the only Message is the Conversation's lastMessage, then we probably got this
-      // result from `GET /conversations`, and not from `GET /messages`.  Get ALL Messages,
-      // not just messages after the `lastMessage` if we've never received any messages from
-      // `GET /messages` (safety code, not required code).  This also means that the first
-      // Query gets MAX_PAGE_SIZE results instead of MAX_PAGE_SIZE + 1 results.
-      if (conversation && conversation.lastMessage &&
-          lastMessage && lastMessage.id === conversation.lastMessage.id) {
-        fromId = '';
-      }
+      // Retrieve data from db cache in parallel with loading data from server
+      this.client.dbManager.loadMessages(conversationId, this._nextDBFromId, pageSize, (messages) => {
+        if (messages.length) this._appendResults({ data: messages }, true);
+      });
 
-      // If the last message we have loaded is already the Conversation's lastMessage, then just request data without paging,
-      // common occurence when query is populated with only a single result: conversation.lastMessage.
-      // if (conversation && conversation.lastMessage && lastMessage && lastMessage.id === conversation.lastMessage.id) fromId = '';
-      const newRequest = `conversations/${predicateIds.uuid}/messages?page_size=${pageSize}${fromId}`;
+      const newRequest = `conversations/${predicateIds.uuid}/messages?page_size=${pageSize}` +
+        (this._nextServerFromId ? '&from_id=' + this._nextServerFromId : '');
 
-      // Don't query on temporary ids, nor repeat still firing queries
-      if (!this._predicate.match(/temp_/) && newRequest !== this._firingRequest) {
+      // Don't query on unsaved conversations, nor repeat still firing queries
+      if ((!conversation || conversation.isSaved()) && newRequest !== this._firingRequest) {
         this.isFiring = true;
         this._firingRequest = newRequest;
         this.client.xhr({
           url: newRequest,
           method: 'GET',
           sync: false,
-        }, results => this._processRunResults(results, newRequest));
+        }, results => this._processRunResults(results, newRequest, pageSize));
       }
 
       // If there are no results, then its a new query; automatically populate it with the Conversation's lastMessage.
@@ -456,7 +514,7 @@ class Query extends Root {
           // Trigger the change event
           this._triggerChange({
             type: 'data',
-            data: this._getData(conversation.lastMessage),
+            data: [this._getData(conversation.lastMessage)],
             query: this,
             target: this.client,
           });
@@ -468,20 +526,69 @@ class Query extends Root {
   }
 
   /**
+   * Get Announcements from the server.
+   *
+   * @method _runAnnouncement
+   * @private
+   * @param  {number} pageSize - Number of new results to request
+   */
+  _runAnnouncement(pageSize) {
+    // Retrieve data from db cache in parallel with loading data from server
+    this.client.dbManager.loadAnnouncements(this._nextDBFromId, pageSize, (messages) => {
+      if (messages.length) this._appendResults({ data: messages }, true);
+    });
+
+    const newRequest = `announcements?page_size=${pageSize}` +
+      (this._nextServerFromId ? '&from_id=' + this._nextServerFromId : '');
+
+    // Don't repeat still firing queries
+    if (newRequest !== this._firingRequest) {
+      this.isFiring = true;
+      this._firingRequest = newRequest;
+      this.client.xhr({
+        url: newRequest,
+        method: 'GET',
+        sync: false,
+      }, results => this._processRunResults(results, newRequest, pageSize));
+    }
+  }
+
+  /**
    * Process the results of the `_run` method; calls __appendResults.
    *
    * @method _processRunResults
    * @private
    * @param  {Object} results - Full xhr response object with server results
+   * @param {Number} pageSize - Number of entries that were requested
    */
-  _processRunResults(results, requestUrl) {
+  _processRunResults(results, requestUrl, pageSize) {
     if (requestUrl !== this._firingRequest || this.isDestroyed) return;
+    const isSyncing = results.xhr.getResponseHeader('Layer-Conversation-Is-Syncing') === 'true';
+
 
     this.isFiring = false;
     this._firingRequest = '';
     if (results.success) {
-      this._appendResults(results);
-      this.totalSize = results.xhr.getResponseHeader('Layer-Count');
+      this._appendResults(results, false);
+      this.totalSize = Number(results.xhr.getResponseHeader('Layer-Count'));
+
+      if (results.data.length < pageSize) this.pagedToEnd = true;
+
+      // If the server is syncing, and the query needs more data, keep polling the server,
+      // and notify the client that we're polling.
+      if (isSyncing && this.data.length < this.paginationWindow) {
+        if (!this._isServerSyncing) {
+          this._isServerSyncing = true;
+          this.trigger('server-syncing-state', { syncing: true });
+        }
+        setTimeout(() => this._run(), 1500);
+      }
+
+       // If we're done polling the server (isSyncing is false OR we have enough data) notify the client that we're done.
+      else if (this._isServerSyncing) {
+        this._isServerSyncing = false;
+        this.trigger('server-syncing-state', { syncing: false });
+      }
     } else {
       this.trigger('error', { error: results.data });
     }
@@ -493,26 +600,44 @@ class Query extends Root {
    * @method  _appendResults
    * @private
    */
-  _appendResults(results) {
+  _appendResults(results, fromDb) {
     // For all results, register them with the client
     // If already registered with the client, properties will be updated as needed
-    results.data.forEach(item => this.client._createObject(item));
+    // Database results rather than server results will arrive already registered.
+    results.data.forEach((item) => {
+      if (!(item instanceof Root)) this.client._createObject(item);
+    });
 
     // Filter results to just the new results
     const newResults = results.data.filter(item => this._getIndex(item.id) === -1);
+
+    // Update the next ID to use in pagination
+    const resultLength = results.data.length;
+    if (resultLength) {
+      if (fromDb) this._nextDBFromId = results.data[resultLength - 1].id;
+      else if (results.xhr.getResponseHeader('Layer-Conversation-Is-Syncing') !== 'true') {
+        this._nextServerFromId = results.data[resultLength - 1].id;
+      }
+    }
 
     // Update this.data
     if (this.dataType === Query.ObjectDataType) {
       this.data = [].concat(this.data);
     }
     const data = this.data;
-    newResults.forEach(itemIn => {
+
+    // Insert the results... if the results are a match
+    newResults.forEach((itemIn) => {
       let index;
       const item = this.client._getObject(itemIn.id);
-      if (this.model === MESSAGE) {
-        index = this._getInsertMessageIndex(item, data);
-      } else {
-        index = this._getInsertConversationIndex(item, data);
+      switch (this.model) {
+        case MESSAGE:
+        case ANNOUNCEMENT:
+          index = this._getInsertMessageIndex(item, data);
+          break;
+        case CONVERSATION:
+          index = this._getInsertConversationIndex(item, data);
+          break;
       }
       data.splice(index, 0, this._getData(item));
     });
@@ -521,7 +646,7 @@ class Query extends Root {
     // Trigger the change event
     this._triggerChange({
       type: 'data',
-      data: results.data.map(item => this._getData(this.client._getObject(item.id))),
+      data: newResults.map(item => this._getData(this.client._getObject(item.id))),
       query: this,
       target: this.client,
     });
@@ -546,7 +671,7 @@ class Query extends Root {
 
   /**
    * Returns an instance regardless of whether the input is instance or object
-   * @method
+   * @method _getInstance
    * @private
    * @param {layer.Root|Object} item - Conversation or Message object/instance
    * @return {layer.Root}
@@ -568,6 +693,12 @@ class Query extends Root {
    */
   _getItem(id) {
     switch (Util.typeFromID(id)) {
+      case 'announcements':
+        if (this.model === ANNOUNCEMENT) {
+          const index = this._getIndex(id);
+          return index === -1 ? null : this.data[index];
+        }
+        break;
       case 'messages':
         if (this.model === MESSAGE) {
           const index = this._getIndex(id);
@@ -619,10 +750,14 @@ class Query extends Root {
    * @param {layer.LayerEvent} evt
    */
   _handleChangeEvents(eventName, evt) {
-    if (this.model === CONVERSATION) {
-      this._handleConversationEvents(evt);
-    } else {
-      this._handleMessageEvents(evt);
+    switch (this.model) {
+      case CONVERSATION:
+        this._handleConversationEvents(evt);
+        break;
+      case MESSAGE:
+      case ANNOUNCEMENT:
+        this._handleMessageEvents(evt);
+        break;
     }
   }
 
@@ -653,7 +788,7 @@ class Query extends Root {
   _handleConversationChangeEvent(evt) {
     let index = this._getIndex(evt.target.id);
 
-    // If its an ID change (from temp to non-temp id) make sure to update our data.
+    // If its an ID change (matching Distinct Conversation returned by server) make sure to update our data.
     // If dataType is an instance, its been updated for us.
     if (this.dataType === Query.ObjectDataType) {
       const idChanges = evt.getChangesFor('id');
@@ -680,20 +815,21 @@ class Query extends Root {
             ...this.data.slice(index + 1),
           ];
         } else {
-          // Move the changed Conversation to the top of the list
+          const newIndex = this._getInsertConversationIndex(evt.target, this.data);
           this.data.splice(index, 1);
-          this.data = [
-            evt.target.toObject(),
-            ...this.data,
-          ];
+          this.data.splice(newIndex, 0, this._getData(evt.target));
+          this.data = this.data.concat([]);
         }
       }
 
       // Else dataType is instance not object
       else {
         if (reorder) {
-          this.data.splice(index, 1);
-          this.data.unshift(evt.target);
+          const newIndex = this._getInsertConversationIndex(evt.target, this.data);
+          if (newIndex !== index) {
+            this.data.splice(index, 1);
+            this.data.splice(newIndex, 0, evt.target);
+          }
         }
       }
 
@@ -709,17 +845,22 @@ class Query extends Root {
   }
 
   _getInsertConversationIndex(conversation, data) {
+    if (!conversation.isSaved()) return 0;
     const sortField = this._getSortField();
     let index;
     if (sortField === 'created_at') {
       for (index = 0; index < data.length; index++) {
-        if (conversation.createdAt >= data[index].createdAt) break;
+        const item = data[index];
+        if (item.syncState === SYNC_STATE.NEW || item.syncState === SYNC_STATE.SAVING) continue;
+        if (conversation.createdAt >= item.createdAt) break;
       }
       return index;
     } else {
       const d1 = conversation.lastMessage ? conversation.lastMessage.sentAt : conversation.createdAt;
       for (index = 0; index < data.length; index++) {
-        const d2 = data[index].lastMessage ? data[index].lastMessage.sentAt : data[index].createdAt;
+        const item = data[index];
+        if (item.syncState === SYNC_STATE.NEW || item.syncState === SYNC_STATE.SAVING) continue;
+        const d2 = item.lastMessage ? item.lastMessage.sentAt : item.createdAt;
         if (d1 >= d2) break;
       }
       return index;
@@ -736,7 +877,6 @@ class Query extends Root {
     return index;
   }
 
-
   _handleConversationAddEvent(evt) {
     // Filter out any Conversations already in our data
     const list = evt.conversations
@@ -744,7 +884,7 @@ class Query extends Root {
 
     if (list.length) {
       const data = this.data;
-      list.forEach(conversation => {
+      list.forEach((conversation) => {
         const newIndex = this._getInsertConversationIndex(conversation, data);
         data.splice(newIndex, 0, this._getData(conversation));
       });
@@ -772,9 +912,11 @@ class Query extends Root {
 
   _handleConversationRemoveEvent(evt) {
     const removed = [];
-    evt.conversations.forEach(conversation => {
+    evt.conversations.forEach((conversation) => {
       const index = this._getIndex(conversation.id);
       if (index !== -1) {
+        if (conversation.id === this._nextDBFromId) this._nextDBFromId = this._updateNextFromId(index);
+        if (conversation.id === this._nextServerFromId) this._nextServerFromId = this._updateNextFromId(index);
         removed.push({
           data: conversation,
           index,
@@ -788,7 +930,7 @@ class Query extends Root {
     });
 
     this.totalSize -= removed.length;
-    removed.forEach(removedObj => {
+    removed.forEach((removedObj) => {
       this._triggerChange({
         type: 'remove',
         index: removedObj.index,
@@ -803,12 +945,13 @@ class Query extends Root {
 
       // If a Conversation's ID has changed, check our predicate, and update it automatically if needed.
       case 'conversations:change':
-        this._handleMessageConvIdChangeEvent(evt);
+        if (this.model === MESSAGE) this._handleMessageConvIdChangeEvent(evt);
         break;
 
       // If a Message has changed and its in our result set, replace
       // it with a new immutable object
       case 'messages:change':
+      case 'messages:read':
         this._handleMessageChangeEvent(evt);
         break;
 
@@ -826,6 +969,15 @@ class Query extends Root {
     }
   }
 
+  /**
+   * A Conversation ID changes if a matching Distinct Conversation was found on the server.
+   *
+   * If this Query's Conversation's ID has changed, update the predicate.
+   *
+   * @method _handleMessageConvIdChangeEvent
+   * @param {layer.LayerEvent} evt - A Message Change Event
+   * @private
+   */
   _handleMessageConvIdChangeEvent(evt) {
     const cidChanges = evt.getChangesFor('id');
     if (cidChanges.length) {
@@ -876,18 +1028,23 @@ class Query extends Root {
       });
       return true;
     }
+    return false;
   }
 
   _handleMessageChangeEvent(evt) {
     let index = this._getIndex(evt.target.id);
-    const midChanges = evt.getChangesFor('id');
+    const positionChanges = evt.getChangesFor('position');
 
-    if (midChanges.length) {
-      index = this._getIndex(midChanges[0].oldValue);
-      if (this._handleMessagePositionChange(evt, index)) return;
+    // If there are position changes, handle them.  If all the changes are position changes,
+    // exit when done.
+    if (positionChanges.length) {
+      if (this._handleMessagePositionChange(evt, index)) {
+        if (positionChanges.length === evt.changes.length) return;
+        index = this._getIndex(evt.target.id); // Get the updated position
+      }
     }
 
-    if (evt.target.conversationId === this._predicate && index !== -1) {
+    if (index !== -1) {
       if (this.dataType === Query.ObjectDataType) {
         this.data = [
           ...this.data.slice(0, index),
@@ -909,14 +1066,25 @@ class Query extends Root {
     // Only use added messages that are part of this Conversation
     // and not already in our result set
     const list = evt.messages
-                  .filter(message => message.conversationId === this._predicate)
-                  .filter(message => this._getIndex(message.id) === -1)
-                  .map(message => this._getData(message));
+      // Filter so that we only see Messages if doing a Messages query or Announcements if doing an Announcements Query.
+      .filter(message => {
+        const type = Util.typeFromID(message.id);
+        return type === 'messages' && this.model === MESSAGE ||
+                type === 'announcements' && this.model === ANNOUNCEMENT;
+      })
+      // Filter out Messages that aren't part of this Conversation
+      .filter(message => {
+        const type = Util.typeFromID(message.id);
+        return type === 'announcements' || message.conversationId === this._predicate;
+      })
+      // Filter out Messages that are already in our data set
+      .filter(message => this._getIndex(message.id) === -1)
+      .map(message => this._getData(message));
 
     // Add them to our result set and trigger an event for each one
     if (list.length) {
       const data = this.data = this.dataType === Query.ObjectDataType ? [].concat(this.data) : this.data;
-      list.forEach(item => {
+      list.forEach((item) => {
         const index = this._getInsertMessageIndex(item, data);
         data.splice(index, 0, item);
       });
@@ -925,7 +1093,7 @@ class Query extends Root {
 
       // Index calculated above may shift after additional insertions.  This has
       // to be done after the above insertions have completed.
-      list.forEach(item => {
+      list.forEach((item) => {
         this._triggerChange({
           type: 'insert',
           index: this.data.indexOf(item),
@@ -938,9 +1106,11 @@ class Query extends Root {
 
   _handleMessageRemoveEvent(evt) {
     const removed = [];
-    evt.messages.forEach(message => {
+    evt.messages.forEach((message) => {
       const index = this._getIndex(message.id);
       if (index !== -1) {
+        if (message.id === this._nextDBFromId) this._nextDBFromId = this._updateNextFromId(index);
+        if (message.id === this._nextServerFromId) this._nextServerFromId = this._updateNextFromId(index);
         removed.push({
           data: message,
           index,
@@ -957,7 +1127,7 @@ class Query extends Root {
     });
 
     this.totalSize -= removed.length;
-    removed.forEach(removedObj => {
+    removed.forEach((removedObj) => {
       this._triggerChange({
         type: 'remove',
         target: this._getData(removedObj.data),
@@ -967,9 +1137,36 @@ class Query extends Root {
     });
   }
 
+
+  /**
+   * If the current next-id is removed from the list, get a new nextId.
+   *
+   * If the index is greater than 0, whatever is after that index may have come from
+   * websockets or other sources, so decrement the index to get the next safe paging id.
+   *
+   * If the index if 0, even if there is data, that data did not come from paging and
+   * can not be used safely as a paging id; return '';
+   *
+   * @method _updateNextFromId
+   * @private
+   * @param {number} index - Current index of the nextFromId
+   * @returns {string} - Next ID or empty string
+   */
+  _updateNextFromId(index) {
+    if (index > 0) return this.data[index - 1].id;
+    else return '';
+  }
+
+  /*
+   * If this is ever changed to be async, make sure that destroy() still triggers synchronous events
+   */
   _triggerChange(evt) {
     this.trigger('change', evt);
     this.trigger('change:' + evt.type, evt);
+  }
+
+  toString() {
+    return this.id;
   }
 }
 
@@ -979,7 +1176,7 @@ Query.prefixUUID = 'layer:///queries/';
 /**
  * Query for Conversations.
  *
- * Use this value in the model property.
+ * Use this value in the layer.Query.model property.
  * @type {string}
  * @static
  */
@@ -988,16 +1185,25 @@ Query.Conversation = CONVERSATION;
 /**
  * Query for Messages.
  *
- * Use this value in the model property.
+ * Use this value in the layer.Query.model property.
  * @type {string}
  * @static
  */
 Query.Message = MESSAGE;
 
 /**
+ * Query for Announcements.
+ *
+ * Use this value in the layer.Query.model property.
+ * @type {string}
+ * @static
+ */
+Query.Announcement = ANNOUNCEMENT;
+
+/**
  * Get data as POJOs/immutable objects.
  *
- * Your Query data and events will provide Messages/Conversations as objects.
+ * This value of layer.Query.dataType will cause your Query data and events to provide Messages/Conversations as immutable objects.
  * @type {string}
  * @static
  */
@@ -1006,7 +1212,7 @@ Query.ObjectDataType = 'object';
 /**
  * Get data as instances of layer.Message and layer.Conversation.
  *
- * Your Query data and events will provide Messages/Conversations as instances.
+ * This value of layer.Query.dataType will cause your Query data and events to provide Messages/Conversations as instances.
  * @type {string}
  * @static
  */
@@ -1024,6 +1230,7 @@ Query.MaxPageSize = 100;
  * Access the number of results currently loaded.
  *
  * @type {Number}
+ * @readonly
  */
 Object.defineProperty(Query.prototype, 'size', {
   enumerable: true,
@@ -1037,6 +1244,7 @@ Object.defineProperty(Query.prototype, 'size', {
  * Will be 0 until the first query has successfully loaded results.
  *
  * @type {Number}
+ * @readonly
  */
 Query.prototype.totalSize = 0;
 
@@ -1046,16 +1254,18 @@ Query.prototype.totalSize = 0;
  *
  * @type {layer.Client}
  * @protected
+ * @readonly
  */
 Query.prototype.client = null;
 
 /**
  * Query results.
  *
- * Array of data resulting from the Query; either a layer.Root subclass.
+ * Array of data resulting from the Query; either a layer.Root subclass or Object.
  *
  * or plain Objects
  * @type {Object[]}
+ * @readonly
  */
 Query.prototype.data = null;
 
@@ -1063,12 +1273,17 @@ Query.prototype.data = null;
  * Specifies the type of data being queried for.
  *
  * Model is one of
+ *
  * * layer.Query.Conversation
  * * layer.Query.Message
+ * * layer.Query.Announcement
+ *
+ * Value can be set via constructor and layer.Query.update().
  *
  * @type {String}
+ * @readonly
  */
-Query.prototype.model = CONVERSATION;
+Query.prototype.model = '';
 
 /**
  * What type of results to request of the server.
@@ -1079,8 +1294,13 @@ Query.prototype.model = CONVERSATION;
  * * id
  * * count
  *
- * This Query API is designed only for use with 'object'.
+ * Value set via constructor.
+ *
+ * This Query API is designed only for use with 'object' at this time; waiting for updates to server for
+ * this functionality.
+ *
  * @type {String}
+ * @readonly
  */
 Query.prototype.returnType = 'object';
 
@@ -1088,10 +1308,14 @@ Query.prototype.returnType = 'object';
  * Specify what kind of data array your application requires.
  *
  * Used to specify query dataType.  One of
- * * Query.ObjectDataType
- * * Query.InstanceDataType
+ *
+ * * layer.Query.ObjectDataType
+ * * layer.Query.InstanceDataType
+ *
+ * Value set via constructor.
  *
  * @type {String}
+ * @readonly
  */
 Query.prototype.dataType = Query.InstanceDataType;
 
@@ -1105,13 +1329,13 @@ Query.prototype.dataType = Query.InstanceDataType;
  *       paginationWindow: 150
  *     })
  *
- * This call will load 150 results.  If it previously had 100,
+ * This call will aim to achieve 150 results.  If it previously had 100,
  * then it will load 50 more. If it previously had 200, it will drop 50.
  *
- * Note that the server will only permit 100 at a time, so
- * setting a large pagination window may result in many
- * requests to the server to reach the specified page value.
+ * Note that the server will only permit 100 at a time.
+ *
  * @type {Number}
+ * @readonly
  */
 Query.prototype.paginationWindow = 100;
 
@@ -1128,6 +1352,7 @@ Query.prototype.paginationWindow = 100;
  * above sort options will make a lot more sense, and full sorting will be provided.
  *
  * @type {String}
+ * @readonly
  */
 Query.prototype.sortBy = null;
 
@@ -1142,31 +1367,44 @@ Query.prototype._initialPaginationWindow = 100;
 /**
  * Your Query's WHERE clause.
  *
- * Currently, the only query supported is "conversation.id = 'layer:///conversations/uuid'"
- * Note that both ' and " are supported.
+ * Currently, the only query supported is `conversation.id = 'layer:///conversations/uuid'`
+ * Note that both `'` and `"` are supported.
+ *
  * @type {string}
+ * @readonly
  */
 Query.prototype.predicate = null;
 
 /**
  * True if the Query is connecting to the server.
  *
- * It is not gaurenteed that every update(); for example, updating a paginationWindow to be smaller,
+ * It is not gaurenteed that every `update()` will fire a request to the server.
+ * For example, updating a paginationWindow to be smaller,
  * Or changing a value to the existing value would cause the request not to fire.
- * R ecommended pattern is:
+ *
+ * Recommended pattern is:
  *
  *      query.update({paginationWindow: 50});
  *      if (!query.isFiring) {
  *        alert("Done");
  *      } else {
- *          query.on("change", function(evt) {
+ *          query.once("change", function(evt) {
  *            if (evt.type == "data") alert("Done");
  *          });
  *      }
  *
  * @type {Boolean}
+ * @readonly
  */
 Query.prototype.isFiring = false;
+
+/**
+ * True if we have reached the last result, and further paging will just return []
+ *
+ * @type {Boolean}
+ * @readonly
+ */
+Query.prototype.pagedToEnd = false;
 
 /**
  * The last request fired.
@@ -1178,27 +1416,68 @@ Query.prototype.isFiring = false;
  */
 Query.prototype._firingRequest = '';
 
+/**
+ * Query is waiting for data from a syncing server
+ *
+ * @type {Boolean}
+ * @private
+ */
+Query.prototype._isServerSyncing = false;
+
+/**
+ * The ID to use in paging the server.
+ *
+ * Why not just use the ID of the last item in our result set?
+ * Because as we receive websocket events, we insert and append items to our data.
+ * That websocket event may not in fact deliver the NEXT item in our data, but simply an item, that sequentially
+ * belongs at the end despite skipping over other items of data.  Paging should not be from this new item, but
+ * only the last item pulled via this query from the server.
+ *
+ * @type {string}
+ * @private
+ */
+Query.prototype._nextServerFromId = '';
+
+/**
+ * The ID to use in paging the database.
+ *
+ * Why not just use the ID of the last item in our result set?
+ * Because as we receive websocket events, we insert and append items to our data.
+ * That websocket event may not in fact deliver the NEXT item in our data, but simply an item, that sequentially
+ * belongs at the end despite skipping over other items of data.  Paging should not be from this new item, but
+ * only the last item pulled via this query from the database.
+ *
+ * @type {string}
+ * @private
+ */
+Query.prototype._nextDBFromId = '';
+
+
 Query._supportedEvents = [
   /**
    * The query data has changed; any change event will cause this event to trigger.
+   *
    * @event change
    */
   'change',
 
   /**
    * A new page of data has been loaded from the server
+   *
    * @event 'change:data'
    */
   'change:data',
 
   /**
    * All data for this query has been reset due to a change in the Query predicate.
+   *
    * @event 'change:reset'
    */
   'change:reset',
 
   /**
    * An item of data within this Query has had a property change its value.
+   *
    * @event 'change:property'
    */
   'change:property',
@@ -1207,6 +1486,7 @@ Query._supportedEvents = [
    * A new item of data has been inserted into the Query. Not triggered by loading
    * a new page of data from the server, but is triggered by locally creating a matching
    * item of data, or receiving a new item of data via websocket.
+   *
    * @event 'change:insert'
    */
   'change:insert',
@@ -1214,15 +1494,31 @@ Query._supportedEvents = [
   /**
    * An item of data has been removed from the Query. Not triggered for every removal, but
    * is triggered by locally deleting a result, or receiving a report of deletion via websocket.
+   *
    * @event 'change:remove'
    */
   'change:remove',
 
   /**
    * The query data failed to load from the server.
+   *
    * @event error
    */
   'error',
+
+  /**
+   * The server needs to sync more data before it can provide the client all the requested data.
+   *
+   *     query.on('server-syncing-state', function(evt) {
+   *       alert('syncing is ' + evt.syncing ? 'running' : 'completed');
+   *     });
+   *
+   * Only occurs for querying Messages.  Comes with a parameter `syncing` set to true
+   * when we are syncing, and false when done.
+   *
+   * @event server-syncing-state
+   */
+  'server-syncing-state',
 ].concat(Root._supportedEvents);
 
 Root.initClass.apply(Query, [Query, 'Query']);

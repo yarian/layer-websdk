@@ -8,7 +8,11 @@
  *
  * For conversations that involve notifications (primarily for Android and IOS), the more common pattern is:
  *
- *      var m = conversation.createMessage('Hello there').send({text: "Message from Fred: Hello there"});
+ *      var m = conversation.createMessage('Hello there').send({
+ *        text: "Message from Fred: Hello there",
+ *        title: "New Layer Message",
+ *        sound: "myaudiofile.aif"
+ *      });
  *
  * Typically, rendering would be done as follows:
  *
@@ -36,7 +40,7 @@
  *    * messages:sent: The message was received by the server
  *  * Query Instance fires
  *    * change: The query has received a new Message
- *    * change:add: Same as the change event but more specific
+ *    * change:add: Same as the change event but does not receive other types of change events
  *
  * When creating a Message there are a number of ways to structure it.
  * All of these are valid and create the same exact Message:
@@ -90,13 +94,11 @@
  * * layer.Message.id: this property is worth being familiar with; it identifies the
  *   Message and can be used in `client.getMessage(id)` to retrieve it
  *   at any time.
- * * layer.Message.internalId: This property makes for a handy unique ID for use in dom nodes.
- *   It is gaurenteed not to change during this session.
  * * layer.Message.isRead: Indicates if the Message has been read yet; set `m.isRead = true`
  *   to tell the client and server that the message has been read.
  * * layer.Message.parts: An array of layer.MessagePart classes representing the contents of the Message.
  * * layer.Message.sentAt: Date the message was sent
- * * layer.Message.sender's `userId` property: Conversation participant who sent the Message. You may
+ * * layer.Message.sender `userId`: Conversation participant who sent the Message. You may
  *   need to do a lookup on this id in your own servers to find a
  *   displayable name for it.
  *
@@ -121,7 +123,6 @@ const LayerError = require('./layer-error');
 const Constants = require('./const');
 const Util = require('./client-utils');
 const ClientRegistry = require('./client-registry');
-const logger = require('./logger');
 
 class Message extends Syncable {
   /**
@@ -159,12 +160,11 @@ class Message extends Syncable {
     if (options && options.fromServer) {
       this._populateFromServer(options.fromServer);
     } else {
-      this.sender = { userId: '', name: '' };
+      if (client) this.sender = client.user;
       this.sentAt = new Date();
     }
 
     if (!this.parts) this.parts = [];
-    this.localCreatedAt = new Date();
 
     this._disableEvents = true;
     if (!options.fromServer) this.recipientStatus = {};
@@ -174,19 +174,11 @@ class Message extends Syncable {
     this.isInitializing = false;
     if (options && options.fromServer) {
       client._addMessage(this);
+      const status = this.recipientStatus[client.user.userId];
+      if (status && status !== Constants.RECEIPT_STATE.READ && status !== Constants.RECEIPT_STATE.DELIVERED) {
+        Util.defer(() => this._sendReceipt('delivery'));
+      }
     }
-  }
-
-  /**
-   * Get the layer.Client associated with this layer.Message.
-   *
-   * Uses the layer.Message.clientId property.
-   *
-   * @method getClient
-   * @return {layer.Client}
-   */
-  getClient() {
-    return ClientRegistry.get(this.clientId);
   }
 
   /**
@@ -197,10 +189,11 @@ class Message extends Syncable {
    * @method getConversation
    * @return {layer.Conversation}
    */
-  getConversation() {
+  getConversation(load) {
     if (this.conversationId) {
-      return ClientRegistry.get(this.clientId).getConversation(this.conversationId);
+      return ClientRegistry.get(this.clientId).getConversation(this.conversationId, load);
     }
+    return null;
   }
 
   /**
@@ -246,8 +239,16 @@ class Message extends Syncable {
    *
    * Should only be called on an unsent Message.
    *
+   * ```
+   * message.addPart({mimeType: 'text/plain', body: 'Frodo really is a Dodo'});
+   *
+   * // OR
+   * message.addPart(new layer.MessagePart({mimeType: 'text/plain', body: 'Frodo really is a Dodo'}));
+   * ```
+   *
    * @method addPart
    * @param  {layer.MessagePart/Object} part - A layer.MessagePart instance or a `{mimeType: 'text/plain', body: 'Hello'}` formatted Object.
+   * @returns {layer.Message} this
    */
   addPart(part) {
     if (part) {
@@ -275,12 +276,12 @@ class Message extends Syncable {
     const value = this[pKey] || {};
     const client = this.getClient();
     if (client) {
-      const userId = client.userId;
-      const conversation = this.getConversation();
+      const id = client.user.userId;
+      const conversation = this.getConversation(false);
       if (conversation) {
-        conversation.participants.forEach(participant => {
-          if (!value[participant]) {
-            value[participant] = participant === userId ?
+        conversation.participants.forEach(userId => {
+          if (!value[userId]) {
+            value[userId] = userId === id ?
               Constants.RECEIPT_STATE.READ : Constants.RECEIPT_STATE.PENDING;
           }
         });
@@ -305,12 +306,12 @@ class Message extends Syncable {
    *
    */
   __updateRecipientStatus(status, oldStatus) {
-    const conversation = this.getConversation();
+    const conversation = this.getConversation(false);
     const client = this.getClient();
 
     if (!conversation || Util.doesObjectMatch(status, oldStatus)) return;
 
-    const userId = client.userId;
+    const userId = client.user.userId;
     const isSender = this.sender.userId === userId;
     const userHasRead = status[userId] === Constants.RECEIPT_STATE.READ;
 
@@ -355,7 +356,7 @@ class Message extends Syncable {
    * @method _getReceiptStatus
    * @private
    * @param  {Object} status - Object describing the delivered/read/sent value for each participant
-   * @param  {string} userId - User ID for this user; not counted when reporting on how many people have read/received.
+   * @param  {string} userId - User ID for this user, so we can avoid counting it when reporting on how many people have read/received.
    * @return {Object} result
    * @return {number} result.readCount
    * @return {number} result.deliveredCount
@@ -363,14 +364,16 @@ class Message extends Syncable {
   _getReceiptStatus(status, userId) {
     let readCount = 0,
       deliveredCount = 0;
-    Object.keys(status).filter(participant => participant !== userId).forEach(participant => {
-      if (status[participant] === Constants.RECEIPT_STATE.READ) {
-        readCount++;
-        deliveredCount++;
-      } else if (status[participant] === Constants.RECEIPT_STATE.DELIVERED) {
-        deliveredCount++;
-      }
-    });
+    Object.keys(status)
+      .filter(participant => participant !== userId)
+      .forEach(participant => {
+        if (status[participant] === Constants.RECEIPT_STATE.READ) {
+          readCount++;
+          deliveredCount++;
+        } else if (status[participant] === Constants.RECEIPT_STATE.DELIVERED) {
+          deliveredCount++;
+        }
+      });
 
     return {
       readCount,
@@ -419,16 +422,49 @@ class Message extends Syncable {
    */
   __updateIsRead(value) {
     if (value) {
-      this._sendReceipt(Constants.RECEIPT_STATE.READ);
-      this._triggerAsync('messages:read');
-      const conversation = this.getConversation();
+      if (!this._inPopulateFromServer) {
+        this._sendReceipt(Constants.RECEIPT_STATE.READ);
+      }
+      this._triggerMessageRead();
+      const conversation = this.getConversation(false);
       if (conversation) conversation.unreadCount--;
     }
   }
 
+  /**
+   * Trigger events indicating changes to the isRead/isUnread properties.
+   *
+   * @method _triggerMessageRead
+   * @private
+   */
+  _triggerMessageRead() {
+    const value = this.isRead;
+    this._triggerAsync('messages:change', {
+      property: 'isRead',
+      oldValue: !value,
+      newValue: value,
+    });
+    this._triggerAsync('messages:change', {
+      property: 'isUnread',
+      oldValue: value,
+      newValue: !value,
+    });
+  }
 
   /**
    * Send a Read or Delivery Receipt to the server.
+   *
+   * For Read Receipt, you can also just write:
+   *
+   * ```
+   * message.isRead = true;
+   * ```
+   *
+   * You can retract a Delivery or Read Receipt; once marked as Delivered or Read, it can't go back.
+   *
+   * ```
+   * messsage.sendReceipt(layer.Constants.RECEIPT_STATE.READ);
+   * ```
    *
    * @method sendReceipt
    * @param {string} [type=layer.Constants.RECEIPT_STATE.READ] - One of layer.Constants.RECEIPT_STATE.READ or layer.Constants.RECEIPT_STATE.DELIVERY
@@ -444,8 +480,8 @@ class Message extends Syncable {
         // this instance.  Which typically leads to lots of extra attempts
         // to mark the message as read.
         this.__isRead = true;
-        this._triggerAsync('messages:read');
-        const conversation = this.getConversation();
+        this._triggerMessageRead();
+        const conversation = this.getConversation(false);
         if (conversation) conversation.unreadCount--;
       }
     }
@@ -466,7 +502,11 @@ class Message extends Syncable {
    * @param {string} [type=read] - One of layer.Constants.RECEIPT_STATE.READ or layer.Constants.RECEIPT_STATE.DELIVERY
    */
   _sendReceipt(type) {
-    if (this.getConversation().participants.length === 0) return;
+    // This little test exists so that we don't send receipts on Conversations we are no longer
+    // participants in (participants = [] if we are not a participant)
+    const conversation = this.getConversation(false);
+    if (conversation && conversation.participants.length === 0) return;
+
     this._setSyncing();
     this._xhr({
       url: '/receipts',
@@ -486,46 +526,105 @@ class Message extends Syncable {
    *
    * Message must have parts and a valid conversation to send successfully.
    *
+   * The send method takes a `notification` object. In normal use, it provides the same notification to ALL
+   * recipients, but you can customize notifications on a per recipient basis, as well as embed actions into the notification.
+   * For the Full API, see [Server Docs](https://developer.layer.com/docs/platform/messages#notification-customization).
+   *
+   * ```
+   * message.send({
+   *    title: "New Hobbit Message",
+   *    text: "Frodo-the-Dodo: Hello Sam, what say we waltz into Mordor like we own the place?",
+   *    sound: "whinyhobbit.aiff"
+   * });
+   * ```
+   *
    * @method send
    * @param {Object} [notification] - Parameters for controling how the phones manage notifications of the new Message.
    *                          See IOS and Android docs for details.
+   * @param {string} [notification.title] - Title to show on lock screen and notification bar
    * @param {string} [notification.text] - Text of your notification
    * @param {string} [notification.sound] - Name of an audio file or other sound-related hint
    * @return {layer.Message} this
    */
   send(notification) {
     const client = this.getClient();
-    const conversation = this.getConversation();
+    if (!client) {
+      throw new Error(LayerError.dictionary.clientMissing);
+    }
+
+    const conversation = this.getConversation(true);
+
+    if (!conversation) {
+      throw new Error(LayerError.dictionary.conversationMissing);
+    }
 
     if (this.syncState !== Constants.SYNC_STATE.NEW) {
       throw new Error(LayerError.dictionary.alreadySent);
     }
-    if (!conversation) {
-      throw new Error(LayerError.dictionary.conversationMissing);
+
+
+    if (conversation.isLoading) {
+      conversation.once('conversations:loaded', () => this.send(notification));
+      return this;
     }
 
     if (!this.parts || !this.parts.length) {
       throw new Error(LayerError.dictionary.partsMissing);
     }
 
-    this.sender.userId = client.userId;
     this._setSyncing();
-    client._addMessage(this);
 
     // Make sure that the Conversation has been created on the server
     // and update the lastMessage property
     conversation.send(this);
 
-    // allow for modification of message before sending
-    this.trigger('messages:sending');
+    // If we are sending any File/Blob objects, and their Mime Types match our test,
+    // wait until the body is updated to be a string rather than File before calling _addMessage
+    // which will add it to the Query Results and pass this on to a renderer that expects "text/plain" to be a string
+    // rather than a blob.
+    this._readAllBlobs(() => {
+      // Calling this will add this to any listening Queries... so position needs to have been set first;
+      // handled in conversation.send(this)
+      client._addMessage(this);
 
-    const data = {
-      parts: new Array(this.parts.length),
-    };
-    if (notification) data.notification = notification;
+      // allow for modification of message before sending
+      this.trigger('messages:sending');
 
-    this._preparePartsForSending(data);
+      const data = {
+        parts: new Array(this.parts.length),
+        id: this.id,
+      };
+      if (notification) data.notification = notification;
+
+      this._preparePartsForSending(data);
+    });
     return this;
+  }
+
+  /**
+   * Any MessagePart that contains a textual blob should contain a string before we send.
+   *
+   * If a MessagePart with a Blob or File as its body were to be added to the Client,
+   * The Query would receive this, deliver it to apps and the app would crash.
+   * Most rendering code expecting text/plain would expect a string not a File.
+   *
+   * When this user is sending a file, and that file is textual, make sure
+   * its actual text delivered to the UI.
+   *
+   * @method _readAllBlobs
+   * @private
+   */
+  _readAllBlobs(callback) {
+    let count = 0;
+    const parts = this.parts.filter(part => Util.isBlob(part.body) && part.isTextualMimeType());
+    parts.forEach((part) => {
+      Util.fetchTextFromFile(part.body, (text) => {
+        part.body = text;
+        count++;
+        if (count === parts.length) callback();
+      });
+    });
+    if (!parts.length) callback();
   }
 
   /**
@@ -568,23 +667,26 @@ class Message extends Syncable {
    */
   _send(data) {
     const client = this.getClient();
-    const conversation = this.getConversation();
+    const conversation = this.getConversation(false);
 
     this.sentAt = new Date();
     client.sendSocketRequest({
       method: 'POST',
-      body: () => {
-        return {
-          method: 'Message.create',
-          object_id: conversation.id,
-          data,
-        };
+      body: {
+        method: 'Message.create',
+        object_id: conversation.id,
+        data,
       },
       sync: {
         depends: [this.conversationId, this.id],
         target: this.id,
       },
     }, (success, socketData) => this._sendResult(success, socketData));
+  }
+
+  _getSendData(data) {
+    data.object_id = this.conversationId;
+    return data;
   }
 
   /**
@@ -610,26 +712,26 @@ class Message extends Syncable {
     this._setSynced();
   }
 
-  /**
-     * Standard `on()` provided by layer.Root.
-     *
-     * Adds some special handling of 'messages:loaded' so that calls such as
-     *
-     *      var m = client.getMessage('layer:///messages/123', true)
-     *      .on('messages:loaded', function() {
-     *          myrerender(m);
-     *      });
-     *      myrender(m); // render a placeholder for m until the details of m have loaded
-     *
-     * can fire their callback regardless of whether the client loads or has
-     * already loaded the Message.
-     *
-     * @method on
-     * @param  {string} eventName
-     * @param  {Function} eventHandler
-     * @param  {Object} context
-     * @return {layer.Message} this
-     */
+  /* NOT FOR JSDUCK.
+   * Standard `on()` provided by layer.Root.
+   *
+   * Adds some special handling of 'messages:loaded' so that calls such as
+   *
+   *      var m = client.getMessage('layer:///messages/123', true)
+   *      .on('messages:loaded', function() {
+   *          myrerender(m);
+   *      });
+   *      myrender(m); // render a placeholder for m until the details of m have loaded
+   *
+   * can fire their callback regardless of whether the client loads or has
+   * already loaded the Message.
+   *
+   * @method on
+   * @param  {string} eventName
+   * @param  {Function} eventHandler
+   * @param  {Object} context
+   * @return {layer.Message} this
+   */
   on(name, callback, context) {
     const hasLoadedEvt = name === 'messages:loaded' ||
       name && typeof name === 'object' && name['messages:loaded'];
@@ -651,53 +753,38 @@ class Message extends Syncable {
    *
    * * layer.Constants.DELETION_MODE.ALL: This deletes the local copy immediately, and attempts to also
    *   delete the server's copy.
+   * * layer.Constants.DELETION_MODE.MY_DEVICES: Deletes this Message from all of my devices; no effect on other users.
    *
    * @method delete
-   * @param {number} deletionMode - layer.Constants.DELETION_MODE.ALL is only supported mode at this time
+   * @param {String} deletionMode
    */
   delete(mode) {
-    if (this.isDestroyed) {
-      throw new Error(LayerError.dictionary.isDestroyed);
+    if (this.isDestroyed) throw new Error(LayerError.dictionary.isDestroyed);
+
+    let queryStr;
+    switch (mode) {
+      case Constants.DELETION_MODE.ALL:
+      case true:
+        queryStr = 'mode=all_participants';
+        break;
+      case Constants.DELETION_MODE.MY_DEVICES:
+        queryStr = 'mode=my_devices';
+        break;
+      default:
+        throw new Error(LayerError.dictionary.deletionModeUnsupported);
     }
 
-    const modeValue = 'true';
-    if (mode === true) {
-      logger.warn('Calling Message.delete without a mode is deprecated');
-      mode = Constants.DELETION_MODE.ALL;
-    }
-    if (!mode || mode !== Constants.DELETION_MODE.ALL) {
-      throw new Error(LayerError.dictionary.deletionModeUnsupported);
-    }
-
-    if (this.syncState !== Constants.SYNC_STATE.NEW) {
-      const id = this.id;
-      const client = this.getClient();
-      this._xhr({
-        url: '?destroy=' + modeValue,
-        method: 'DELETE',
-      }, result => {
-        if (!result.success) Message.load(id, client);
-      });
-    }
+    const id = this.id;
+    const client = this.getClient();
+    this._xhr({
+      url: '?' + queryStr,
+      method: 'DELETE',
+    }, result => {
+      if (!result.success && (!result.data || result.data.id !== 'not_found')) Message.load(id, client);
+    });
 
     this._deleted();
     this.destroy();
-
-    return this;
-  }
-
-  /**
-   * The Message has been deleted.
-   *
-   * Called from layer.Websockets.ChangeManager and from layer.Message.delete();
-   *
-   * Destroy must be called separately, and handles most cleanup.
-   *
-   * @method _deleted
-   * @protected
-   */
-  _deleted() {
-    this.trigger('messages:delete');
   }
 
   /**
@@ -709,7 +796,8 @@ class Message extends Syncable {
    * @method destroy
    */
   destroy() {
-    this.getClient()._removeMessage(this);
+    const client = this.getClient();
+    if (client) client._removeMessage(this);
     this.parts.forEach(part => part.destroy());
     this.__parts = null;
 
@@ -726,10 +814,14 @@ class Message extends Syncable {
    * @param  {Object} m - Server description of the message
    */
   _populateFromServer(message) {
-    const tempId = this.id;
+    this._inPopulateFromServer = true;
+    const client = this.getClient();
+
     this.id = message.id;
     this.url = message.url;
+    const oldPosition = this.position;
     this.position = message.position;
+
 
     // Assign IDs to preexisting Parts so that we can call getPartById()
     if (this.parts) {
@@ -756,32 +848,38 @@ class Message extends Syncable {
     this.receivedAt = message.received_at ? new Date(message.received_at) : undefined;
 
     this.sender = {
-      userId: message.sender.user_id || '',
-      name: message.sender.name || '',
+      name: message.sender.name,
+      userId: message.sender.user_id,
+      displayName: message.sender.display_name, // Not well supported; not recommended for use.
+      avatarUrl: message.sender.avatar_url, // Not well supported; not recommended for use.
     };
 
     this._setSynced();
 
-    if (tempId && tempId !== this.id) {
-      this._tempId = tempId;
-      this.getClient()._updateMessageId(this, tempId);
+    if (oldPosition && oldPosition !== this.position) {
       this._triggerAsync('messages:change', {
-        oldValue: tempId,
-        newValue: this.id,
-        property: 'id',
+        oldValue: oldPosition,
+        newValue: this.position,
+        property: 'position',
       });
     }
+    this._inPopulateFromServer = false;
   }
 
   /**
    * Returns the Message's layer.MessagePart with the specified the part ID.
+   *
+   * ```
+   * var part = client.getMessagePart('layer:///messages/6f08acfa-3268-4ae5-83d9-6ca00000000/parts/0');
+   * ```
    *
    * @method getPartById
    * @param {string} partId
    * @return {layer.MessagePart}
    */
   getPartById(partId) {
-    return this.parts ? this.parts.filter(part => part.id === partId)[0] : null;
+    const part = this.parts ? this.parts.filter(aPart => aPart.id === partId)[0] : null;
+    return part || null;
   }
 
   /**
@@ -799,51 +897,23 @@ class Message extends Syncable {
     this._inLayerParser = true;
   }
 
-
   /**
-   * Any xhr method called on this message uses the message's url.
+   * Returns absolute URL for this resource.
+   * Used by sync manager because the url may not be known
+   * at the time the sync request is enqueued.
    *
-   * For more info on xhr method parameters see {@link layer.ClientAuthenticator#xhr}
-   *
-   * @method _xhr
-   * @protected
-   * @return {layer.Message} this
+   * @method _getUrl
+   * @param {String} url - relative url and query string parameters
+   * @return {String} full url
+   * @private
    */
-  _xhr(options, callback) {
-    // initialize
-    let inUrl = options.url;
-    const client = this.getClient();
-    const conversation = this.getConversation();
-
-    // Validatation
-    if (this.isDestroyed) throw new Error(LayerError.dictionary.isDestroyed);
-    if (!('url' in options)) throw new Error(LayerError.dictionary.urlRequired);
-    if (!conversation) throw new Error(LayerError.dictionary.conversationMissing);
-
-    if (inUrl && !inUrl.match(/^(\/|\?)/)) options.url = inUrl = '/' + options.url;
-
-    // Setup sync structure
-    options.sync = this._setupSyncObject(options.sync);
-
-    // Setup the url in case its not yet known
-    const getUrl = function getUrl() {
-      return this.url + (inUrl || '');
-    }.bind(this);
-
-    if (this.url) {
-      options.url = getUrl();
-    } else {
-      options.url = getUrl;
-    }
-
-    client.xhr(options, callback);
-    return this;
+  _getUrl(url) {
+    return this.url + (url || '');
   }
 
   _setupSyncObject(sync) {
     if (sync !== false) {
-      if (!sync) sync = {};
-      if (!sync.target) sync.target = this.id;
+      sync = super._setupSyncObject(sync);
       if (!sync.depends) {
         sync.depends = [this.conversationId];
       } else if (sync.depends.indexOf(this.id) === -1) {
@@ -886,10 +956,6 @@ class Message extends Syncable {
     if (!this._toObject) {
       this._toObject = super.toObject();
       this._toObject.recipientStatus = Util.clone(this.recipientStatus);
-      this._toObject.isNew = this.isNew();
-      this._toObject.isSaving = this.isSaving();
-      this._toObject.isSaved = this.isSaved();
-      this._toObject.isSynced = this.isSynced();
     }
     return this._toObject;
   }
@@ -915,87 +981,23 @@ class Message extends Syncable {
    * @protected
    * @static
    * @param  {Object} message - Server's representation of the message
-   * @param  {layer.Conversation} conversation - Conversation for the message
+   * @param  {layer.Client} client
    * @return {layer.Message}
    */
-  static _createFromServer(message, conversation) {
-    if (!(conversation instanceof Root)) throw new Error(LayerError.dictionary.conversationMissing);
-
-    const client = conversation.getClient();
-    const found = client.getMessage(message.id);
-    let newMessage;
-    if (found) {
-      newMessage = found;
-      newMessage._populateFromServer(message);
-    } else {
-      const fromWebsocket = message.fromWebsocket;
-      newMessage = new Message({
-        fromServer: message,
-        conversationId: conversation.id,
-        clientId: client.appId,
-        _notify: fromWebsocket && message.is_unread && message.sender.user_id !== client.userId,
-      });
-    }
-
-    const status = newMessage.recipientStatus[client.userId];
-    if (status !== Constants.RECEIPT_STATE.READ && status !== Constants.RECEIPT_STATE.DELIVERED) {
-      newMessage._sendReceipt('delivery');
-    }
-
-    return {
-      message: newMessage,
-      new: !found,
-    };
-  }
-
-  /**
-   * Loads the specified message from the server.
-   *
-   * Typically one should call
-   *
-   *     client.getMessage(messageId, true)
-   *
-   * This will get the Message from cache or layer.Message.load it from the server if not cached.
-   * Typically you do not need to call this method directly.
-   *
-   * @method load
-   * @static
-   * @param  {string} id - Message identifier
-   * @param  {layer.Client} client - Client whose conversations should contain the new message
-   * @return {layer.Message}
-   */
-  static load(id, client) {
-    if (!client || !(client instanceof Root)) throw new Error(LayerError.dictionary.clientMissing);
-    if (id.indexOf('layer:///messages/') !== 0) throw new Error(LayerError.dictionary.invalidId);
-
-    const message = new Message({
-      id,
-      url: client.url + id.substring(8),
+  static _createFromServer(message, client) {
+    const fromWebsocket = message.fromWebsocket;
+    return new Message({
+      conversationId: message.conversation.id,
+      fromServer: message,
       clientId: client.appId,
+      _fromDB: message._fromDB,
+      _notify: fromWebsocket && message.is_unread && message.sender.user_id !== client.user.userId,
     });
-    message.syncState = Constants.SYNC_STATE.LOADING;
-    client.xhr({
-      url: message.url,
-      method: 'GET',
-      sync: false,
-    }, (result) => this._loadResult(message, client, result));
-    return message;
   }
 
-  static _loadResult(message, client, result) {
-    if (!result.success) {
-      message.syncState = Constants.SYNC_STATE.NEW;
-      message._triggerAsync('messages:loaded-error', { error: result.data });
-      setTimeout(() => message.destroy(), 100); // Insure destroyed AFTER loaded-error event has triggered
-    } else {
-      this._loadSuccess(message, client, result.data);
-    }
-  }
-
-  static _loadSuccess(message, client, response) {
-    message._populateFromServer(response);
-    message.conversationId = response.conversation.id;
-    message._triggerAsync('messages:loaded');
+  _loaded(data) {
+    this.conversationId = data.conversation.id;
+    this.getClient()._addMessage(this);
   }
 
   /**
@@ -1037,30 +1039,25 @@ Message.prototype.clientId = '';
 Message.prototype.conversationId = '';
 
 /**
- * Array of layer.MessagePart objects
+ * Array of layer.MessagePart objects.
+ *
+ * Use layer.Message.addPart to modify this array.
  *
  * @type {layer.MessagePart[]}
+ * @readonly
  */
 Message.prototype.parts = null;
 
 /**
- * Message Identifier.
- *
- * This value is shared by all participants and devices.
- *
- * @type {String}
- */
-Message.prototype.id = '';
-
-/**
- * URL to the server endpoint for operating on the message.
- * @type {String}
- */
-Message.prototype.url = '';
-
-/**
  * Time that the message was sent.
+ *
+ * Note that a locally created layer.Message will have a `sentAt` value even
+ * though its not yet sent; this is so that any rendering code doesn't need
+ * to account for `null` values.  Sending the Message may cause a slight change
+ * in the `sentAt` value.
+ *
  * @type {Date}
+ * @readonly
  */
 Message.prototype.sentAt = null;
 
@@ -1068,23 +1065,38 @@ Message.prototype.sentAt = null;
  * Time that the first delivery receipt was sent by your
  * user acknowledging receipt of the message.
  * @type {Date}
+ * @readonly
  */
 Message.prototype.receivedAt = null;
 
 /**
- * Object representing the sender of the Message.
+ * User object representing the sender of the Message.
  *
- * Contains `userId` property which is
- * populated when the message was sent by a participant (or former participant)
- * in the Conversation.  Contains a `name` property which is
- * used when the Message is sent via a Named Platform API sender
- * such as "Admin", "Moderator", "Robot Jerking you Around".
+ * Contains the following properties (some require configuration before you can receive them):
  *
- *      <span class='sent-by'>
- *        {message.sender.name || getDisplayNameForId(message.sender.userId)}
- *      </span>
+ * * `name`: If sent by a Bot or service that does not have a userId, the name property will be used to provide a service name that is defined via Layer's Platform API.
+ * * `userId`: Name for the user as represented on your system
+ * * `displayName`: If you have embedded a Display Name in your Identity Tokens, or uploaded a display name for your users into Layer's Servers,
+ *   then this value of sender will be populated.  Unless the Message comes from a bot or service.
+ * * `avatarUrl`: If you have embedded an Avatar URL in your Identity Tokens, or uploaded URLs for your users into Layer's Servers,
+ *   then this value of sender will be populated.  Unless the Message comes from a bot or service.
+ *
+ * ```
+ * <span class='sent-by'>
+ *    {message.sender.userId || message.sender.name}
+ * </span>
+ * ```
+ *
+ * If you are using the `displayName` within Layer Services, then you can also use:
+ *
+ * ```
+ * <span class='sent-by'>
+ *    {message.sender.displayName || message.sender.name}
+ * </span>
+ * ```
  *
  * @type {Object}
+ * @readonly
  */
 Message.prototype.sender = null;
 
@@ -1099,6 +1111,7 @@ Message.prototype.sender = null;
  * 3. Each successive message within a conversation should expect a higher position.
  *
  * @type {Number}
+ * @readonly
  */
 Message.prototype.position = 0;
 
@@ -1115,14 +1128,16 @@ Message.prototype._notify = false;
 /**
  * Read/delivery State of all participants.
  *
- * This is an object containing keys for each participant,
+ * This is an object whose keys are User IDs of participants,
  * and a value of:
+ *
  * * layer.RECEIPT_STATE.SENT
  * * layer.RECEIPT_STATE.DELIVERED
  * * layer.RECEIPT_STATE.READ
  * * layer.RECEIPT_STATE.PENDING
  *
  * @type {Object}
+ * @readonly
  */
 Message.prototype.recipientStatus = null;
 
@@ -1159,9 +1174,11 @@ Object.defineProperty(Message.prototype, 'isUnread', {
  *  * layer.Constants.RECIPIENT_STATE.SOME
  *  * layer.Constants.RECIPIENT_STATE.NONE
  *
- *  This value is updated any time recipientStatus changes.
+ * This value is updated any time recipientStatus changes.
+ * See layer.Message.recipientStatus for a more detailed report.
  *
  * @type {String}
+ * @readonly
  */
 Message.prototype.readStatus = Constants.RECIPIENT_STATE.NONE;
 
@@ -1174,33 +1191,22 @@ Message.prototype.readStatus = Constants.RECIPIENT_STATE.NONE;
  *  * layer.Constants.RECIPIENT_STATE.SOME
  *  * layer.Constants.RECIPIENT_STATE.NONE
  *
- *  This value is updated any time recipientStatus changes.
+ * This value is updated any time recipientStatus changes.
+ * See layer.Message.recipientStatus for a more detailed report.
  *
  *
  * @type {String}
+ * @readonly
  */
 Message.prototype.deliveryStatus = Constants.RECIPIENT_STATE.NONE;
 
-
-/**
- * A locally created Message will get a temporary ID.
- *
- * Some may try to lookup the Message using the temporary ID even
- * though it may have later received an ID from the server.
- * Keep the temporary ID so we can correctly index and cleanup.
- *
- * @type {String}
- * @private
- */
-Message.prototype._tempId = '';
-
-/**
- * The time that this client created this instance.
- * @type {Date}
- */
-Message.prototype.localCreatedAt = null;
-
 Message.prototype._toObject = null;
+
+Message.prototype._inPopulateFromServer = false;
+
+Message.eventPrefix = 'messages';
+
+Message.eventPrefix = 'messages';
 
 Message.prefixUUID = 'layer:///messages/';
 
@@ -1220,7 +1226,18 @@ Message._supportedEvents = [
   /**
    * Message has been loaded from the server.
    *
-   * Note that this is only used in response to the layer.Message.load() method.
+   * Note that this is only used in response to the layer.Message.load method.
+   *
+   * ```
+   * var m = client.getMessage('layer:///messages/123', true)
+   *    .on('messages:loaded', function() {
+   *        myrerender(m);
+   *    });
+   * myrender(m); // render a placeholder for m until the details of m have loaded
+   * ```
+   *
+   * Note that in the above code, the event handler will be called even if the Message is already loaded and cached.
+   *
    * @event
    * @param {layer.LayerEvent} evt
    */
@@ -1229,7 +1246,7 @@ Message._supportedEvents = [
   /**
    * The load method failed to load the message from the server.
    *
-   * Note that this is only used in response to the layer.Message.load() method.
+   * Note that this is only used in response to the layer.Message.load method.
    * @event
    * @param {layer.LayerEvent} evt
    */
@@ -1285,26 +1302,12 @@ Message._supportedEvents = [
   'messages:sent-error',
 
   /**
-   * Fired when message.isRead is set to true.
-   *
-   * Sometimes this event is triggered by marking the Message as read locally; sometimes its triggered
-   * by your user on a separate device/browser marking the Message as read remotely.
-   *
-   * Useful if you style unread messages in bold, and need an event to tell you when
-   * to unbold the message.
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Message[]} evt.messages - Array of messages that have just been marked as read
-   */
-  'messages:read',
-
-  /**
    * The recipientStatus property has changed.
    *
    * This happens in response to an update
-   * from the server... but is also caused by marking the current user has having read
+   * from the server... but is also caused by marking the current user as having read
    * or received the message.
+   *
    * @event
    * @param {layer.LayerEvent} evt
    */
@@ -1314,4 +1317,5 @@ Message._supportedEvents = [
 ].concat(Syncable._supportedEvents);
 
 Root.initClass.apply(Message, [Message, 'Message']);
+Syncable.subclasses.push(Message);
 module.exports = Message;

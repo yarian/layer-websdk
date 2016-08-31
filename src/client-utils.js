@@ -5,48 +5,11 @@
  */
 
 const LayerParser = require('layer-patch');
+const uuid = require('uuid');
+const atob = typeof window === 'undefined' ? require('atob') : window.atob;
+
 /* istanbul ignore next */
-const cryptoLib = typeof window !== 'undefined' ? window.crypto || window.msCrypto : null;
-
-let getRandomValues;
-/* istanbul ignore next */
-if (typeof window === 'undefined') {
-  getRandomValues = require('get-random-values');
-} else if (cryptoLib) {
-  getRandomValues = cryptoLib.getRandomValues.bind(cryptoLib);
-}
-
-/*
- * Generate a random UUID for modern browsers and nodejs
- */
-function cryptoUUID() {
-  const buf = new Uint16Array(8);
-  getRandomValues(buf);
-  const s4 = (num) => {
-    let ret = num.toString(16);
-    while (ret.length < 4) {
-      ret = '0' + ret;
-    }
-    return ret;
-  };
-  return (
-    s4(buf[0]) + s4(buf[1]) + '-' + s4(buf[2]) + '-' +
-    s4(buf[3]) + '-' + s4(buf[4]) + '-' + s4(buf[5]) +
-    s4(buf[6]) + s4(buf[7]));
-}
-
-/*
- * Generate a random UUID in IE10
- */
-function mathUUID() {
-  function s4() {
-    return Math.floor((1 + Math.random()) * 0x10000)
-      .toString(16)
-      .substring(1);
-  }
-  return s4() + s4() + '-' + s4() + '-' + s4() + '-' +
-    s4() + '-' + s4() + s4() + s4();
-}
+const LocalFileReader = typeof window === 'undefined' ? require('filereader') : FileReader;
 
 /**
  * Generate a random UUID
@@ -54,7 +17,7 @@ function mathUUID() {
  * @method
  * @return {string}
  */
-exports.generateUUID = getRandomValues ? cryptoUUID : mathUUID;
+exports.generateUUID = uuid.v4;
 
 
 /**
@@ -76,7 +39,7 @@ exports.generateUUID = getRandomValues ? cryptoUUID : mathUUID;
  * @return {string}
  */
 exports.typeFromID = (id) => {
-  const matches = id.match(/layer\:\/\/\/(.*?)\//);
+  const matches = id.match(/layer:\/\/\/(.*?)\//);
   return matches ? matches[1] : '';
 };
 
@@ -99,7 +62,7 @@ exports.isEmpty = (obj) => Object.prototype.toString.apply(obj) === '[object Obj
  */
 exports.sortBy = (inArray, fn, reverse) => {
   reverse = reverse ? -1 : 1;
-  inArray.sort((valueA, valueB) => {
+  return inArray.sort((valueA, valueB) => {
     const aa = fn(valueA);
     const bb = fn(valueB);
     if (aa === undefined && bb === undefined) return 0;
@@ -140,6 +103,29 @@ exports.clone = (obj) => JSON.parse(JSON.stringify(obj));
  * @param  {Function} f
  */
 exports.defer = (func) => setTimeout(func, 0);
+
+/**
+ * URL Decode a URL Encoded base64 string
+ *
+ * Copied from https://github.com/auth0-blog/angular-token-auth, but
+ * appears in many places on the web.
+ */
+exports.decode = (str) => {
+  let output = str.replace('-', '+').replace('_', '/');
+  switch (output.length % 4) {
+    case 0:
+      break;
+    case 2:
+      output += '==';
+      break;
+    case 3:
+      output += '=';
+      break;
+    default:
+      throw new Error('Illegal base64url string!');
+  }
+  return atob(output);
+};
 
 
 /**
@@ -188,6 +174,86 @@ exports.getExponentialBackoffSeconds = function getExponentialBackoffSeconds(max
   return secondsWaitTime + secondsOffset;
 };
 
+/**
+ * Is this data a blob?
+ *
+ * @method isBlob
+ * @param {Mixed} value
+ * @returns {Boolean} - True if its a blob, false if not.
+ */
+exports.isBlob = (value) => typeof Blob !== 'undefined' && value instanceof Blob;
+
+/**
+ * Given a blob return a base64 string.
+ *
+ * @method blobToBase64
+ * @param {Blob} blob - data to convert to base64
+ * @param {Function} callback
+ * @param {String} callback.result - Your base64 string result
+ */
+exports.blobToBase64 = (blob, callback) => {
+  const reader = new LocalFileReader();
+  reader.readAsDataURL(blob);
+  reader.onloadend = () => callback(reader.result.replace(/^.*?,/, ''));
+};
+
+
+/**
+ * Given a base64 string return a blob.
+ *
+ * @method base64ToBlob
+ * @param {String} b64Data - base64 string data without any type prefixes
+ * @param {String} contentType - mime type of the data
+ * @returns {Blob}
+ */
+exports.base64ToBlob = (b64Data, contentType) => {
+  try {
+    const sliceSize = 512;
+    const byteCharacters = atob(b64Data);
+    const byteArrays = [];
+    let offset;
+
+    for (offset = 0; offset < byteCharacters.length; offset += sliceSize) {
+      let i;
+      const slice = byteCharacters.slice(offset, offset + sliceSize);
+      const byteNumbers = new Array(slice.length);
+      for (i = 0; i < slice.length; i++) {
+        byteNumbers[i] = slice.charCodeAt(i);
+      }
+
+      const byteArray = new Uint8Array(byteNumbers);
+
+      byteArrays.push(byteArray);
+    }
+
+    const blob = new Blob(byteArrays, { type: contentType });
+    return blob;
+  } catch (e) {
+    // noop
+  }
+  return null;
+};
+
+/**
+ * Given a File/Blob return a string.
+ *
+ * Assumes blob represents textual data.
+ *
+ * @method fetchTextFromFile
+ * @param {Blob} file
+ * @param {Function} callback
+ * @param {String} callback.result
+ */
+exports.fetchTextFromFile = (file, callback) => {
+  if (typeof file === 'string') return callback(file);
+  const reader = new LocalFileReader();
+  reader.addEventListener('loadend', () => {
+    callback(reader.result);
+  });
+  reader.readAsText(file);
+};
+
+
 let parser;
 
 /**
@@ -198,13 +264,12 @@ let parser;
  * @param {Object} request - see layer.ClientUtils.layerParse
  */
 function createParser(request) {
-  request.client.once('destroy', () => parser = null);
+  request.client.once('destroy', () => (parser = null));
 
   parser = new LayerParser({
     camelCase: true,
-    getObjectCallback: (id) => {
-      return request.client._getObject(id);
-    },
+    getObjectCallback: (id) => request.client._getObject(id),
+    createObjectCallback: (id, obj) => request.client._createObject(obj),
     propertyNameMap: {
       Conversation: {
         unreadMessageCount: 'unreadCount',
