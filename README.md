@@ -23,10 +23,10 @@ All examples below assume your using the CDN installation method; adapting instr
 Simplest approach to install the Web SDK is to add the following script tag:
 
 ```html
-<script src='//cdn.layer.com/sdk/1.1/layer-websdk.min.js'></script>
+<script src='//cdn.layer.com/sdk/2.0/layer-websdk.min.js'></script>
 ```
 
-* For stricter code control, use `//cdn.layer.com/sdk/1.1.0/layer-websdk.min.js` instead.
+* For stricter code control, use `//cdn.layer.com/sdk/2.0.0/layer-websdk.min.js` instead.
 
 All classes can then be accessed via the `layer` namespace:
 
@@ -264,7 +264,7 @@ query.on('change', function(evt) {
 });
 ```
 
-To get more granular details about the different types of `change` events and how to access just the data within the results that have changed, see the [Query API](http://static.layer.com/sdk/docs-1.1/#!/api/layer.Query).
+To get more granular details about the different types of `change` events and how to access just the data within the results that have changed, see the [Query API](http://docs.layer.com/).
 
 ## Authentication
 
