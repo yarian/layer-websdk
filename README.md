@@ -5,11 +5,11 @@
 
 The Layer Web SDK is a JavaScript library for adding chat services to your web application. For detailed documentation, tutorials and guides please visit our [Web SDK documentation](https://developer.layer.com/docs/websdk).
 
-## About the `v2.0.0-beta` Beta Release
+## About the `v3.0.0-beta` Beta Release
 
 This **public beta is NOT production ready**; while we will not stop you from using it in production, your expectations of polish and support will need to account for this.
 
-See the [API Reference (Beta)](http://static.layer.com/sdk/docs-2.0-beta) for more the full API, and the [Change Log](CHANGELOG.md#110) for a summary of changes.
+See the [API Reference](http://docs.layer.com) for more the full API, and the [Change Log](CHANGELOG.md#110) for a summary of changes.
 
 ## Supported Browsers
 
@@ -29,10 +29,10 @@ All examples below assume your using the CDN installation method; adapting instr
 Simplest approach to install the Web SDK is to add the following script tag:
 
 ```html
-<script src='//cdn.layer.com/sdk/2.0.0-beta/layer-websdk.min.js'></script>
+<script src='//cdn.layer.com/sdk/3.0.0-beta/layer-websdk.min.js'></script>
 ```
 
-* For stricter code control, use `//cdn.layer.com/sdk/2.0.0-beta.3/layer-websdk.min.js` instead.
+* For stricter code control, use `//cdn.layer.com/sdk/3.0.0-beta.1/layer-websdk.min.js` instead.
 
 All classes can then be accessed via the `layer` namespace:
 
@@ -272,7 +272,7 @@ query.on('change', function(evt) {
 });
 ```
 
-To get more granular details about the different types of `change` events and how to access just the data within the results that have changed, see the [Query API](http://static.layer.com/sdk/docs-2.0-beta/#!/api/layer.Query).
+To get more granular details about the different types of `change` events and how to access just the data within the results that have changed, see the [Query API](http://docs.layer.com).
 
 ## Authentication
 
