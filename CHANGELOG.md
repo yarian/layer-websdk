@@ -1,6 +1,6 @@
 # Web SDK Change Log
 
-## 3.0.0 Beta 2
+## 3.0.0 Beta 1
 
 * Identities
   * Layer now supports an Identity object, represented here as a `layer.Identity` class containing a User ID, Identity ID, Display Name and an Avatar URL.
