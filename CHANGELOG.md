@@ -11,4 +11,6 @@
   * Queries and Persistence now support Identities
 * Persistence
   * Optimizations and fewer errors logged for IndexedDB write operations
+  * Fixes handling of Private windows for Safari and Firefox
+  * Fixes handling of downgrading to older WebSDK version
 * Logging: Now uses correct console operation
