@@ -10,6 +10,23 @@ describe("The Identity Class", function() {
         dbManager,
         requests;
 
+function deleteTables(done) {
+      client.dbManager._loadAll('messages',  function(results) {
+        client.dbManager.deleteObjects('messages', results, function() {
+          client.dbManager._loadAll('identities',  function(results) {
+            client.dbManager.deleteObjects('identities', results, function() {
+              client.dbManager._loadAll('conversations',  function(results) {
+                client.dbManager.deleteObjects('conversations', results, function() {
+                  done();
+                });
+              });
+            });
+          });
+        });
+      });
+
+    }
+
     beforeEach(function(done) {
         jasmine.clock().install();
         jasmine.Ajax.install();
@@ -81,7 +98,7 @@ describe("The Identity Class", function() {
         });
 
         dbManager = client.dbManager;
-        dbManager.deleteTables(function() {
+        deleteTables(function() {
           done();
         });
     });
@@ -312,11 +329,12 @@ describe("The Identity Class", function() {
           }];
           jasmine.clock().tick(1000); // clear out any incomplete calls
           client.dbManager.getObjects.calls.reset();
+          spyOn(identity, "_triggerAsync"); // prevent the trigger method from caus
 
 
           // Run
           identity._populateFromServer({
-            display_name: "zzz",
+            display_name: "a",
             first_name: "b",
             last_name: "c",
             phone_number: "d",
@@ -330,11 +348,13 @@ describe("The Identity Class", function() {
           // Posttest
           jasmine.clock().tick(101);
           expect(client.dbManager.getObjects).not.toHaveBeenCalled();
-          expect(identity.displayName).toEqual("zzz");
         });
       });
 
       describe("The follow() method", function() {
+        beforeEach(function() {
+          spyOn(client.dbManager, "writeSyncEvents").and.callFake(function(evts, callback) {callback(true);});
+        });
         it("Should ignore the call if isFullIdentity", function() {
           spyOn(identity, "_xhr");
           identity.follow();
@@ -362,6 +382,9 @@ describe("The Identity Class", function() {
       });
 
       describe("The unfollow() method", function() {
+        beforeEach(function() {
+          spyOn(client.dbManager, "writeSyncEvents").and.callFake(function(evts, callback) {callback(true);});
+        });
         it("Should send a request to the server if not isFullIdentity", function() {
           spyOn(basicIdentity, "_xhr");
           basicIdentity.unfollow();

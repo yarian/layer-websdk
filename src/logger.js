@@ -20,17 +20,34 @@ class Logger {
       msg = '';
     }
     const timestamp = new Date().toLocaleTimeString();
+    var op;
+    switch(type) {
+      case DEBUG:
+        op = 'debug';
+        break;
+      case INFO:
+        op = 'info';
+        break;
+      case WARN:
+        op = 'warn';
+        break;
+      case ERROR:
+        op = 'error';
+        break;
+      default:
+        op = 'log';
+    }
     if (obj) {
       if (supportsConsoleFormatting) {
-        console.log(`%cLayer%c ${type}%c [${timestamp}]: ${msg}`, LayerCss, `color: ${color}`, Black, obj);
+        console[op](`%cLayer%c ${type}%c [${timestamp}]: ${msg}`, LayerCss, `color: ${color}`, Black, obj);
       } else {
-        console.log(`Layer ${type} [${timestamp}]: ${msg}`, obj);
+        console[op](`Layer ${type} [${timestamp}]: ${msg}`, obj);
       }
     } else {
       if (supportsConsoleFormatting) {
-        console.log(`%cLayer%c ${type}%c [${timestamp}]: ${msg}`, LayerCss, `color: ${color}`, Black);
+        console[op](`%cLayer%c ${type}%c [${timestamp}]: ${msg}`, LayerCss, `color: ${color}`, Black);
       } else {
-        console.log(`Layer ${type} [${timestamp}]: ${msg}`);
+        console[op](`Layer ${type} [${timestamp}]: ${msg}`);
       }
     }
   }

@@ -10,10 +10,6 @@
  * 3. when a request should be aborted
  * 4. triggering any request callbacks
  *
- * TODO WEB-850: Currently the sync queue is managed solely in runtime memory.  But the queue should be stored
- * in persistent memory so that a tab-reload can restore the queue without losing commands that the user has
- * been told have been accepted.
- *
  * TODO: In the event of a DNS error, we may have a valid websocket receiving events and telling us we are online,
  * and be unable to create a REST call.  This will be handled wrong because evidence will suggest that we are online.
  * This issue goes away when we use bidirectional websockets for all requests.
@@ -114,8 +110,10 @@ class SyncManager extends Root {
   /**
    * Adds a new xhr request to the queue.
    *
-   * If the queue is empty, this will be fired immediately.
-   * If the queue is non-empty, this will wait until all other requests in the queue have been fired.
+   * If the queue is empty, this will be fired immediately; else it will be added to the queue and wait its turn.
+   *
+   * If its a read/delivery receipt request, it will typically be fired immediately unless there are many receipt
+   * requests already in-flight.
    *
    * @method request
    * @param  {layer.SyncEvent} requestEvt - A SyncEvent specifying the request to be made
@@ -143,13 +141,17 @@ class SyncManager extends Root {
       this._purgeOnDelete(requestEvt);
     }
 
-    this._processNextRequest();
+    this._processNextRequest(requestEvt);
   }
 
-  _processNextRequest() {
+  _processNextRequest(requestEvt) {
     // Fire the request if there aren't any existing requests already firing
     if (this.queue.length && !this.queue[0].isFiring) {
-      this._processNextStandardRequest();
+      if (requestEvt) {
+        this.client.dbManager.writeSyncEvents([requestEvt], () => this._processNextStandardRequest());
+      } else {
+        this._processNextStandardRequest();
+      }
     }
 
     // If we have anything in the receipts queue, fire it
@@ -193,7 +195,7 @@ class SyncManager extends Root {
       this._validateRequest(requestEvt, (isValid) => {
         requestEvt._isValidating = false;
         if (!isValid) {
-          this._removeRequest(requestEvt);
+          this._removeRequest(requestEvt, false);
           return this._processNextStandardRequest();
         } else {
           this._fireRequest(requestEvt);
@@ -273,7 +275,7 @@ class SyncManager extends Root {
    *
    * @method _fireRequestWebsocket
    * @private
-   * @param {layer.WebsocketSyncEvent} requestEvt
+   * @param {layer.SyncEvent.WebsocketSyncEvent} requestEvt
    */
   _fireRequestWebsocket(requestEvt) {
     if (this.socketManager && this.socketManager._isOpen()) {
@@ -451,7 +453,7 @@ class SyncManager extends Root {
 
     // Write the sync event back to the database if we haven't completed processing it
     if (this.queue.indexOf(requestEvt) !== -1 || this.receiptQueue.indexOf(requestEvt) !== -1) {
-      this.client.dbManager.writeSyncEvents([requestEvt], false);
+      this.client.dbManager.writeSyncEvents([requestEvt]);
     }
   }
 
@@ -521,7 +523,7 @@ class SyncManager extends Root {
     }
 
     // Remove this request as well (side-effect: rolls back the operation)
-    this._removeRequest(result.request);
+    this._removeRequest(result.request, true);
 
     // And finally, we are ready to try the next request
     this._processNextRequest();
@@ -609,7 +611,7 @@ class SyncManager extends Root {
       `${requestEvt.operation} Request on target ${requestEvt.target} has Succeeded`, requestEvt.toObject());
     if (result.data) logger.debug(result.data);
     requestEvt.success = true;
-    this._removeRequest(requestEvt);
+    this._removeRequest(requestEvt, true);
     if (requestEvt.callback) requestEvt.callback(result);
     this._processNextRequest();
 
@@ -626,11 +628,13 @@ class SyncManager extends Root {
    * @method _removeRequest
    * @private
    * @param  {layer.SyncEvent} requestEvt - SyncEvent Request to remove
+   * @param {Boolean} deleteDB - Delete from indexedDB
    */
-  _removeRequest(requestEvt) {
+  _removeRequest(requestEvt, deleteDB) {
     const queue = requestEvt.operation === 'RECEIPT' ? this.receiptQueue : this.queue;
     const index = queue.indexOf(requestEvt);
     if (index !== -1) queue.splice(index, 1);
+    if (deleteDB) this.client.dbManager.deleteObjects('syncQueue', [requestEvt]);
   }
 
   /**
@@ -667,7 +671,7 @@ class SyncManager extends Root {
           target: requestEvt.target,
           request: requestEvt,
         });
-        this._removeRequest(requestEvt);
+        this._removeRequest(requestEvt, true);
       });
   }
 
@@ -776,6 +780,14 @@ SyncManager._supportedEvents = [
   /**
    * A sync request has failed.
    *
+   * ```
+   * client.syncManager.on('sync:error', function(evt) {
+   *    console.error(evt.target.id + ' failed to send changes to server: ', result.data.message);
+   *    console.log('Request Event:', requestEvt);
+   *    console.log('Server Response:', result.data);
+   * });
+   * ```
+   *
    * @event
    * @param {layer.SyncEvent} evt - The request object
    * @param {Object} result
@@ -788,6 +800,14 @@ SyncManager._supportedEvents = [
   /**
    * A sync layer request has completed successfully.
    *
+   * ```
+   * client.syncManager.on('sync:success', function(evt) {
+   *    console.log(evt.target.id + ' changes sent to server successfully');
+   *    console.log('Request Event:', requestEvt);
+   *    console.log('Server Response:', result.data);
+   * });
+   * ```
+   *
    * @event
    * @param {Object} result
    * @param {string} result.target - ID of the message/conversation/etc. being operated upon
@@ -799,7 +819,15 @@ SyncManager._supportedEvents = [
   /**
    * A new sync request has been added.
    *
+   * ```
+   * client.syncManager.on('sync:add', function(evt) {
+   *    console.log(evt.target.id + ' has changes queued for the server');
+   *    console.log('Request Event:', requestEvt);
+   * });
+   * ```
+   *
    * @event
+   * @param {string} result.target - ID of the message/conversation/etc. being operated upon
    * @param {layer.SyncEvent} evt - The request object
    */
   'sync:add',

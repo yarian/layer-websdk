@@ -300,7 +300,7 @@ describe("The SyncManager Class", function() {
         it("Should call _processNextRequest", function() {
             spyOn(syncManager, "_processNextRequest");
             syncManager.request(evt);
-            expect(syncManager._processNextRequest).toHaveBeenCalledWith();
+            expect(syncManager._processNextRequest).toHaveBeenCalledWith(evt);
         });
 
         it("Should add a receipt request to the receipts queue", function() {
@@ -326,19 +326,30 @@ describe("The SyncManager Class", function() {
             });
         });
 
-        it("Should call _processNextRequest if this is the first request in the queue", function() {
+        it("Should call _processNextStandardRequest if this is the first request in the queue and no arguments", function() {
             spyOn(syncManager, "_processNextStandardRequest");
             syncManager.queue = [evt];
             syncManager._processNextRequest();
             expect(syncManager._processNextStandardRequest).toHaveBeenCalledWith();
         });
 
-        it("Should not fire any requests if there are firing requests in the queue", function() {
+        it("Should not fire any requests if there are firing requests in the queue and no arguments", function() {
             syncManager.queue = [evt];
             evt.isFiring = true;
             spyOn(syncManager, "_processNextStandardRequest");
             syncManager._processNextRequest();
             expect(syncManager._processNextStandardRequest).not.toHaveBeenCalled();
+        });
+
+        it("Should call dbManager.writeSyncEvents and then _processNextStandardRequest if this is the first request in the queue and an argument", function() {
+            spyOn(syncManager, "_processNextStandardRequest");
+            spyOn(client.dbManager, "writeSyncEvents").and.callFake(function(data, callback) {
+                expect(syncManager._processNextStandardRequest).not.toHaveBeenCalled();
+                callback();
+            });
+            syncManager.queue = [evt];
+            syncManager._processNextRequest(evt);
+            expect(syncManager._processNextStandardRequest).toHaveBeenCalledWith();
         });
 
         it("Should fire requests if there are multiple nonfiring requests in the queue", function() {
@@ -897,7 +908,7 @@ describe("The SyncManager Class", function() {
             syncManager._xhrError(result);
 
             // Posttest
-            expect(client.dbManager.writeSyncEvents).toHaveBeenCalledWith([request], false);
+            expect(client.dbManager.writeSyncEvents).toHaveBeenCalledWith([request]);
         });
 
         it("Should write failed requests back database if the request wasn't removed from receiptQueue", function() {
@@ -910,7 +921,7 @@ describe("The SyncManager Class", function() {
             syncManager._xhrError(result);
 
             // Posttest
-            expect(client.dbManager.writeSyncEvents).toHaveBeenCalledWith([request], false);
+            expect(client.dbManager.writeSyncEvents).toHaveBeenCalledWith([request]);
         });
 
         it("Should not write failed requests back database if the request was removed", function() {
@@ -1054,7 +1065,7 @@ describe("The SyncManager Class", function() {
             syncManager._xhrHandleServerError(result);
 
             // Posttest
-            expect(syncManager._removeRequest).toHaveBeenCalledWith(request);
+            expect(syncManager._removeRequest).toHaveBeenCalledWith(request, true);
         });
 
         it("Should call processNextRequest to start the next request", function() {
@@ -1151,6 +1162,18 @@ describe("The SyncManager Class", function() {
             });
             syncManager._removeRequest(request2);
             expect(syncManager.queue).toEqual([request]);
+        });
+
+        it("Should remove the request from the indexedDB if deleteDB true", function() {
+            spyOn(client.dbManager, "deleteObjects");
+            syncManager._removeRequest(request, true);
+            expect(client.dbManager.deleteObjects).toHaveBeenCalledWith('syncQueue', [request]);
+        });
+
+        it("Should skip removing the request from the indexedDB if deleteDB false", function() {
+            spyOn(client.dbManager, "deleteObjects");
+            syncManager._removeRequest(request, false);
+            expect(client.dbManager.deleteObjects).not.toHaveBeenCalled();
         });
     });
 

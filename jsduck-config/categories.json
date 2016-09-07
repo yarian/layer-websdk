@@ -8,6 +8,7 @@
           "layer.Client",
           "layer.Conversation",
           "layer.Message",
+          "layer.Announcement",
           "layer.MessagePart",
           "layer.Query"
         ]
@@ -17,9 +18,10 @@
         "classes": [
           "layer.QueryBuilder.ConversationsQuery",
           "layer.QueryBuilder.MessagesQuery",
+          "layer.QueryBuilder.AnnouncementsQuery",
           "layer.LayerEvent",
           "layer.LayerError",
-          "layer.utils",
+          "layer.ClientUtils",
           "layer.Root",
           "layer.Content",
           "layer.Constants"

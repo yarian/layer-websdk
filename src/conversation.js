@@ -9,12 +9,6 @@
  *          distinct: true
  *      });
  *
- * In addition, there is a shortcut method for creating
- * a conversation, which will default to creating a Distinct
- * Conversation.
- *
- *      var conversation = client.createConversation(['a','b']);
- *
  * NOTE:   Do not create a conversation with new layer.Conversation(...),
  *         This will fail to handle the distinct property short of going to the server for evaluation.
  *
@@ -31,8 +25,6 @@
  *
  * * layer.Conversation.id: this property is worth being familiar with; it identifies the
  *   Conversation and can be used in `client.getConversation(id)` to retrieve it.
- * * layer.Conversation.internalId: This property makes for a handy unique ID for use in dom nodes;
- *   gaurenteed not to change during this session.
  * * layer.Conversation.lastMessage: This property makes it easy to show info about the most recent Message
  *    when rendering a list of Conversations.
  * * layer.Conversation.metadata: Custom data for your Conversation; commonly used to store a 'title' property
@@ -44,6 +36,7 @@
  * * layer.Conversation.setMetadataProperties: Set metadata.title to 'My Conversation with Layer Support' (uh oh)
  * * layer.Conversation.on() and layer.Conversation.off(): event listeners built on top of the `backbone-events-standalone` npm project
  * * layer.Conversation.leave() to leave the Conversation
+ * * layer.Conversation.delete() to delete the Conversation for all users (or for just this user)
  *
  * Events:
  *
@@ -1303,7 +1296,7 @@ Conversation.bubbleEventParent = 'getClient';
 /**
  * The Conversation that was requested has been created.
  *
- * Used in 'conversations:sent' events.
+ * Used in `conversations:sent` events.
  * @type {String}
  * @static
  */
@@ -1314,7 +1307,7 @@ Conversation.CREATED = 'Created';
  *
  * This means that it did not need to be created.
  *
- * Used in 'conversations:sent' events.
+ * Used in `conversations:sent` events.
  * @type {String}
  * @static
  */
@@ -1327,7 +1320,7 @@ Conversation.FOUND = 'Found';
  * that matched the requested participants, then this value is passed to notify your app that the Conversation
  * was returned but does not exactly match your request.
  *
- * Used in 'conversations:sent' events.
+ * Used in `conversations:sent` events.
  * @type {String}
  * @static
  */

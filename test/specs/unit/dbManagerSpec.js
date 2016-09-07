@@ -13,6 +13,23 @@ describe("The DbManager Class", function() {
 
         var MAX_SAFE_INTEGER = 9007199254740991;
 
+    function deleteTables(done) {
+      client.dbManager._loadAll('messages', function(results) {
+        client.dbManager.deleteObjects('messages', results, function() {
+          client.dbManager._loadAll('identities', function(results) {
+            client.dbManager.deleteObjects('identities', results, function() {
+              client.dbManager._loadAll('conversations', function(results) {
+                client.dbManager.deleteObjects('conversations', results, function() {
+                  setTimeout(done, 50);
+                });
+              });
+            });
+          });
+        });
+      });
+    }
+
+
     beforeEach(function(done) {
         client = new layer.Client({
             appId: appId,
@@ -38,21 +55,25 @@ describe("The DbManager Class", function() {
         });
         client.user = identity;
         client._clientAuthenticated();
-        client._clientReady();
-        client.syncManager.queue = [];
-        conversation = client._createObject(responses.conversation1);
-        message = conversation.lastMessage;
-        announcement = client._createObject(responses.announcement);
-
-        basicIdentity = new layer.Identity({
-          clientId: client.appId,
-          userId: client.userId,
-          id: "layer:///identities/" + client.userId,
-          isFullIdentity: false
-        });
         dbManager = client.dbManager;
-        dbManager.deleteTables(function() {
-          done();
+
+        client.on('ready', function() {
+          setTimeout(function() {
+            client.syncManager.queue = [];
+            conversation = client._createObject(responses.conversation1);
+            message = conversation.lastMessage;
+            announcement = client._createObject(responses.announcement);
+
+            basicIdentity = new layer.Identity({
+              clientId: client.appId,
+              userId: client.userId,
+              id: "layer:///identities/" + client.userId,
+              isFullIdentity: false
+            });
+            deleteTables(function() {
+              done();
+            });
+          }, 10);
         });
     });
 
@@ -64,7 +85,7 @@ describe("The DbManager Class", function() {
       it("Should listen for conversations:add events", function() {
         spyOn(dbManager, "writeConversations");
         client.trigger('conversations:add', { conversations: [conversation] });
-        expect(dbManager.writeConversations).toHaveBeenCalledWith([conversation], false);
+        expect(dbManager.writeConversations).toHaveBeenCalledWith([conversation]);
       });
 
       it("Should listen for conversations:change events", function() {
@@ -75,7 +96,7 @@ describe("The DbManager Class", function() {
           newValue: 2,
           property: 'unreadCount'
         });
-        expect(dbManager.writeConversations).toHaveBeenCalledWith([conversation], true);
+        expect(dbManager.writeConversations).toHaveBeenCalledWith([conversation]);
       });
 
       it("Should listen for conversations:delete events", function() {
@@ -87,7 +108,7 @@ describe("The DbManager Class", function() {
       it("Should listen for messages:add events", function() {
         spyOn(dbManager, "writeMessages");
         client.trigger('messages:add', { messages: [message] });
-        expect(dbManager.writeMessages).toHaveBeenCalledWith([message], false);
+        expect(dbManager.writeMessages).toHaveBeenCalledWith([message]);
       });
 
       it("Should listen for messages:change events", function() {
@@ -98,7 +119,7 @@ describe("The DbManager Class", function() {
           newValue: 2,
           property: 'unreadCount'
         });
-        expect(dbManager.writeMessages).toHaveBeenCalledWith([message], true);
+        expect(dbManager.writeMessages).toHaveBeenCalledWith([message]);
       });
 
       it("Should listen for messages:delete events", function() {
@@ -110,7 +131,7 @@ describe("The DbManager Class", function() {
       it("Should listen for identities:add events", function() {
         spyOn(dbManager, "writeIdentities");
         client.trigger('identities:add', { identities: [identity] });
-        expect(dbManager.writeIdentities).toHaveBeenCalledWith([identity], false);
+        expect(dbManager.writeIdentities).toHaveBeenCalledWith([identity]);
       });
 
       it("Should listen for identities:change events", function() {
@@ -121,34 +142,13 @@ describe("The DbManager Class", function() {
           newValue: 2,
           property: 'displayName'
         });
-        expect(dbManager.writeIdentities).toHaveBeenCalledWith([identity], true);
+        expect(dbManager.writeIdentities).toHaveBeenCalledWith([identity]);
       });
 
       it("Should listen for identities:unfollow events", function() {
         spyOn(dbManager, "deleteObjects");
         client.trigger('identities:unfollow', { target: identity });
         expect(dbManager.deleteObjects).toHaveBeenCalledWith('identities', [identity]);
-      });
-
-      it("Should listen for sync:add events", function() {
-        var syncEvent = new layer.XHRSyncEvent({});
-        spyOn(dbManager, "writeSyncEvents");
-        client.syncManager.trigger('sync:add', { request: syncEvent });
-        expect(dbManager.writeSyncEvents).toHaveBeenCalledWith([syncEvent], false);
-      });
-
-      it("Should listen for sync:abort events", function() {
-        var syncEvent = new layer.XHRSyncEvent({});
-        spyOn(dbManager, "deleteObjects");
-        client.syncManager.trigger('sync:abort', { request: syncEvent });
-        expect(dbManager.deleteObjects).toHaveBeenCalledWith('syncQueue', [syncEvent]);
-      });
-
-      it("Should listen for sync:error events", function() {
-        var syncEvent = new layer.XHRSyncEvent({});
-        spyOn(dbManager, "deleteObjects");
-        client.syncManager.trigger('sync:error', { request: syncEvent });
-        expect(dbManager.deleteObjects).toHaveBeenCalledWith('syncQueue', [syncEvent]);
       });
 
       it("Should call _open", function() {
@@ -299,22 +299,22 @@ describe("The DbManager Class", function() {
       it("Should forward isUpdate true to writeMessages", function() {
         spyOn(dbManager, "_writeObjects");
         spyOn(dbManager, "_getConversationData").and.returnValue([{id: 'fred'}]);
-        dbManager.writeConversations([conversation], false);
-        expect(dbManager._writeObjects).toHaveBeenCalledWith('conversations', [jasmine.any(Object)], false, undefined);
+        dbManager.writeConversations([conversation]);
+        expect(dbManager._writeObjects).toHaveBeenCalledWith('conversations', [jasmine.any(Object)], undefined);
       });
 
       it("Should forward isUpdate true to writeMessages", function() {
         spyOn(dbManager, "_writeObjects");
         spyOn(dbManager, "_getConversationData").and.returnValue([{id: 'fred'}]);
-        dbManager.writeConversations([conversation], true);
-        expect(dbManager._writeObjects).toHaveBeenCalledWith('conversations', [jasmine.any(Object)], true, undefined);
+        dbManager.writeConversations([conversation]);
+        expect(dbManager._writeObjects).toHaveBeenCalledWith('conversations', [jasmine.any(Object)], undefined);
       });
 
       it("Should feed data from _getConversationData to _writeObjects", function() {
         spyOn(dbManager, "_writeObjects");
         spyOn(dbManager, "_getConversationData").and.returnValue([{id: 'fred'}]);
-        dbManager.writeConversations([conversation], false);
-        expect(dbManager._writeObjects).toHaveBeenCalledWith('conversations', [{id: 'fred'}], jasmine.any(Boolean), undefined);
+        dbManager.writeConversations([conversation]);
+        expect(dbManager._writeObjects).toHaveBeenCalledWith('conversations', [{id: 'fred'}], undefined);
       });
     });
 
@@ -590,22 +590,22 @@ describe("The DbManager Class", function() {
       it("Should forward isUpdate true to writeMessages", function() {
         spyOn(dbManager, "_writeObjects");
         spyOn(dbManager, "_getMessageData").and.callFake(function(data, callback) {callback([{id: 'fred'}])});
-        dbManager.writeMessages([message], false);
-        expect(dbManager._writeObjects).toHaveBeenCalledWith('messages', jasmine.any(Object), false, undefined);
+        dbManager.writeMessages([message]);
+        expect(dbManager._writeObjects).toHaveBeenCalledWith('messages', jasmine.any(Object), undefined);
       });
 
       it("Should forward isUpdate true to writeMessages", function() {
         spyOn(dbManager, "_writeObjects");
         spyOn(dbManager, "_getMessageData").and.callFake(function(data, callback) {callback([{id: 'fred'}])});
-        dbManager.writeMessages([message], true);
-        expect(dbManager._writeObjects).toHaveBeenCalledWith('messages', jasmine.any(Object), true, undefined);
+        dbManager.writeMessages([message]);
+        expect(dbManager._writeObjects).toHaveBeenCalledWith('messages', jasmine.any(Object), undefined);
       });
 
       it("Should feed data from _getMessageData to _writeObjects", function() {
         spyOn(dbManager, "_writeObjects");
         spyOn(dbManager, "_getMessageData").and.callFake(function(data, callback) {callback([{id: 'fred'}])});
-        dbManager.writeMessages([message], false);
-        expect(dbManager._writeObjects).toHaveBeenCalledWith('messages', [{id: 'fred'}], jasmine.any(Boolean), undefined);
+        dbManager.writeMessages([message]);
+        expect(dbManager._writeObjects).toHaveBeenCalledWith('messages', [{id: 'fred'}], undefined);
       });
     });
 
@@ -660,22 +660,22 @@ describe("The DbManager Class", function() {
       it("Should forward isUpdate true to writeIdentities", function() {
         spyOn(dbManager, "_writeObjects");
         spyOn(dbManager, "_getIdentityData").and.returnValue([{id: 'fred'}]);
-        dbManager.writeIdentities([identity], false);
-        expect(dbManager._writeObjects).toHaveBeenCalledWith('identities', jasmine.any(Object), false, undefined);
+        dbManager.writeIdentities([identity]);
+        expect(dbManager._writeObjects).toHaveBeenCalledWith('identities', jasmine.any(Object), undefined);
       });
 
       it("Should forward isUpdate true to writeIdentities", function() {
         spyOn(dbManager, "_writeObjects");
         spyOn(dbManager, "_getIdentityData").and.returnValue([{id: 'fred'}]);
-        dbManager.writeIdentities([message], true);
-        expect(dbManager._writeObjects).toHaveBeenCalledWith('identities', jasmine.any(Object), true, undefined);
+        dbManager.writeIdentities([message]);
+        expect(dbManager._writeObjects).toHaveBeenCalledWith('identities', jasmine.any(Object), undefined);
       });
 
       it("Should feed data from _getIdentityData to _writeObjects", function() {
         spyOn(dbManager, "_writeObjects");
         spyOn(dbManager, "_getIdentityData").and.returnValue([{id: 'fred'}]);
-        dbManager.writeIdentities([message], false);
-        expect(dbManager._writeObjects).toHaveBeenCalledWith('identities', [{id: 'fred'}], jasmine.any(Boolean), undefined);
+        dbManager.writeIdentities([message]);
+        expect(dbManager._writeObjects).toHaveBeenCalledWith('identities', [{id: 'fred'}], undefined);
       });
     });
 
@@ -760,25 +760,18 @@ describe("The DbManager Class", function() {
         });
       });
 
-      it("Should forward isUpdate true to writeSyncEvents", function() {
+      it("Should call _writeObjects", function() {
         spyOn(dbManager, "_writeObjects");
         spyOn(dbManager, "_getSyncEventData").and.returnValue([{id: 'fred'}]);
-        dbManager.writeSyncEvents([syncEvent], false);
-        expect(dbManager._writeObjects).toHaveBeenCalledWith('syncQueue', jasmine.any(Object), false, undefined);
-      });
-
-      it("Should forward isUpdate true to writeSyncEvents", function() {
-        spyOn(dbManager, "_writeObjects");
-        spyOn(dbManager, "_getSyncEventData").and.returnValue([{id: 'fred'}]);
-        dbManager.writeSyncEvents([syncEvent], true);
-        expect(dbManager._writeObjects).toHaveBeenCalledWith('syncQueue', jasmine.any(Object), true, undefined);
+        dbManager.writeSyncEvents([syncEvent]);
+        expect(dbManager._writeObjects).toHaveBeenCalledWith('syncQueue', jasmine.any(Object), undefined);
       });
 
       it("Should feed data from _getSyncEventData to _writeObjects", function() {
         spyOn(dbManager, "_writeObjects");
         spyOn(dbManager, "_getSyncEventData").and.returnValue([{id: 'fred'}]);
-        dbManager.writeSyncEvents([syncEvent], false);
-        expect(dbManager._writeObjects).toHaveBeenCalledWith('syncQueue', [{id: 'fred'}], jasmine.any(Boolean), undefined);
+        dbManager.writeSyncEvents([syncEvent]);
+        expect(dbManager._writeObjects).toHaveBeenCalledWith('syncQueue', [{id: 'fred'}], undefined);
       });
     });
 
@@ -787,14 +780,14 @@ describe("The DbManager Class", function() {
       it("Should do nothing if no data", function() {
         var spy = jasmine.createSpy('spy');
         spyOn(dbManager, "onOpen");
-        dbManager._writeObjects('conversations', [], true, spy);
+        dbManager._writeObjects('conversations', [], spy);
         expect(spy).toHaveBeenCalledWith();
         expect(dbManager.onOpen).not.toHaveBeenCalled();
       });
 
       it("Should work through onOpen", function() {
         spyOn(dbManager, "onOpen");
-        dbManager._writeObjects('conversations', [conversation], true, null);
+        dbManager._writeObjects('conversations', [conversation], null);
         expect(dbManager.onOpen).toHaveBeenCalledWith(jasmine.any(Function));
       });
 
@@ -802,7 +795,7 @@ describe("The DbManager Class", function() {
         dbManager._writeObjects('conversations', [{
           id: "frodo got no mojo",
           mojo: 5
-        }], false, function() {
+        }], function() {
           dbManager.getObjects('conversations', ['frodo got no mojo'], function(result) {
             expect(result).toEqual([{
               id: 'frodo got no mojo',
@@ -817,11 +810,11 @@ describe("The DbManager Class", function() {
         dbManager._writeObjects('conversations', [{
           id: "frodo got no mojo",
           mojo: 5
-        }], false, function() {
+        }], function() {
           dbManager._writeObjects('conversations', [{
             id: "frodo got no mojo",
             mojo: 7
-          }], true, function() {
+          }], function() {
             dbManager.getObjects('conversations', ['frodo got no mojo'], function(result) {
               expect(result).toEqual([{
                 id: 'frodo got no mojo',
@@ -837,11 +830,11 @@ describe("The DbManager Class", function() {
         dbManager._writeObjects('conversations', [{
           id: "frodo got no mojo",
           mojo: 5
-        }], false, function() {
+        }], function() {
           dbManager._writeObjects('conversations', [{
             id: "frodo got no mojo",
             mojo: 7
-          }], false, function() {
+          }], function() {
             dbManager.getObjects('conversations', ['frodo got no mojo'], function(result) {
               expect(result).toEqual([{
                 id: 'frodo got no mojo',
@@ -1454,14 +1447,15 @@ describe("The DbManager Class", function() {
       var m1, m2, m3, m4;
       var writtenData;
       beforeEach(function(done) {
-        dbManager.deleteTables(function() {
+        deleteTables(function() {
+
           m1 = conversation.createMessage("m1").send();
           m2 = conversation.createMessage("m2").send();
           m3 = conversation.createMessage("m3").send();
           m4 = conversation.createMessage("m4").send();
           dbManager._getMessageData([message, m4, m2, m3, m1], function(result) {
             writtenData = result;
-            dbManager._writeObjects('messages', result, false, done);
+            dbManager._writeObjects('messages', result, done);
           });
         });
       });
@@ -1490,25 +1484,27 @@ describe("The DbManager Class", function() {
       var m1, m2, m3, m4;
       var writtenData;
       beforeEach(function(done) {
-        dbManager.deleteTables(function() {
-          var c2 = client.createConversation({participants: ["c2"]});
-          message = conversation.createMessage("first message").send();
-          m1 = conversation.createMessage("m1").send();
-          m2 = conversation.createMessage("m2").send();
-          m3 = c2.createMessage("m3").send();
-          m4 = c2.createMessage("m4").send();
-          setTimeout(function() {
+        var c2 = client.createConversation({participants: ["c2"]});
+        message = conversation.createMessage("first message").send();
+        m1 = conversation.createMessage("m1").send();
+        m2 = conversation.createMessage("m2").send();
+        m3 = c2.createMessage("m3").send();
+        m4 = c2.createMessage("m4").send();
+        setTimeout(function() {
+          deleteTables(function() {
             dbManager._getMessageData([m1, m2, m3, m4], function(result) {
               writtenData = result;
-              dbManager._writeObjects('messages', result, false, done);
+              dbManager._writeObjects('messages', result, function() {
+                setTimeout(done, 50);
+              });
             });
-          }, 200);
-        });
+          });
+        }, 50);
       });
 
       it("Should get only items matching the index", function(done) {
         var expectedResult;
-        dbManager._getMessageData([m2, m1, message], function(result) { expectedResult = result; });
+        dbManager._getMessageData([m2, m1], function(result) { expectedResult = result; });
         const query = window.IDBKeyRange.bound([conversation.id, 0], [conversation.id, MAX_SAFE_INTEGER]);
         dbManager._loadByIndex('messages', 'conversation', query, false, null, function(result) {
           var sortedExpect =  layer.Util.sortBy(expectedResult, function(item) {return item.position}).reverse();
@@ -1532,13 +1528,13 @@ describe("The DbManager Class", function() {
 
       it("Should skip first result if isFromId", function(done) {
         var expectedResult;
-        dbManager._getMessageData([m2, m1, message], function(result) { expectedResult = result; });
+        dbManager._getMessageData([m2, m1], function(result) { expectedResult = result; });
 
         const query = window.IDBKeyRange.bound([conversation.id, 0], [conversation.id, MAX_SAFE_INTEGER]);
         dbManager._loadByIndex('messages', 'conversation', query, true, null, function(result) {
           var sortedExpect =  layer.Util.sortBy(expectedResult, function(item) {return item.position}).reverse();
 
-          expect(result).toEqual([sortedExpect[1], sortedExpect[2]]);
+          expect(result).toEqual([sortedExpect[1]]);
           done();
         });
       });
@@ -1563,14 +1559,14 @@ describe("The DbManager Class", function() {
       var m1, m2, m3, m4;
       var writtenData;
       beforeEach(function(done) {
-        dbManager.deleteTables(function() {
+        deleteTables(function() {
           m1 = conversation.createMessage("m1").send();
           m2 = conversation.createMessage("m2").send();
           m3 = conversation.createMessage("m3").send();
           m4 = conversation.createMessage("m4").send();
           dbManager._getMessageData([m1, m2, m3, m4], function(result) {
             writtenData = result;
-            dbManager._writeObjects('messages', result, false, function() {
+            dbManager._writeObjects('messages', result, function() {
               setTimeout(done, 200);
             });
           });
@@ -1598,7 +1594,7 @@ describe("The DbManager Class", function() {
         m3 = conversation.createMessage("m3").send();
         m4 = conversation.createMessage("m4").send();
         dbManager._getMessageData([m1, m2, m3, m4], function(result) {
-          dbManager._writeObjects('messages', result, false, done);
+          dbManager._writeObjects('messages', result, done);
         });
       });
       it("Should get the specified objects", function(done) {
@@ -1622,7 +1618,7 @@ describe("The DbManager Class", function() {
           ]
         }).send();
         dbManager._getMessageData([m1], function(result) {
-          dbManager._writeObjects('messages', result, false, done);
+          dbManager._writeObjects('messages', result, done);
         });
       });
       it("Should get the specified object", function(done) {

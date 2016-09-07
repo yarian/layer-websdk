@@ -226,6 +226,11 @@ class ClientAuthenticator extends Root {
    * Will either attempt to validate the cached sessionToken by getting converations,
    * or if no sessionToken, will call /nonces to start process of getting a new one.
    *
+   * ```javascript
+   * var client = new layer.Client({appId: myAppId});
+   * client.connect('Frodo-the-Dodo');
+   * ```
+   *
    * @method connect
    * @param {string} userId - User ID of the user you are logging in as
    * @returns {layer.ClientAuthenticator} this
@@ -278,6 +283,11 @@ class ClientAuthenticator extends Root {
    * at which point the `challenge` method will trigger.
    *
    * NOTE: The `connected` event will not be triggered on this path.
+   *
+   * ```javascript
+   * var client = new layer.Client({appId: myAppId});
+   * client.connectWithSession('Frodo-the-Dodo', mySessionToken);
+   * ```
    *
    * @method connectWithSession
    * @param {String} userId
@@ -617,26 +627,42 @@ class ClientAuthenticator extends Root {
    * This call is asynchronous; some browsers (ahem, safari...) may not have completed the deletion of
    * persisted data if you
    * navigate away from the page.  Use the callback to determine when all necessary cleanup has completed
-   * prior to navigating away
+   * prior to navigating away.
+   *
+   * Note that while all data should be purged from the browser/device, if you are offline when this is called,
+   * your session token will NOT be deleted from the web server.  Why not? Because it would involve retaining the
+   * request after all of the user's data has been deleted, or NOT deleting the user's data until we are online.
    *
    * @method logout
    * @param {Function} callback
    * @return {layer.ClientAuthenticator} this
    */
   logout(callback) {
+    let callbackCount = 1,
+       counter = 0;
     if (this.isAuthenticated) {
+      callbackCount++;
       this.xhr({
         method: 'DELETE',
         url: '/sessions/' + escape(this.sessionToken),
+        sync: false,
+      }, () => {
+        counter++;
+        if (counter === callbackCount && callback) callback();
       });
     }
 
     // Clear data even if isAuthenticated is false
     // Session may have expired, but data still cached.
+    this._clearStoredData(() => {
+      counter++;
+      if (counter === callbackCount && callback) callback();
+    });
+
     this._resetSession();
-    this._clearStoredData(callback);
     return this;
   }
+
 
   _clearStoredData(callback) {
     if (global.localStorage) localStorage.removeItem(LOCALSTORAGE_KEYS.SESSIONDATA + this.appId);
@@ -863,6 +889,14 @@ class ClientAuthenticator extends Root {
     return this;
   }
 
+  /**
+   * For xhr calls that go through the sync manager, queue it up.
+   *
+   * @method _syncXhr
+   * @private
+   * @param  {Object}   options
+   * @param  {Function} callback
+   */
   _syncXhr(options, callback) {
     if (!options.sync) options.sync = {};
     const innerCallback = (result) => {
@@ -892,6 +926,7 @@ class ClientAuthenticator extends Root {
    * and so we don't hammer the server every time there's a problem.
    *
    * @method _nonsyncXhr
+   * @private
    * @param  {Object}   options
    * @param  {Function} callback
    * @param  {number}   retryCount
@@ -1022,6 +1057,7 @@ class ClientAuthenticator extends Root {
  * State variable; indicates that client is currently authenticated by the server.
  * Should never be true if isConnected is false.
  * @type {Boolean}
+ * @readonly
  */
 ClientAuthenticator.prototype.isAuthenticated = false;
 
@@ -1029,6 +1065,7 @@ ClientAuthenticator.prototype.isAuthenticated = false;
  * State variable; indicates that client is currently connected to server
  * (may not be authenticated yet)
  * @type {Boolean}
+ * @readonly
  */
 ClientAuthenticator.prototype.isConnected = false;
 
@@ -1037,18 +1074,20 @@ ClientAuthenticator.prototype.isConnected = false;
  * Use the 'ready' event to be notified when this value changes to true.
  *
  * @type {boolean}
+ * @readonly
  */
 ClientAuthenticator.prototype.isReady = false;
 
 /**
  * Your Layer Application ID. This value can not be changed once connected.
  * To find your Layer Application ID, see your Layer Developer Dashboard.
+ *
  * @type {String}
  */
 ClientAuthenticator.prototype.appId = '';
 
 /**
- * You can use this to find the userId you are logged in as.
+ * Identity information about the authenticated user.
  *
  * @type {layer.Identity}
  */
@@ -1056,7 +1095,9 @@ ClientAuthenticator.prototype.user = null;
 
 /**
  * Your current session token that authenticates your requests.
+ *
  * @type {String}
+ * @readonly
  */
 ClientAuthenticator.prototype.sessionToken = '';
 
@@ -1145,13 +1186,6 @@ ClientAuthenticator.prototype.persistenceFeatures = null;
  * @type {layer.DbManager}
  */
 ClientAuthenticator.prototype.dbManager = null;
-
-/**
- * Unique identifier for the client.
- *
- * This ID is used to differentiate this instance with instances that may run in other tabs of the browser.
- */
-ClientAuthenticator.prototype.id = '';
 
 /**
  * If a display name is not loaded for the session owner, use this name.
@@ -1244,7 +1278,8 @@ ClientAuthenticator._supportedEvents = [
   'connected',
 
   /**
-   * Fired when unsuccessful in obtaining a nonce
+   * Fired when unsuccessful in obtaining a nonce.
+   *
    * Not recommended for typical applications.
    * @event connected-error
    * @param {Object} event
@@ -1287,6 +1322,14 @@ ClientAuthenticator._supportedEvents = [
    *
    * This event is where you verify that the user is who we all think the user is,
    * and provide an identity token to validate that.
+   *
+   * ```javascript
+   * client.on('challenge', function(evt) {
+   *    myGetIdentityForNonce(evt.nonce, function(identityToken) {
+   *      evt.callback(identityToken);
+   *    });
+   * });
+   * ```
    *
    * @param {Object} event
    * @param {string} event.nonce - A nonce for you to provide to your identity provider

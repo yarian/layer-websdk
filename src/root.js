@@ -320,12 +320,16 @@ class Root extends EventClass {
    * 2. Create a backlink so that if either subscriber or subscribee is destroyed,
    *    all pointers between them can be found and removed.
    *
-   *      obj.on('someEventName someOtherEventName', mycallback, mycontext);
+   * ```
+   * obj.on('someEventName someOtherEventName', mycallback, mycontext);
+   * ```
    *
-   *      obj.on({
-   *          eventName1: callback1,
-   *          eventName2: callback2
-   *      }, mycontext);
+   * ```
+   * obj.on({
+   *    eventName1: callback1,
+   *    eventName2: callback2
+   * }, mycontext);
+   * ```
    *
    * @method on
    * @param  {String} name - Name of the event
@@ -355,20 +359,23 @@ class Root extends EventClass {
   /**
    * Unsubscribe from events.
    *
-   *      // Removes all event handlers for this event:
-   *      obj.off('someEventName');
+   * ```
+   * // Removes all event handlers for this event:
+   * obj.off('someEventName');
    *
-   *      // Removes all event handlers using this function pointer as callback
-   *      obj.off(null, f, null);
+   * // Removes all event handlers using this function pointer as callback
+   * obj.off(null, f, null);
    *
-   *      // Removes all event handlers that `this` has subscribed to; requires
-   *      // obj.on to be called with `this` as its `context` parameter.
-   *      obj.off(null, null, this);
+   * // Removes all event handlers that `this` has subscribed to; requires
+   * // obj.on to be called with `this` as its `context` parameter.
+   * obj.off(null, null, this);
+   * ```
    *
    * @method off
    * @param  {String} name - Name of the event; null for all event names
    * @param  {Function} handler - Event handler; null for all functions
    * @param  {Object} context - The context from the `on()` call to search for; null for all contexts
+   * @return {layer.Root} this
    */
 
 
@@ -497,7 +504,7 @@ class Root extends EventClass {
    * Combines a set of events into a single event.
    *
    * Given an event structure of
-   *
+   * ```
    *      {
    *          customName: [value1]
    *      }
@@ -507,12 +514,15 @@ class Root extends EventClass {
    *      {
    *          customName: [value3]
    *      }
+   * ```
    *
    * Merge them into
    *
+   * ```
    *      {
    *          customName: [value1, value2, value3]
    *      }
+   * ```
    *
    * @method _foldEvents
    * @private
@@ -571,7 +581,7 @@ class Root extends EventClass {
 
 
   /**
-   * Returns a string representation of the class that is nicer than [Object].
+   * Returns a string representation of the class that is nicer than `[Object]`.
    *
    * @method toString
    * @return {String}
@@ -643,6 +653,7 @@ function initClass(newClass, className) {
  * to call methods on it, and will no longer trigger events.
  *
  * @type {boolean}
+ * @readonly
  */
 Root.prototype.isDestroyed = false;
 
@@ -654,6 +665,7 @@ Root.prototype.isDestroyed = false;
  * it is possible, on creating a new object, for its `id` property to change.
  *
  * @type {string}
+ * @readonly
  */
 Root.prototype.internalId = '';
 
@@ -661,6 +673,7 @@ Root.prototype.internalId = '';
  * True while we are in the constructor.
  *
  * @type {boolean}
+ * @readonly
  */
 Root.prototype.isInitializing = true;
 
@@ -668,12 +681,14 @@ Root.prototype.isInitializing = true;
  * Objects that this object is listening for events from.
  *
  * @type {layer.Root[]}
+ * @private
  */
 Root.prototype._subscriptions = null;
 
 /**
  * Disable all events triggered on this object.
  * @type {boolean}
+ * @private
  */
 Root.prototype._disableEvents = false;
 

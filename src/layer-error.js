@@ -7,9 +7,18 @@
  *
  * Layer Error is passed as part of the layer.LayerEvent's data property.
  *
+ * Throw an error:
+ *
  *     object.trigger('xxx-error', new LayerEvent({
  *       data: new LayerError()
  *     }));
+ *
+ *  Receive an Error:
+ *
+ *     conversation.on('loaded-error', function(errEvt) {
+ *        var error = errEvt.data;
+ *        console.error(error.message);
+ *     });
  *
  * @class layer.LayerError
  */

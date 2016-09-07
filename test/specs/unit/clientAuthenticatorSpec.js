@@ -1362,8 +1362,9 @@ describe("The Client Authenticator Class", function() {
                 // Posttest
                 expect(client.xhr).toHaveBeenCalledWith({
                     method: "DELETE",
-                    url: '/sessions/sessionToken'
-                });
+                    url: '/sessions/sessionToken',
+                    sync: false
+                }, jasmine.any(Function));
             });
 
 
@@ -1389,7 +1390,10 @@ describe("The Client Authenticator Class", function() {
                 client.logout(spy);
 
                 // POsttest
-                expect(client._clearStoredData).toHaveBeenCalledWith(spy);
+                expect(client._clearStoredData).toHaveBeenCalledWith(jasmine.any(Function));
+                expect(spy).not.toHaveBeenCalled();
+                client._clearStoredData.calls.allArgs()[0][0]();
+                expect(spy).toHaveBeenCalled();
             });
         });
 

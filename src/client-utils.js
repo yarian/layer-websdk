@@ -179,7 +179,7 @@ exports.getExponentialBackoffSeconds = function getExponentialBackoffSeconds(max
  *
  * @method isBlob
  * @param {Mixed} value
- * @returns {Boolan} - True if its a blob, false if not.
+ * @returns {Boolean} - True if its a blob, false if not.
  */
 exports.isBlob = (value) => typeof Blob !== 'undefined' && value instanceof Blob;
 

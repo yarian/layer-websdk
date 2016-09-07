@@ -217,6 +217,7 @@ class TypingPublisher {
 
   destroy() {
     delete this.conversation;
+    this.isDestroyed = true;
     clearTimeout(this._scheduleId);
     clearInterval(this._pauseLoopId);
   }

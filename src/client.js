@@ -48,8 +48,8 @@
  *
  * * layer.Client.createConversation(): Create a new layer.Conversation.
  * * layer.Client.createQuery(): Create a new layer.Query.
- * * layer.Client.getMessage(): Input a Message ID, and output a Message from cache.
- * * layer.Client.getConversation(): Input a Conversation ID, and output a Conversation from cache.
+ * * layer.Client.getMessage(): Input a Message ID, and output a layer.Message or layer.Announcement from cache.
+ * * layer.Client.getConversation(): Input a Conversation ID, and output a layer.Conversation from cache.
  * * layer.Client.on() and layer.Conversation.off(): event listeners
  * * layer.Client.destroy(): Cleanup all resources used by this client, including all Messages and Conversations.
  *
@@ -202,7 +202,7 @@ class Client extends ClientAuth {
    *
    * If you want it to load it from cache and then from server if not in cache, use the `canLoad` parameter.
    * If loading from the server, the method will return
-   * a layer.Conversation instance that has no data; the conversations:loaded/conversations:loaded-error events
+   * a layer.Conversation instance that has no data; the `conversations:loaded` / `conversations:loaded-error` events
    * will let you know when the conversation has finished/failed loading from the server.
    *
    *      var c = client.getConversation('layer:///conversations/123', true)
@@ -212,6 +212,8 @@ class Client extends ClientAuth {
    *      });
    *      // Render a placeholder for c until the details of c have loaded
    *      myrender(c);
+   *
+   * Note in the above example that the `conversations:loaded` event will trigger even if the Conversation has previously loaded.
    *
    * @method getConversation
    * @param  {string} id
@@ -352,6 +354,11 @@ class Client extends ClientAuth {
 
   /**
    * Get a MessagePart by ID
+   *
+   * ```
+   * var part = client.getMessagePart('layer:///messages/6f08acfa-3268-4ae5-83d9-6ca00000000/parts/0');
+   * ```
+   *
    * @method getMessagePart
    * @param {String} id - ID of the Message Part; layer:///messages/uuid/parts/5
    */
@@ -1007,6 +1014,7 @@ class Client extends ClientAuth {
     if (evt.reset) {
       logger.debug('Client Connection Restored; Resetting all Queries');
       this.dbManager.deleteTables(() => {
+        this.dbManager._open();
         Object.keys(this._queriesHash).forEach(id => {
           const query = this._queriesHash[id];
           if (query) query.reset();
@@ -1181,6 +1189,8 @@ Client.prototype._scheduleCheckAndPurgeCacheItems = null;
 Client.prototype._scheduleCheckAndPurgeCacheAt = 0;
 
 /**
+ * Control how often should we purge unused data from the Cache.
+ *
  * Any Conversation or Message that is part of a Query's results are kept in memory for as long as it
  * remains in that Query.  However, when a websocket event delivers new Messages and Conversations that
  * are NOT part of a Query, how long should they stick around in memory?  Why have them stick around?
@@ -1305,6 +1315,8 @@ Client._supportedEvents = [
    *          }
    *      });
    *
+   * NOTE: Typically such rendering is done using Events on layer.Query.
+   *
    * @event
    * @param {layer.LayerEvent} evt
    * @param {layer.Conversation} evt.target
@@ -1326,6 +1338,7 @@ Client._supportedEvents = [
 
   /**
    * A new message has been received for which a notification may be suitable.
+   *
    * This event is triggered for messages that are:
    *
    * 1. Added via websocket rather than other IO
@@ -1345,10 +1358,12 @@ Client._supportedEvents = [
   /**
    * Messages have been added to a conversation.
    *
+   * May also fire when new Announcements are received.
+   *
    * This event is triggered on
    *
    * * creating/sending a new message
-   * * Receiving a new Message via websocket
+   * * Receiving a new layer.Message or layer.Announcement via websocket
    * * Querying/downloading a set of Messages
    *
           client.on('messages:add', function(evt) {
@@ -1356,6 +1371,8 @@ Client._supportedEvents = [
                   myView.addMessage(message);
               });
           });
+   *
+   * NOTE: Such rendering would typically be done using events on layer.Query.
    *
    * @event
    * @param {layer.LayerEvent} evt
@@ -1377,6 +1394,8 @@ Client._supportedEvents = [
    *              myView.removeMessage(message);
    *          });
    *      });
+   *
+   * NOTE: Such rendering would typically be done using events on layer.Query.
    *
    * @event
    * @param {layer.LayerEvent} evt
@@ -1437,6 +1456,8 @@ Client._supportedEvents = [
    *              myView.renderStatus(evt.target);
    *          }
    *      });
+   *
+   * NOTE: Such rendering would typically be done using events on layer.Query.
    *
    * @event
    * @param {layer.LayerEvent} evt

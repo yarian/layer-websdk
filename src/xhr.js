@@ -18,6 +18,7 @@
     });
  *
  * @class layer.xhr
+ * @private
  */
 
 /**
@@ -85,8 +86,12 @@ module.exports = (request, callback) => {
            request.format === 'json');
 
     if (this.responseType === 'blob' || this.responseType === 'arraybuffer') {
-      // Damnit, this.response is a function if using jasmine test framework.
-      result.data = typeof this.response === 'function' ? this.responseText : this.response;
+      if (this.status === 0) {
+        result.data = new Error('Connection Failed');
+      } else {
+        // Damnit, this.response is a function if using jasmine test framework.
+        result.data = typeof this.response === 'function' ? this.responseText : this.response;
+      }
     } else {
       if (isJSON && this.responseText) {
         try {

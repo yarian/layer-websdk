@@ -9,10 +9,6 @@
  *  * layer.Constants.SYNC_STATE.SYNCED: Exists on both client and server and is synced.
  *  * layer.Constants.SYNC_STATE.LOADING: Exists on server; loading it into client.
  *
- * NOTE: There is a special case for Messages where isSending is true and syncState !== layer.Constants.SYNC_STATE.SAVING,
- * which occurs after `send()` has been called, but while waiting for Rich Content to upload prior to actually
- * sending this to the server.
- *
  * @class layer.Syncable
  * @extends layer.Root
  * @abstract
@@ -31,7 +27,7 @@ class Syncable extends Root {
   }
 
   /**
-   * Get the client associated with this Conversation.
+   * Get the client associated with this Object.
    *
    * @method getClient
    * @return {layer.Client}
@@ -133,6 +129,13 @@ class Syncable extends Root {
    * method will have only ID and URL properties, all others are unset until
    * the `conversations:loaded`, `messages:loaded`, etc... event has fired.
    *
+   * ```
+   * var message = layer.Message.load(messageId, client);
+   * message.once('messages:loaded', function(evt) {
+   *    alert("Message loaded");
+   * });
+   * ```
+   *
    * @method load
    * @static
    * @param {string} id - `layer:///messages/UUID`
@@ -214,7 +217,7 @@ class Syncable extends Root {
   }
 
   /**
-   * Object is queued for syncing with the server.
+   * Object is new, and is queued for syncing, but does not yet exist on the server.
    *
    * That means it is currently out of sync with the server.
    *
@@ -301,7 +304,7 @@ class Syncable extends Root {
   }
 
   /**
-   * Object does not yet exist on server.
+   * Object exists on server.
    *
    * @method isSaved
    * @returns {boolean}
@@ -334,11 +337,17 @@ Syncable.prototype.id = '';
  * URL to access the object on the server.
  *
  * @type {string}
+ * @readonly
+ * @protected
  */
 Syncable.prototype.url = '';
 
 /**
  * The time that this client created this instance.
+ *
+ * This value is not tied to when it was first created on the server.  Creating a new instance
+ * based on server data will result in a new `localCreateAt` value.
+ *
  * @type {Date}
  */
 Syncable.prototype.localCreatedAt = null;
@@ -349,6 +358,8 @@ Syncable.prototype.localCreatedAt = null;
  *
  * Actual value of this string matches the appId.
  * @type {string}
+ * @protected
+ * @readonly
  */
 Syncable.prototype.clientId = '';
 
@@ -356,6 +367,7 @@ Syncable.prototype.clientId = '';
  * Temporary property indicating that the instance was loaded from local database rather than server.
  *
  * @type {boolean}
+ * @private
  */
 Syncable.prototype._fromDB = false;
 
@@ -369,10 +381,6 @@ Syncable.prototype._fromDB = false;
  *  * layer.Constants.SYNC_STATE.SYNCING: Exists on both client and server, but changes are being sent to server.
  *  * layer.Constants.SYNC_STATE.SYNCED: Exists on both client and server and is synced.
  *  * layer.Constants.SYNC_STATE.LOADING: Exists on server; loading it into client.
- *
- * NOTE: There is a special case for Messages where isSending is true and syncState !== layer.Constants.SYNC_STATE.SAVING,
- * which occurs after `send()` has been called, but while waiting for Rich Content to upload prior to actually
- * sending this to the server.
  *
  * @type {string}
  */
@@ -391,6 +399,8 @@ Syncable.prototype._syncCounter = 0;
 
 /**
  * Prefix to use when triggering events
+ * @private
+ * @static
  */
 Syncable.eventPrefix = '';
 

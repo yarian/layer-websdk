@@ -13,7 +13,7 @@
  *      });
  *
  * @class  layer.Content
- * @protected
+ * @private
  * @extends layer.Root
  * @author Michael Kantor
  */

@@ -18,7 +18,7 @@ const SyncEvent = require('./sync-event');
 const Constants = require('./const');
 const Util = require('./client-utils');
 
-const DB_VERSION = 18;
+const DB_VERSION = 20;
 const MAX_SAFE_INTEGER = 9007199254740991;
 const SYNC_NEW = Constants.SYNC_STATE.NEW;
 
@@ -69,30 +69,36 @@ class DbManager extends Root {
     // If no indexedDB, treat everything as disabled.
     if (!window.indexedDB) {
       options.tables = {};
-    }
+    } else {
+      // Test if Arrays as keys supported, disable persistence if not
+      let enabled = true;
+      try {
+        window.IDBKeyRange.bound(['announcement', 0], ['announcement', MAX_SAFE_INTEGER]);
+      } catch(e) {
+        options.tables = {};
+        enabled = false;
+      }
 
-    // If Client is a layer.ClientAuthenticator, it won't support these events; this affects Unit Tests
-    else if (this.client.constructor._supportedEvents.indexOf('conversations:add') !== -1) {
-      this.client.on('conversations:add', evt => this.writeConversations(evt.conversations, false));
-      this.client.on('conversations:change', evt => this.writeConversations([evt.target], true));
-      this.client.on('conversations:delete', evt => this.deleteObjects('conversations', [evt.target]));
+      // If Client is a layer.ClientAuthenticator, it won't support these events; this affects Unit Tests
+      if (enabled && this.client.constructor._supportedEvents.indexOf('conversations:add') !== -1) {
+        this.client.on('conversations:add', evt => this.writeConversations(evt.conversations));
+        this.client.on('conversations:change', evt => this.writeConversations([evt.target]));
+        this.client.on('conversations:delete', evt => this.deleteObjects('conversations', [evt.target]));
 
-      this.client.on('messages:add', evt => this.writeMessages(evt.messages, false));
-      this.client.on('messages:change', evt => this.writeMessages([evt.target], true));
-      this.client.on('messages:delete', evt => this.deleteObjects('messages', [evt.target]));
+        this.client.on('messages:add', evt => this.writeMessages(evt.messages));
+        this.client.on('messages:change', evt => this.writeMessages([evt.target]));
+        this.client.on('messages:delete', evt => this.deleteObjects('messages', [evt.target]));
 
-      this.client.on('identities:add', evt => this.writeIdentities(evt.identities, false));
-      this.client.on('identities:change', evt => this.writeIdentities([evt.target], true));
-      this.client.on('identities:unfollow', evt => this.deleteObjects('identities', [evt.target]));
-    }
+        this.client.on('identities:add', evt => this.writeIdentities(evt.identities));
+        this.client.on('identities:change', evt => this.writeIdentities([evt.target]));
+        this.client.on('identities:unfollow', evt => this.deleteObjects('identities', [evt.target]));
+      }
 
-    this.client.syncManager.on('sync:add', evt => this.writeSyncEvents([evt.request], false));
-    this.client.syncManager.on('sync:abort sync:error', evt => this.deleteObjects('syncQueue', [evt.request]));
-
-    // Sync Queue only really works properly if we have the Messages and Conversations written to the DB; turn it off
-    // if that won't be the case.
-    if (!options.tables.conversations || !options.tables.messages) {
-      options.tables.syncQueue = false;
+      // Sync Queue only really works properly if we have the Messages and Conversations written to the DB; turn it off
+      // if that won't be the case.
+      if (!options.tables.conversations || !options.tables.messages) {
+        options.tables.syncQueue = false;
+      }
     }
 
     TABLES.forEach((tableDef) => {
@@ -110,6 +116,11 @@ class DbManager extends Root {
    * @private
    */
   _open() {
+    if (this.db) {
+      this.db.close();
+      delete this.db;
+    }
+
     // Abort if all tables are disabled
     const enabledTables = TABLES.filter(tableDef => this['_permission_' + tableDef.name]);
     if (enabledTables.length === 0) {
@@ -120,7 +131,7 @@ class DbManager extends Root {
 
     // Open the database
     const client = this.client;
-    const request = window.indexedDB.open('LayerWebSDK_' + client.appId + '_' + client.user.userId, DB_VERSION);
+    const request = window.indexedDB.open('LayerWebSDK_' + client.appId + '_' + client.user.userId.replace(/[^a-zA-Z0-9]/g, ''), DB_VERSION);
 
     request.onerror = (evt) => {
       this._isOpenError = true;
@@ -240,18 +251,13 @@ class DbManager extends Root {
   /**
    * Writes an array of Conversations to the Database.
    *
-   * There are times when you will not know if this is an Insert or Update operation;
-   * if there is uncertainy, set `isUpdate` to false, and the correct end result will
-   * still be achieved (but less efficiently).
-   *
    * @method writeConversations
    * @param {layer.Conversation[]} conversations - Array of Conversations to write
-   * @param {boolean} isUpdate - If true, then update an entry; if false, insert an entry... and if one is found to already exist, update it.
    * @param {Function} [callback]
    */
-  writeConversations(conversations, isUpdate, callback) {
+  writeConversations(conversations, callback) {
     this._writeObjects('conversations',
-      this._getConversationData(conversations.filter(conversation => !conversation.isDestroyed)), isUpdate, callback);
+      this._getConversationData(conversations.filter(conversation => !conversation.isDestroyed)), callback);
   }
 
   /**
@@ -307,18 +313,13 @@ class DbManager extends Root {
   /**
    * Writes an array of Identities to the Database.
    *
-   * There are times when you will not know if this is an Insert or Update operation;
-   * if there is uncertainy, set `isUpdate` to false, and the correct end result will
-   * still be achieved (but less efficiently).
-   *
    * @method writeIdentities
    * @param {layer.Identity[]} identities - Array of Identities to write
-   * @param {boolean} isUpdate - If true, then update an entry; if false, insert an entry... and if one is found to already exist, update it.
    * @param {Function} [callback]
    */
-  writeIdentities(identities, isUpdate, callback) {
+  writeIdentities(identities, callback) {
     this._writeObjects('identities',
-      this._getIdentityData(identities), isUpdate, callback);
+      this._getIdentityData(identities), callback);
   }
 
   /**
@@ -397,19 +398,14 @@ class DbManager extends Root {
   /**
    * Writes an array of Messages to the Database.
    *
-   * There are times when you will not know if this is an Insert or Update operation;
-   * if there is uncertainy, set `isUpdate` to false, and the correct end result will
-   * still be achieved (but less efficiently).
-   *
    * @method writeMessages
    * @param {layer.Message[]} messages - Array of Messages to write
-   * @param {boolean} isUpdate - If true, then update an entry; if false, insert an entry... and if one is found to already exist, update it.
    * @param {Function} [callback]
    */
-  writeMessages(messages, isUpdate, callback) {
+  writeMessages(messages, callback) {
     this._getMessageData(
       messages.filter(message => !message.isDestroyed),
-      dbMessageData => this._writeObjects('messages', dbMessageData, isUpdate, callback)
+      dbMessageData => this._writeObjects('messages', dbMessageData, callback)
     );
   }
 
@@ -451,11 +447,10 @@ class DbManager extends Root {
    *
    * @method writeSyncEvents
    * @param {layer.SyncEvent[]} syncEvents - Array of Sync Events to write
-   * @param {boolean} isUpdate - If true, then update an entry; if false, insert an entry... and if one is found to already exist, update it.
    * @param {Function} [callback]
    */
-  writeSyncEvents(syncEvents, isUpdate, callback) {
-    this._writeObjects('syncQueue', this._getSyncEventData(syncEvents), isUpdate, callback);
+  writeSyncEvents(syncEvents, callback) {
+    this._writeObjects('syncQueue', this._getSyncEventData(syncEvents), callback);
   }
 
 
@@ -465,11 +460,10 @@ class DbManager extends Root {
    * @method _writeObjects
    * @param {string} tableName - The name of the table to write to
    * @param {Object[]} data - Array of POJO data to write
-   * @param {Boolean} isUpdate - If true, then update an entry; if false, insert an entry... and if one is found to already exist, update it.
    * @param {Function} [callback] - Called when all data is written
    * @protected
    */
-  _writeObjects(tableName, data, isUpdate, callback) {
+  _writeObjects(tableName, data, callback) {
     if (!this['_permission_' + tableName] || this._isOpenError) return callback ? callback() : null;
 
     // Just quit if no data to write
@@ -478,42 +472,28 @@ class DbManager extends Root {
       return;
     }
 
-    // transactionComplete will call the callback after all writes are done.
-    // Note that the number of transactions is 1 + number of failed inserts
-    let transactionCount = 1,
-      transactionCompleteCount = 0;
-    function transactionComplete() {
-      transactionCompleteCount++;
-      if (transactionCompleteCount === transactionCount && callback) callback();
-    }
-
     // PUT (udpate) or ADD (insert) each item of data one at a time, but all as part of one large transaction.
     this.onOpen(() => {
-      const transaction = this.db.transaction([tableName], 'readwrite');
-      const store = transaction.objectStore(tableName);
-      transaction.oncomplete = transaction.onerror = transactionComplete;
+      this.getObjects(tableName, data.map(item => item.id), (foundItems) => {
+        const updateIds = {};
+        foundItems.forEach(item => { updateIds[item.id] = item; });
 
-      // If the request fails, and we were doing an insert, try an update instead.
-      // This will create one transaction per error.
-      // TODO: Investigate capturing all errors and then using a single transaction to update all failed items.
-      const onError = function onError(item) {
-        if (!isUpdate) {
-          transactionCount++;
-          const transaction2 = this.db.transaction([tableName], 'readwrite');
-          const store2 = transaction2.objectStore(tableName);
-          transaction2.oncomplete = transaction2.onerror = transactionComplete;
-          store2.put(item);
-        }
-      }.bind(this);
+        const transaction = this.db.transaction([tableName], 'readwrite');
+        const store = transaction.objectStore(tableName);
+        transaction.oncomplete = transaction.onerror = callback;
 
-      data.forEach(item => {
-        try {
-          const req = isUpdate ? store.put(item) : store.add(item);
-          req.onerror = () => onError(item);
-        } catch (e) {
-          // Safari throws an error rather than use the onerror event.
-          onError(item);
-        }
+        data.forEach(item => {
+          try {
+            if (updateIds[item.id]) {
+              store.put(item);
+            } else {
+              store.add(item);
+            }
+          } catch (e) {
+            // Safari throws an error rather than use the onerror event.
+            logger.error(e);
+          }
+        });
       });
     });
   }
@@ -709,6 +689,7 @@ class DbManager extends Root {
    * it will be set to null.
    *
    * @method _createConversation
+   * @private
    * @param {Object} conversation
    * @returns {layer.Conversation}
    */
@@ -728,6 +709,7 @@ class DbManager extends Root {
    * javascript cache is more up to date than whats in IndexedDB cache.
    *
    * @method _createMessage
+   * @private
    * @param {Object} message
    * @returns {layer.Message}
    */
@@ -905,9 +887,9 @@ class DbManager extends Root {
    * @protected
    * @param {String} tableName - 'messages', 'conversations', 'identities'
    * @param {String} indexName - Name of the index to query on
-   * @param {IDBKeyRange} [range=null] - Range to Query for
-   * @param {Boolean} [isFromId=false] - If querying for results after a specified ID, then we want to skip the first result (which will be that ID)
-   * @param {number} [pageSize=] - If a value is provided, return at most that number of results; else return all results.
+   * @param {IDBKeyRange} range - Range to Query for (null ok)
+   * @param {Boolean} isFromId - If querying for results after a specified ID, then we want to skip the first result (which will be that ID) ("" is OK)
+   * @param {number} pageSize - If a value is provided, return at most that number of results; else return all results.
    * @param {Function} callback
    * @param {Object[]} callback.result
    */
@@ -1087,23 +1069,15 @@ class DbManager extends Root {
    * @method deleteTables
    * @param {Function} [calllback]
    */
-  deleteTables(callback) {
+  deleteTables(callback = function() {}) {
     this.onOpen(() => {
       try {
-        // Damned safari 9 throws errors on transactions across multiple tables.  So one at a time:
-        let count = 0;
-        const tableNames = TABLES.map(tableDef => tableDef.name);
-        tableNames.forEach((name) => {
-          const transaction = this.db.transaction([name], 'readwrite');
-          transaction.objectStore(name).clear();
-          transaction.oncomplete = () => {
-            count++;
-            if (count === tableNames.length) callback();
-          };
-        });
-      } catch (e) {
-        logger.error('Failed to delete table', e);
-        callback(e);
+        var request = window.indexedDB.deleteDatabase(this.db.name);
+        request.onsuccess = callback;
+        delete this.db;
+       } catch (e) {
+        logger.error('Failed to delete database', e);
+        if (callback) callback(e);
       }
     });
   }
@@ -1121,26 +1095,31 @@ DbManager.prototype.isOpen = false;
 
 /**
  * @type {boolean} is the db connection will not open
+ * @private
  */
 DbManager.prototype._isOpenError = false;
 
 /**
  * @type {boolean} Is reading/writing messages allowed?
+ * @private
  */
 DbManager.prototype._permission_messages = false;
 
 /**
  * @type {boolean} Is reading/writing conversations allowed?
+ * @private
  */
 DbManager.prototype._permission_conversations = false;
 
 /**
  * @type {boolean} Is reading/writing identities allowed?
+ * @private
  */
 DbManager.prototype._permission_identities = false;
 
 /**
  * @type {boolean} Is reading/writing unsent server requests allowed?
+ * @private
  */
 DbManager.prototype._permission_syncQueue = false;
 
