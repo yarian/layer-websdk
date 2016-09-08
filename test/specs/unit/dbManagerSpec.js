@@ -34,7 +34,8 @@ describe("The DbManager Class", function() {
         client = new layer.Client({
             appId: appId,
             url: "https://huh.com",
-            isTrustedDevice: true
+            isTrustedDevice: true,
+            isPersistenceEnabled: true
         });
         client.sessionToken = "sessionToken";
 
@@ -160,7 +161,7 @@ describe("The DbManager Class", function() {
          });
 
         // Posttest
-        expect(layer.DbManager.prototype._open).toHaveBeenCalledWith();
+        expect(layer.DbManager.prototype._open).toHaveBeenCalledWith(false);
 
         // Cleanup
         layer.DbManager.prototype._open = _open;

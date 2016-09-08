@@ -1010,7 +1010,7 @@ describe("The Client Authenticator Class", function() {
                 expect(client._clientReady).toHaveBeenCalled();
             });
 
-            it("Should call _clientReady after DB open if isTrustedDevice", function () {
+            it("Should call _clientReady after DB open if isTrustedDevice and isPersitenceEnabled", function () {
                 // Setup
                 var onOpen = layer.DbManager.prototype.onOpen;
                 spyOn(layer.DbManager.prototype, "onOpen").and.callFake(function (callback) {
@@ -1020,6 +1020,7 @@ describe("The Client Authenticator Class", function() {
                 });
                 spyOn(client, "_clientReady");
                 client.isTrustedDevice = true;
+                client.isPersistenceEnabled = true;
 
                 // Run
                 client._clientAuthenticated();
@@ -1033,9 +1034,10 @@ describe("The Client Authenticator Class", function() {
                 layer.DbManager.prototype.onOpen = onOpen;
             });
 
-            it("Should initialize the dbManager to all disabled if not isTrustedDevice", function () {
+            it("Should initialize the dbManager to all disabled if not isTrustedDevice and isPersitenceEnabled", function () {
                 // Setup
                 client.isTrustedDevice = false;
+                client.isPersistenceEnabled = true;
 
                 // Run
                 client._clientAuthenticated();
@@ -1044,9 +1046,9 @@ describe("The Client Authenticator Class", function() {
                 expect(client.dbManager).toEqual(jasmine.any(layer.DbManager));
                 expect(client.dbManager._permission_conversations).toBe(false);
                 expect(client.dbManager._permission_messages).toBe(false);
-                expect(client.dbManager._permission_identities).toBe(false);
                 expect(client.dbManager._permission_syncQueue).toBe(false);
             });
+
 
             it("Should initialize the dbManager to all disabled if not isTrustedDevice and persistenceFeatures provided", function () {
                 // Setup
@@ -1070,24 +1072,26 @@ describe("The Client Authenticator Class", function() {
                 expect(client.dbManager._permission_syncQueue).toBe(false);
             });
 
-            it("Should initialize the dbManager to all enabled if isTrustedDevice and no persistenceFeatures", function () {
+            it("Should initialize the dbManager to false if isTrustedDevice but isPersistenceEnabled is false and no persistenceFeatures specified", function () {
                 // Setup
                 client.isTrustedDevice = true;
+                client.isPersistenceEnabled = false;
 
                 // Run
                 client._clientAuthenticated();
 
                 // Posttest
                 expect(client.dbManager).toEqual(jasmine.any(layer.DbManager));
-                expect(client.dbManager._permission_conversations).toBe(true);
-                expect(client.dbManager._permission_messages).toBe(true);
-                expect(client.dbManager._permission_identities).toBe(true);
-                expect(client.dbManager._permission_syncQueue).toBe(true);
+                expect(client.dbManager._permission_conversations).toBe(false);
+                expect(client.dbManager._permission_messages).toBe(false);
+                expect(client.dbManager._permission_syncQueue).toBe(false);
             });
+
 
             it("Should initialize the dbManager to custom values if isTrustedDevice and persistenceFeatures provided", function () {
                 // Setup
                 client.isTrustedDevice = true;
+                client.isPersistenceEnabled = true;
                 client.persistenceFeatures = {
                     conversations: true,
                     messages: false,
@@ -1104,6 +1108,27 @@ describe("The Client Authenticator Class", function() {
                 expect(client.dbManager._permission_conversations).toBe(true);
                 expect(client.dbManager._permission_messages).toBe(false);
                 expect(client.dbManager._permission_identities).toBe(true);
+                expect(client.dbManager._permission_syncQueue).toBe(false);
+            });
+
+            it("Should initialize the dbManager to custom values if isTrustedDevice and persistenceFeatures provided but not persistenceEnabled", function () {
+                // Setup
+                client.isTrustedDevice = true;
+                client.isPersistenceEnabled = false;
+                client.persistenceFeatures = {
+                    conversations: true,
+                    messages: false,
+                    syncQueue: false,
+                    sessionToken: true
+                };
+
+                // Run
+                client._clientAuthenticated();
+
+                // Posttest
+                expect(client.dbManager).toEqual(jasmine.any(layer.DbManager));
+                expect(client.dbManager._permission_conversations).toBe(false);
+                expect(client.dbManager._permission_messages).toBe(false);
                 expect(client.dbManager._permission_syncQueue).toBe(false);
             });
 
@@ -1303,6 +1328,7 @@ describe("The Client Authenticator Class", function() {
             beforeEach(function() {
                 client.isTrustedDevice = true;
                 client._clientAuthenticated();
+                client.isReady = false;
             });
 
             it("Should trigger ready", function () {

@@ -32,7 +32,7 @@ Simplest approach to install the Web SDK is to add the following script tag:
 <script src='//cdn.layer.com/sdk/3.0.0-beta/layer-websdk.min.js'></script>
 ```
 
-* For stricter code control, use `//cdn.layer.com/sdk/3.0.0-beta.2/layer-websdk.min.js` instead.
+* For stricter code control, use `//cdn.layer.com/sdk/3.0.0-beta.1/layer-websdk.min.js` instead.
 
 All classes can then be accessed via the `layer` namespace:
 
@@ -492,12 +492,13 @@ query.on('change', function(evt) {
 
 ## Persistence
 
-Options exist to cache data in the browser.  All of these capabilities are protected by the `isTrustedDevice` property.  If the device is not trusted, no data will be stored.  This is the default state.  But if you set `isTrustedState` to true, then data can be saved.
++Options exist to cache data in the browser. All of these capabilities are protected by the `isTrustedDevice` property as well as the `isPersistenceEnabled` property. If the device is not trusted, no data will be stored. If `isPersistenceEnabled` is not enabled, no data will be stored in IndexedDB (Your user's Session Token will still be persisted to localStorage). But if you set both of these to true, then data can be saved.
 
 ```javascript
 var client = new layer.Client({
   appId: LAYER_APP_ID,
-  isTrustedDevice: true
+  isTrustedDevice: true,
+  isPersistenceEnabled: true
 });
 ```
 

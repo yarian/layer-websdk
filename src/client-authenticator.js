@@ -56,11 +56,12 @@ class ClientAuthenticator extends Root {
    *          appId: "layer:///apps/staging/uuid"
    *      });
    *
-   * For trusted devices, you can enable storage of data to indexedDB and localStorage with the `isTrustedDevice` property:
+   * For trusted devices, you can enable storage of data to indexedDB and localStorage with the `isTrustedDevice` and `isPersistenceEnabled` property:
    *
    *      var client = new Client({
    *          appId: "layer:///apps/staging/uuid",
-   *          isTrustedDevice: true
+   *          isTrustedDevice: true,
+   *          isPersistenceEnabled: true
    *      });
    *
    * @method constructor
@@ -72,16 +73,8 @@ class ClientAuthenticator extends Root {
    *                                            layer.Constants.LOG.WARN, layer.Constants.LOG.INFO, layer.Constants.LOG.DEBUG
    * @param {boolean} [options.isTrustedDevice=false] - If this is not a trusted device, no data will be written to indexedDB nor localStorage,
    *                                            regardless of any values in layer.Client.persistenceFeatures.
-   * @param {Object} [options.persistenceFeatures=] If layer.Client.isTrustedDevice is true, then this specifies what types of data to store.
-   *                                            Want to insure credit card data is not written? Disable writing of Messages to indexedDB.
-   *                                            Default is for all data to be stored.
-   *                                            * identities: Write identities to indexedDB? This allows for faster initialization.
-   *                                            * conversations: Write conversations to indexedDB? This allows for faster rendering
-   *                                                             of a Conversation List
-   *                                            * messages: Write messages to indexedDB? This allows for full offline access
-   *                                            * syncQueue: Write requests made while offline to indexedDB?  This allows the app
-   *                                                         to complete sending messages after being relaunched.
-   *                                            * sessionToken: Write the session token to localStorage for quick reauthentication on relaunching the app.
+   * @param {Object} [options.isPersistenceEnabled=false] If layer.Client.isPersistenceEnabled is true, then indexedDB will be used to manage a cache
+   *                                            allowing Query results, messages sent, and all local modifications to be persisted between page reloads.
    */
   constructor(options) {
     // Validate required parameters
@@ -534,15 +527,17 @@ class ClientAuthenticator extends Root {
     this.isAuthenticated = true;
     this.trigger('authenticated');
 
+    if (!this.isTrustedDevice) this.isPersistenceEnabled = false;
+
+
     // If no persistenceFeatures are specified, set them all
     // to true or false to match isTrustedDevice.
-    if (!this.persistenceFeatures || !this.isTrustedDevice) {
+    if (!this.persistenceFeatures || !this.isPersistenceEnabled) {
       this.persistenceFeatures = {
-        identities: this.isTrustedDevice,
-        conversations: this.isTrustedDevice,
-        messages: this.isTrustedDevice,
-        syncQueue: this.isTrustedDevice,
-        sessionToken: this.isTrustedDevice,
+        conversations: this.isPersistenceEnabled,
+        messages: this.isPersistenceEnabled,
+        syncQueue: this.isPersistenceEnabled,
+        sessionToken: this.isPersistenceEnabled,
       };
     }
 
@@ -555,7 +550,7 @@ class ClientAuthenticator extends Root {
     }
 
     // Before calling _clientReady, load the session owner's full Identity.
-    if (this.isTrustedDevice) {
+    if (this.isPersistenceEnabled) {
       this.dbManager.onOpen(() => this._loadUser());
     } else {
       this._loadUser();
@@ -1154,7 +1149,16 @@ ClientAuthenticator.prototype.onlineManager = null;
 ClientAuthenticator.prototype.isTrustedDevice = false;
 
 /**
+ * To enable indexedDB storage of query data, set this true.  Experimental.
+ *
+ * @property {boolean}
+ */
+ClientAuthenticator.prototype.isPersistenceEnabled = false;
+
+/**
  * If this layer.Client.isTrustedDevice is true, then you can control which types of data are persisted.
+ *
+ * Note that values here are ignored if `isPersistenceEnabled` hasn't been set to `true`.
  *
  * Properties of this Object can be:
  *
