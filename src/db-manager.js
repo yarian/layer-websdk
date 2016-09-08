@@ -208,6 +208,7 @@ class DbManager extends Root {
     var onComplete = (evt) => {
       if (!isComplete) {
         this.db = db;
+        this.isComplete = true;
         this.isOpen = true;
         this.trigger('open');
       }
