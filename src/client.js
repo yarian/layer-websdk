@@ -111,6 +111,8 @@ class Client extends ClientAuth {
     this._initComponents();
 
     this.on('online', this._connectionRestored.bind(this));
+
+    logger.info(Util.asciiInit(Client.version));
   }
 
   /* See parent method docs */
@@ -1189,8 +1191,14 @@ Client.prototype._scheduleCheckAndPurgeCacheItems = null;
 Client.prototype._scheduleCheckAndPurgeCacheAt = 0;
 
 /**
- * Control how often should we purge unused data from the Cache.
+ * Get the version of the Client library.
  *
+ * @static
+ * @type {String}
+ */
+Client.version = '3.0.0-beta.1';
+
+/**
  * Any Conversation or Message that is part of a Query's results are kept in memory for as long as it
  * remains in that Query.  However, when a websocket event delivers new Messages and Conversations that
  * are NOT part of a Query, how long should they stick around in memory?  Why have them stick around?
@@ -1617,6 +1625,6 @@ Client._supportedEvents = [
 
 Client.plugins = {};
 
-
 Root.initClass.apply(Client, [Client, 'Client']);
 module.exports = Client;
+

@@ -94,7 +94,6 @@ module.exports = function (grunt) {
     credentials = {saucelabs:{}};
   }
 
-
   grunt.initConfig({
     pkg: grunt.file.readJSON('package.json'),
 
@@ -248,6 +247,20 @@ module.exports = function (grunt) {
       }
     },
 
+    version: {
+      build: {
+        files: [
+          {
+            dest: 'src/client.js',
+            src: 'src/client.js'
+          }
+        ]
+      },
+      options: {
+        version: "<%= pkg.version %>"
+      }
+    },
+
     // Documentation
     jsduck: {
       build: {
@@ -287,20 +300,39 @@ module.exports = function (grunt) {
     },
   });
 
+  grunt.registerMultiTask('version', 'Assign Versions', function() {
+    var options = this.options();
+
+
+    function replace(fileGroup, version) {
+      fileGroup.src.forEach(function(file, index) {
+        var contents = grunt.file.read(file);
+        contents = contents.replace(/Client\.version = (.*)$/m, "Client.version = '" + options.version + "';");
+        grunt.file.write(fileGroup.dest, contents);
+      });
+    }
+
+    // Iterate over each file set and fire away on that set
+    this.files.forEach(function(fileGroup) {
+      console.dir(options);
+      replace(fileGroup, options.version);
+    });
+  });
+
   // Building
   grunt.loadNpmTasks('grunt-babel');
   grunt.loadNpmTasks('grunt-browserify');
   grunt.loadNpmTasks('grunt-contrib-watch');
   grunt.loadNpmTasks('grunt-contrib-uglify');
   grunt.loadNpmTasks('grunt-remove');
-  grunt.registerTask('debug', ['browserify:debug']);
-  grunt.registerTask('buildmin', ['remove:lib', 'browserify:build', 'uglify', 'remove:build']);
-  grunt.registerTask('build', ['remove:lib', 'debug', 'buildmin', 'babel:dist']);
-  grunt.registerTask('prepublish', ['remove:lib', 'babel:dist']);
+  grunt.registerTask('debug', ['browserify:debug', 'version']);
+  grunt.registerTask('buildmin', ['version', 'browserify:build',  'uglify', 'remove:build']);
+  grunt.registerTask('build', ['debug', 'buildmin', 'babel:dist']);
+  grunt.registerTask('prepublish', ['version', 'babel:dist']);
 
   // Documentation
   grunt.loadNpmTasks('grunt-jsduck');
-  grunt.registerTask('docs', ['remove:lib', 'babel:dist', 'jsduck']);
+  grunt.registerTask('docs', ['version', 'babel:dist',  'jsduck']);
 
   // Testing
   grunt.loadNpmTasks('grunt-contrib-jasmine');
@@ -316,4 +348,3 @@ module.exports = function (grunt) {
   grunt.loadNpmTasks('grunt-contrib-connect');
   grunt.registerTask('sauce', ['connect', 'saucelabs-jasmine']);
 };
-

@@ -370,3 +370,31 @@ exports.doesObjectMatch = (requestedData, actualData) => {
  */
 exports.includes = (items, value) => items.indexOf(value) !== -1;
 
+/**
+ * Some ASCII art when client initializes
+ */
+exports.asciiInit = (version) => {
+  if (!version) return 'Missing version';
+
+  const split = version.split('-');
+  let line1 = split[0] || '';
+  let line2 = split[1] || '';
+
+  line1 += new Array(13 - line1.length).join(' ');
+  line2 += new Array(14 - line2.length).join(' ');
+
+  return `
+    /hNMMMMMMMMMMMMMMMMMMMms.
+  hMMy+/////////////////omMN-        'oo.
+  MMN                    oMMo        .MM/
+  MMN                    oMMo        .MM/              ....                       ....            ...
+  MMN       Web SDK      oMMo        .MM/           ohdddddddo' +md.      smy  -sddddddho.   hmosddmm.
+  MMM-                   oMMo        .MM/           ::.'  '.mM+ 'hMd'    +Mm. +Nm/'   .+Nm-  mMNs-'.
+  MMMy      v${line1}oMMo        .MM/             .-:/+yNMs  .mMs   /MN: .MMs///////dMh  mMy
+  MMMMo     ${line2}oMMo        .MM/          .ymhyso+:hMs   :MM/ -NM/  :MMsooooooooo+  mM+
+  MMMMMy.                oMMo        .MM/          dMy'    'dMs    +MN:mM+   'NMo            mM+
+  MMMMMMNy:'             oMMo        .MMy++++++++: sMm/---/dNMs     yMMMs     -dMd+:-:/smy'  mM+
+  NMMMMMMMMmy+:-.'      'yMM/        'yyyyyyyyyyyo  :shhhys:+y/     .MMh       '-oyhhhys:'   sy:
+  :dMMMMMMMMMMMMNNNNNNNNNMNs                                        hMd'
+   -/+++++++++++++++++++:'                                      sNmdo'`;
+ }
