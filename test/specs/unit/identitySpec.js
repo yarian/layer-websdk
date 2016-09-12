@@ -315,6 +315,33 @@ function deleteTables(done) {
           expect(identity.metadata).toEqual({hey: "ho"});
         });
 
+        it("Should not load Identity from database if not authenticated", function() {
+          getObjectsResult = [{
+            display_name: "a",
+            first_name: "b",
+            last_name: "c",
+            phone_number: "d",
+            email_address: "e",
+            metadata: {hey: "ho"},
+            public_key: "h",
+            user_id: "i",
+            id: "layer:///identities/i"
+          }];
+
+          // Run
+          identity._populateFromServer({
+            display_name: "a",
+            user_id: "i",
+            id: "layer:///identities/i"
+          });
+
+          // Posttest
+          jasmine.clock().tick(101);
+          expect(client.dbManager.getObjects).toHaveBeenCalledWith('identities', [identity.id], jasmine.any(Function));
+          expect(identity.isFullIdentity).toBe(true);
+          expect(identity.metadata).toEqual({hey: "ho"});
+        });
+
         it("Should not load Identity from database if already fullIdentity", function() {
           getObjectsResult = [{
             display_name: "a",

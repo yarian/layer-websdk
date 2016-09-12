@@ -923,6 +923,7 @@ describe("The Client Authenticator Class", function() {
                 spyOn(client, "_isPersistedSessionsDisabled").and.returnValue(false);
                 client.user._setUserId("FrodoTheDodo");
                 client.user.displayName = 'Frodo the Dodo';
+                client.user.isFullIdentity = false;
 
                 // Run
                 client._authComplete({

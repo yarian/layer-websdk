@@ -130,7 +130,7 @@ class Identity extends Syncable {
     this._disableEvents = false;
 
     // See if we have the Full Identity Object in database
-    if (!this.isFullIdentity) {
+    if (!this.isFullIdentity && client.isAuthenticated) {
       client.dbManager.getObjects('identities', [this.id], (result) => {
         if (result.length) this._populateFromServer(result[0]);
       });

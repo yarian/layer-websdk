@@ -235,6 +235,29 @@ exports.base64ToBlob = (b64Data, contentType) => {
 };
 
 /**
+ * Does window.btao() in a unicode-safe way
+ *
+ * https://developer.mozilla.org/en-US/docs/Web/API/WindowBase64/btoa#Unicode_strings
+ *
+ * @method utoa
+ * @param {String} str
+ * @return {String}
+ */
+exports.utoa = (str) => btoa(unescape(encodeURIComponent(str)));
+
+/**
+ * Does window.atob() in a way that can decode data from utoa()
+ *
+ * https://developer.mozilla.org/en-US/docs/Web/API/WindowBase64/btoa#Unicode_strings
+ *
+ * @method atou
+ * @param {String} str
+ * @return {String}
+ */
+exports.atou = (str) => decodeURIComponent(escape(atob(str)));
+
+
+/**
  * Given a File/Blob return a string.
  *
  * Assumes blob represents textual data.
