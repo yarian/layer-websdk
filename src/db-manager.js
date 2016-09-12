@@ -18,7 +18,7 @@ const SyncEvent = require('./sync-event');
 const Constants = require('./const');
 const Util = require('./client-utils');
 
-const DB_VERSION = 18;
+const DB_VERSION = 1;
 const MAX_SAFE_INTEGER = 9007199254740991;
 const SYNC_NEW = Constants.SYNC_STATE.NEW;
 
@@ -90,18 +90,22 @@ class DbManager extends Root {
     TABLES.forEach((tableDef) => {
       this['_permission_' + tableDef.name] = Boolean(options.tables[tableDef.name]);
     });
-    this._open();
+    this._open(false);
   }
 
+  _getDbName() {
+    return 'LayerWebSDK_' + this.client.appId + '_' + this.client.user.userId.replace(/[^a-zA-Z0-9]/g, '');
+  }
 
   /**
    * Open the Database Connection.
    *
    * This is only called by the constructor.
    * @method _open
+   * @param {Boolean} retry
    * @private
    */
-  _open() {
+  _open(retry) {
     if (this.db) {
       this.db.close();
       this.db = null;
@@ -116,13 +120,20 @@ class DbManager extends Root {
 
     // Open the database
     const client = this.client;
-    const request = window.indexedDB.open('LayerWebSDK_' + client.appId + '_' + client.user.userId.replace(/[^a-zA-Z0-9]/g, ''), DB_VERSION);
+    const request = window.indexedDB.open(this._getDbName(), DB_VERSION);
 
     try {
       request.onerror = (evt) => {
-        this._isOpenError = true;
-        logger.error('Database Unable to Open: ', evt.target.error);
-        this.trigger('error', { error: evt });
+        if (!retry) {
+          this.deleteTables(() => this._open(true));
+        }
+
+        // Triggered by Firefox private browsing window
+        else {
+          this._isOpenError = true;
+          logger.warn('Database Unable to Open (common cause: private browsing window)', evt.target.error);
+          this.trigger('error', { error: evt });
+        }
       };
 
       request.onupgradeneeded = (evt) => this._onUpgradeNeeded(evt);
@@ -136,9 +147,8 @@ class DbManager extends Root {
           this.isOpen = false;
         };
 
-        this.db.error = err => {
-          logger.error('db-manager Error: ', err);
-        };
+        this.db.onerror = err => logger.error('db-manager Error: ', err);
+
       };
     }
 
@@ -177,18 +187,20 @@ class DbManager extends Root {
   _onUpgradeNeeded(event) {
     const db = event.target.result;
 
-    let completeCount = 0;
-    function onComplete() {
-      completeCount++;
-      if (completeCount === TABLES.length) {
+    let isComplete = false;
+    var onComplete = () => {
+      if (!isComplete) {
+        isComplete = true;
+        this.db = db;
         this.isOpen = true;
         this.trigger('open');
       }
-    }
+    };
 
+    const currentTables = Array.prototype.slice.call(db.objectStoreNames);
     TABLES.forEach((tableDef) => {
       try {
-        db.deleteObjectStore(tableDef.name);
+        if (currentTables.indexOf(tableDef.name) !== -1) db.deleteObjectStore(tableDef.name);
       } catch (e) {
         // Noop
       }
@@ -972,17 +984,14 @@ class DbManager extends Root {
    * @param {Function} [calllback]
    */
   deleteTables(callback = function() {}) {
-    this.onOpen(() => {
-      if (!this.db) return callback();
-      try {
-        var request = window.indexedDB.deleteDatabase(this.db.name);
-        request.onsuccess = callback;
-        delete this.db;
-      } catch (e) {
-        logger.error('Failed to delete table', e);
-        callback(e);
-      }
-    });
+    try {
+      var request = window.indexedDB.deleteDatabase(this._getDbName());
+      request.onsuccess = request.onerror = callback;
+      delete this.db;
+    } catch (e) {
+      logger.error('Failed to delete table', e);
+      callback(e);
+    }
   }
 }
 

@@ -2,7 +2,8 @@
 
 ## 2.0.3
 
-* Fixes for Private Browsing windows
+* Fixes for Private Browsing windows (Firefox & Safari)
+* Fixes handling of downgrading to older version of DB/WebSDK
 
 ## 2.0.1 & 2.0.2
 

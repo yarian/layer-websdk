@@ -35,15 +35,19 @@ describe("The DbManager Class", function() {
 
         client.user = {userId: userId};
         client._clientAuthenticated();
-        client._clientReady();
-        client.syncManager.queue = [];
-        conversation = client._createObject(responses.conversation1);
-        message = conversation.lastMessage;
-        announcement = client._createObject(responses.announcement);
 
         dbManager = client.dbManager;
-        deleteTables(function() {
-          done();
+        client.on('ready', function() {
+          setTimeout(function() {
+            client.syncManager.queue = [];
+            conversation = client._createObject(responses.conversation1);
+            message = conversation.lastMessage;
+            announcement = client._createObject(responses.announcement);
+
+            deleteTables(function() {
+              done();
+            });
+          }, 10);
         });
     });
 
@@ -107,7 +111,7 @@ describe("The DbManager Class", function() {
          });
 
         // Posttest
-        expect(layer.DbManager.prototype._open).toHaveBeenCalledWith();
+        expect(layer.DbManager.prototype._open).toHaveBeenCalledWith(false);
 
         // Cleanup
         layer.DbManager.prototype._open = _open;

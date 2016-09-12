@@ -119,7 +119,7 @@ module.exports = (request, callback) => {
         result.data = {
           id: 'request_timeout',
           message: 'The server is not responding please try again in a few minutes',
-          url: 'https://developer.layer.com/docs/websdk',
+          url: 'https://docs.layer.com/reference/client_api/errors',
           code: 0,
           status: 408,
           httpStatus: 408,
@@ -131,7 +131,7 @@ module.exports = (request, callback) => {
           status: this.status,
           httpStatus: 404,
           code: 106,
-          url: 'https://developer.layer.com/docs/websdk',
+          url: 'https://docs.layer.com/reference/client_api/errors',
         };
       } else if (typeof result.data === 'string' && this.status >= 400) {
         result.data = {
@@ -140,7 +140,7 @@ module.exports = (request, callback) => {
           status: this.status,
           httpStatus: this.status,
           code: 0,
-          url: 'https://developer.layer.com/docs/websdk',
+          url: 'https://www.google.com/search?q=doh!',
         };
       }
     }
