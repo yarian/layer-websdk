@@ -143,7 +143,7 @@ class DbManager extends Root {
         this.trigger('open');
 
         this.db.onversionchange = () => {
-          this.db.close();
+          if (this.db) this.db.close();
           this.isOpen = false;
         };
 

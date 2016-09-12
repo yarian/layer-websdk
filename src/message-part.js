@@ -389,17 +389,23 @@ class MessagePart extends Root {
    */
   _generateContentAndSend(client) {
     this.hasContent = true;
+    let body;
+    if (!Util.isBlob(this.body)) {
+      body = Util.base64ToBlob(Util.utoa(this.body), this.mimeType);
+    } else {
+      body = this.body;
+    }
     client.xhr({
       url: '/content',
       method: 'POST',
       headers: {
         'Upload-Content-Type': this.mimeType,
-        'Upload-Content-Length': this.size,
+        'Upload-Content-Length': body.size,
         'Upload-Origin': typeof location !== 'undefined' ? location.origin : '',
       },
       sync: {},
     }, result => {
-      this._processContentResponse(result.data, client);
+      this._processContentResponse(result.data, body, client);
     });
   }
 
@@ -410,15 +416,16 @@ class MessagePart extends Root {
    * @method _processContentResponse
    * @private
    * @param  {Object} response
+   * @param  {Blob} body
    * @param  {layer.Client} client
    */
-  _processContentResponse(response, client) {
+  _processContentResponse(response, body, client) {
     this._content = new Content(response.id);
     this.hasContent = true;
     xhr({
       url: response.upload_url,
       method: 'PUT',
-      data: this.body,
+      data: body,
       headers: {
         'Upload-Content-Length': this.size,
         'Upload-Content-Type': this.mimeType,

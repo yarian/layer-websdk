@@ -568,10 +568,35 @@ describe("The MessageParts class", function() {
     });
 
     describe("The _generateContentAndSend() method", function() {
-        it("Should call client.xhr", function() {
+        it("Should call client.xhr with generated blob size", function() {
             spyOn(client, "xhr");
             var part = new layer.MessagePart({
                 body: new Array(5000).join("hello"),
+                mimeType: "text/plain"
+            });
+
+            // Run
+            part._generateContentAndSend(client);
+
+            // Posttest
+            var expectedBody = layer.Util.base64ToBlob(btoa(part.body), "text/plain");
+            expect(client.xhr).toHaveBeenCalledWith({
+                method: "POST",
+                url: "/content",
+                headers: {
+                    'Upload-Content-Type': "text/plain",
+                    'Upload-Content-Length': expectedBody.size,
+                    'Upload-Origin': location.origin
+                },
+                sync: {}
+            }, jasmine.any(Function));
+        });
+
+        it("Should call client.xhr with provided blob size", function() {
+            spyOn(client, "xhr");
+            var expectedBody = layer.Util.base64ToBlob(btoa(new Array(5000).join("hello")), "text/plain");
+            var part = new layer.MessagePart({
+                body: expectedBody,
                 mimeType: "text/plain"
             });
 
@@ -584,7 +609,7 @@ describe("The MessageParts class", function() {
                 url: "/content",
                 headers: {
                     'Upload-Content-Type': "text/plain",
-                    'Upload-Content-Length': part.body.length,
+                    'Upload-Content-Length': expectedBody.size,
                     'Upload-Origin': location.origin
                 },
                 sync: {}
@@ -599,6 +624,7 @@ describe("The MessageParts class", function() {
             spyOn(part, "_processContentResponse");
 
             // Run
+            var expectedBody = layer.Util.base64ToBlob(btoa(new Array(5000).join("hello")), "text/plain");
             part._generateContentAndSend(client);
             requests.mostRecent().response({
                 status: 200,
@@ -608,7 +634,7 @@ describe("The MessageParts class", function() {
             });
 
             // Posttest
-            expect(part._processContentResponse).toHaveBeenCalledWith({hey: "ho"}, client);
+            expect(part._processContentResponse).toHaveBeenCalledWith({hey: "ho"}, expectedBody, client);
         });
     });
 
@@ -634,19 +660,20 @@ describe("The MessageParts class", function() {
                 body: new Array(5000).join("hello"),
                 mimeType: "text/plain"
             });
+            var blobBody = layer.Util.base64ToBlob(btoa(part.body), "text/plain");
 
             // Run
             part._processContentResponse({
                 upload_url: "http://argh.com",
                 id: "layer:///content/fred"
-            }, client);
+            }, blobBody, client);
 
             // Posttest
             expect(requests.mostRecent().url).toEqual("http://argh.com");
             expect(requests.mostRecent().method).toEqual('PUT');
-            expect(requests.mostRecent().params).toEqual(part.body);
+            expect(requests.mostRecent().params).toEqual(blobBody);
             expect(requests.mostRecent().requestHeaders).toEqual({
-                'upload-content-length': part.size,
+                'upload-content-length': blobBody.size,
                 'upload-content-type': part.mimeType,
             });
         });
@@ -656,13 +683,14 @@ describe("The MessageParts class", function() {
                 body: new Array(5000).join("hello"),
                 mimeType: "text/plain"
             });
+            var blobBody = layer.Util.base64ToBlob(btoa(part.body), "text/plain");
             spyOn(part, "_processContentUploadResponse");
 
             // Run
             part._processContentResponse({
                 upload_url: "http://argh.com",
                 id: "layer:///content/fred"
-            }, client);
+            }, blobBody, client);
             requests.mostRecent().response({
                 status: 200,
                 responseText: JSON.stringify({hey: "ho"})

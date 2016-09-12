@@ -197,6 +197,27 @@ exports.blobToBase64 = (blob, callback) => {
   reader.onloadend = () => callback(reader.result.replace(/^.*?,/, ''));
 };
 
+/**
+ * Does window.btao() in a unicode-safe way
+ *
+ * https://developer.mozilla.org/en-US/docs/Web/API/WindowBase64/btoa#Unicode_strings
+ *
+ * @method utoa
+ * @param {String} str
+ * @return {String}
+ */
+exports.utoa = (str) => btoa(unescape(encodeURIComponent(str)));
+
+/**
+ * Does window.atob() in a way that can decode data from utoa()
+ *
+ * https://developer.mozilla.org/en-US/docs/Web/API/WindowBase64/btoa#Unicode_strings
+ *
+ * @method atou
+ * @param {String} str
+ * @return {String}
+ */
+exports.atou = (str) => decodeURIComponent(escape(atob(str)));
 
 /**
  * Given a base64 string return a blob.
