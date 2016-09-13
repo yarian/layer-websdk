@@ -1571,6 +1571,14 @@ describe("The Client class", function() {
                 // Posttest
                 expect(c).toEqual(5);
             });
+
+            it("Should throw an error if not authenticated", function() {
+                client.isAuthenticated = false;
+                expect(function() {
+                    client.createConversation({participants: [userIdentity, userIdentity2]});
+                }).toThrowError(layer.LayerError.dictionary.clientMustBeReady);
+                expect(layer.LayerError.dictionary.clientMustBeReady.length > 0).toEqual(true);
+            });
         });
 
         describe("The createQuery() method", function() {

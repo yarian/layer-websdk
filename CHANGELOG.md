@@ -14,3 +14,5 @@
   * Fixes handling of Private windows for Safari and Firefox
   * Fixes handling of downgrading to older WebSDK version
 * Logging: Now uses correct console operation
+* layer.Conversation
+  * Now throws errors when trying to create a Conversation while not authenticated

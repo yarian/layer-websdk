@@ -39,15 +39,15 @@ class Logger {
     }
     if (obj) {
       if (supportsConsoleFormatting) {
-        console[op](`%cLayer%c ${type}%c [${timestamp}]: ${msg}`, LayerCss, `color: ${color}`, Black, obj);
+        console[op](`%cLayer%c ${op.toUpperCase()}%c [${timestamp}]: ${msg}`, LayerCss, `color: ${color}`, Black, obj);
       } else {
-        console[op](`Layer ${type} [${timestamp}]: ${msg}`, obj);
+        console[op](`Layer ${op.toUpperCase()} [${timestamp}]: ${msg}`, obj);
       }
     } else {
       if (supportsConsoleFormatting) {
-        console[op](`%cLayer%c ${type}%c [${timestamp}]: ${msg}`, LayerCss, `color: ${color}`, Black);
+        console[op](`%cLayer%c ${op.toUpperCase()}%c [${timestamp}]: ${msg}`, LayerCss, `color: ${color}`, Black);
       } else {
-        console[op](`Layer ${type} [${timestamp}]: ${msg}`);
+        console[op](`Layer ${op.toUpperCase()} [${timestamp}]: ${msg}`);
       }
     }
   }
@@ -55,22 +55,22 @@ class Logger {
 
   debug(msg, obj) {
     /* istanbul ignore next */
-    if (this.level >= DEBUG) this.log(msg, obj, 'DEBUG', '#888');
+    if (this.level >= DEBUG) this.log(msg, obj, DEBUG, '#888');
   }
 
   info(msg, obj) {
     /* istanbul ignore next */
-    if (this.level >= INFO) this.log(msg, obj, 'INFO', 'black');
+    if (this.level >= INFO) this.log(msg, obj, INFO, 'black');
   }
 
   warn(msg, obj) {
     /* istanbul ignore next */
-    if (this.level >= WARN) this.log(msg, obj, 'WARN', 'orange');
+    if (this.level >= WARN) this.log(msg, obj, WARN, 'orange');
   }
 
   error(msg, obj) {
     /* istanbul ignore next */
-    if (this.level >= ERROR) this.log(msg, obj, 'ERROR', 'red');
+    if (this.level >= ERROR) this.log(msg, obj, ERROR, 'red');
   }
 }
 

@@ -405,7 +405,7 @@ Identity._supportedEvents = [
   'identities:loaded',
   'identities:loaded-error',
   'identities:unfollow',
-];
+].concat(Syncable._supportedEvents);
 
 Identity.eventPrefix = 'identities';
 Identity.prefixUUID = 'layer:///identities/';

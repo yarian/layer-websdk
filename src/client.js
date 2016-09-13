@@ -835,6 +835,10 @@ class Client extends ClientAuth {
    *            }
    *       });
    *
+   * Warning: This method will throw an error if called when you are not (or are no longer) an authenticated user.
+   * That means if authentication has expired, and you have not yet reauthenticated the user, this will throw an error.
+   *
+   *
    * @method createConversation
    * @param  {Object} options
    * @param {string[]/layer.Identity[]} participants - Array of UserIDs or UserIdentities
@@ -843,6 +847,8 @@ class Client extends ClientAuth {
    * @return {layer.Conversation}
    */
   createConversation(options) {
+    // If we aren't authenticated, then we don't yet have a UserID, and won't create the correct Conversation
+    if (!this.isAuthenticated) throw new Error(ErrorDictionary.clientMustBeReady);
     if (!('distinct' in options)) options.distinct = true;
     options.client = this;
     return Conversation.create(options);
