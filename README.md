@@ -3,13 +3,13 @@
 [![Build Status](http://img.shields.io/travis/layerhq/layer-websdk.svg)](https://travis-ci.org/layerhq/layer-websdk)
 [![npm version](http://img.shields.io/npm/v/layer-websdk.svg)](https://npmjs.org/package/layer-websdk)
 
-The Layer Web SDK is a JavaScript library for adding chat services to your web application. For detailed documentation, tutorials and guides please visit our [Web SDK documentation](https://developer.layer.com/docs/websdk).
+The Layer Web SDK is a JavaScript library for adding chat services to your web application. For detailed documentation, tutorials and guides please visit our [Web SDK documentation](https://docs.layer.com/sdk/web-3.0.beta/install).
 
 ## About the `v3.0.0-beta` Beta Release
 
 This **public beta is NOT production ready**; while we will not stop you from using it in production, your expectations of polish and support will need to account for this.
 
-See the [API Reference](http://docs.layer.com) for more the full API, and the [Change Log](CHANGELOG.md#110) for a summary of changes.
+See the [API Reference](https://docs.layer.com/sdk/web-3.0.beta/install) for more the full API, and the [Change Log](CHANGELOG.md#110) for a summary of changes.
 
 ## Supported Browsers
 
