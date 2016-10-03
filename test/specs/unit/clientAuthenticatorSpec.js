@@ -1133,6 +1133,27 @@ describe("The Client Authenticator Class", function() {
                 expect(client.dbManager._permission_syncQueue).toBe(false);
             });
 
+            it("Should initialize the dbManager to false if isTrustedDevice but isPersistenceEanbled is false and no persistenceFeatures; sessionToken should still be true", function () {
+                // Setup
+                client.isTrustedDevice = true;
+                client.isPersistenceEnabled = false;
+
+                // Run
+                client._clientAuthenticated();
+
+                // Posttest
+                expect(client.dbManager).toEqual(jasmine.any(layer.DbManager));
+                expect(client.dbManager._permission_conversations).toBe(false);
+                expect(client.dbManager._permission_messages).toBe(false);
+                expect(client.dbManager._permission_syncQueue).toBe(false);
+                expect(client.persistenceFeatures).toEqual({
+                    conversations: false,
+                    messages: false,
+                    syncQueue: false,
+                    sessionToken: true
+                });
+            });
+
             it("Should call _loadUser if isTrustedDevice is true", function() {
                 // Setup
                 client.isTrustedDevice = true;

@@ -361,6 +361,10 @@ class Query extends Root {
    * @method reset
    */
   reset() {
+    if (this._isSyncingId) {
+      clearTimeout(this._isSyncingId);
+      this._isSyncingId = 0;
+    }
     this._reset();
     this._run();
   }
@@ -602,28 +606,21 @@ class Query extends Root {
     const isSyncing = results.xhr.getResponseHeader('Layer-Conversation-Is-Syncing') === 'true';
 
 
-    this.isFiring = false;
+    // isFiring is false... unless we are still syncing
+    this.isFiring = isSyncing;
     this._firingRequest = '';
     if (results.success) {
-      this._appendResults(results, false);
-      this.totalSize = Number(results.xhr.getResponseHeader('Layer-Count'));
+      if (isSyncing) {
+        this._isSyncingId = setTimeout(() => {
+          this._isSyncingId = 0;
+          this._run()
+        }, 1500);
+      } else {
+        this._isSyncingId = 0;
+        this._appendResults(results, false);
+        this.totalSize = Number(results.xhr.getResponseHeader('Layer-Count'));
 
-      if (results.data.length < pageSize) this.pagedToEnd = true;
-
-      // If the server is syncing, and the query needs more data, keep polling the server,
-      // and notify the client that we're polling.
-      if (isSyncing && this.data.length < this.paginationWindow) {
-        if (!this._isServerSyncing) {
-          this._isServerSyncing = true;
-          this.trigger('server-syncing-state', { syncing: true });
-        }
-        setTimeout(() => this._run(), 1500);
-      }
-
-       // If we're done polling the server (isSyncing is false OR we have enough data) notify the client that we're done.
-      else if (this._isServerSyncing) {
-        this._isServerSyncing = false;
-        this.trigger('server-syncing-state', { syncing: false });
+        if (results.data.length < pageSize) this.pagedToEnd = true;
       }
     } else {
       this.trigger('error', { error: results.data });
@@ -650,8 +647,9 @@ class Query extends Root {
     // Update the next ID to use in pagination
     const resultLength = results.data.length;
     if (resultLength) {
-      if (fromDb) this._nextDBFromId = results.data[resultLength - 1].id;
-      else if (results.xhr.getResponseHeader('Layer-Conversation-Is-Syncing') !== 'true') {
+      if (fromDb) {
+        this._nextDBFromId = results.data[resultLength - 1].id;
+      } else {
         this._nextServerFromId = results.data[resultLength - 1].id;
       }
     }
@@ -1586,14 +1584,6 @@ Query.prototype.pagedToEnd = false;
 Query.prototype._firingRequest = '';
 
 /**
- * Query is waiting for data from a syncing server
- *
- * @type {Boolean}
- * @private
- */
-Query.prototype._isServerSyncing = false;
-
-/**
  * The ID to use in paging the server.
  *
  * Why not just use the ID of the last item in our result set?
@@ -1666,18 +1656,6 @@ Query._supportedEvents = [
    */
   'error',
 
-  /**
-   * The server needs to sync more data before it can provide the client all the requested data.
-   *
-   *     query.on('server-syncing-state', function(evt) {
-   *       alert('syncing is ' + evt.syncing ? 'running' : 'completed');
-   *     });
-   *
-   * Only occurs for querying Messages.  Comes with a parameter `syncing` set to true
-   * when we are syncing, and false when done.
-   * @event server-syncing-state
-   */
-  'server-syncing-state',
 ].concat(Root._supportedEvents);
 
 Root.initClass.apply(Query, [Query, 'Query']);
