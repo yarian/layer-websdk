@@ -6,6 +6,7 @@
   changes `isFiring` to `false` between polling the server to see if its done.  Instead it keeps `isFiring` as `true` and fire no events and
   provides no results _until_ the server has completed and provided some data.
 * Fixes to persisting the Session Token if `isTrustedDevice` is `true`
+* Fixes for React Native community around `window.postMessage()` usage.
 
 ## 3.0.0 Beta 1
 

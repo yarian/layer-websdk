@@ -490,10 +490,16 @@ class Root extends EventClass {
     if (shouldScheduleTrigger) {
       this._lastDelayedTrigger = Date.now();
       if (typeof postMessage === 'function' && typeof jasmine === 'undefined') {
-        window.postMessage({
+        var messageData = {
           type: 'layer-delayed-event',
           internalId: this.internalId,
-        }, '*');
+        };
+        if (typeof document !== 'undefined') {
+          window.postMessage(messageData, '*');
+        } else {
+          // React Native reportedly lacks a document, and throws errors on the second parameter
+          window.postMessage(messageData);
+        }
       } else {
         setTimeout(() => this._processDelayedTriggers(), 0);
       }
