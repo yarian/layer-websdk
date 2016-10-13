@@ -236,9 +236,9 @@ describe("The Root Class", function() {
         layer.Root.initClass(A, "A");
       });
 
-      it("Should initialize _subscriptions", function() {
+      it("Should initialize _layerEventSubscriptions", function() {
         var a = new A();
-        expect(a._subscriptions).toEqual([]);
+        expect(a._layerEventSubscriptions).toEqual([]);
       });
 
       it("Should initialize _events", function() {
@@ -337,7 +337,7 @@ describe("The Root Class", function() {
       it("Should null subscriptions and delayed triggers", function() {
         var a = new A();
         a.destroy();
-        expect(a._subscriptions).toBe(null);
+        expect(a._layerEventSubscriptions).toBe(null);
         expect(a._delayedTriggers).toBe(null);
       });
 
@@ -507,18 +507,18 @@ describe("The Root Class", function() {
         }).toThrowError("Event eatMyShorts not defined for " + a.toString());
       });
 
-      it("Should register the context in the _subscriptions array if its an instance of Root", function() {
+      it("Should register the context in the _layerEventSubscriptions array if its an instance of Root", function() {
         var b = new A();
         a.on("destroy", function() {}, b);
-        expect(a._subscriptions).toEqual([]);
-        expect(b._subscriptions).toEqual([a]);
+        expect(a._layerEventSubscriptions).toEqual([]);
+        expect(b._layerEventSubscriptions).toEqual([a]);
       });
 
-      it("Should not register the context in the _subscriptions array if its not an instance of Root", function() {
+      it("Should not register the context in the _layerEventSubscriptions array if its not an instance of Root", function() {
         var b = {};
         a.on("destroy", function() {}, b);
-        expect(a._subscriptions).toEqual([]);
-        expect(b._subscriptions).toEqual(undefined);
+        expect(a._layerEventSubscriptions).toEqual([]);
+        expect(b._layerEventSubscriptions).toEqual(undefined);
       });
     });
 

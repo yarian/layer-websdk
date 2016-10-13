@@ -135,7 +135,7 @@ class Root extends EventClass {
    */
   constructor(options = {}) {
     super();
-    this._subscriptions = [];
+    this._layerEventSubscriptions = [];
     this._delayedTriggers = [];
     this._lastDelayedTrigger = Date.now();
     this._events = {};
@@ -188,9 +188,9 @@ class Root extends EventClass {
 
     // Find all of the objects that this object has passed itself to in the form
     // of event handlers and remove all references to itself.
-    this._subscriptions.forEach(item => item.off(null, null, this));
+    this._layerEventSubscriptions.forEach(item => item.off(null, null, this));
 
-    this._subscriptions = null;
+    this._layerEventSubscriptions = null;
     this._delayedTriggers = null;
     this.isDestroyed = true;
   }
@@ -293,11 +293,15 @@ class Root extends EventClass {
    * @private
    */
   _prepareOn(name, handler, context) {
-    if (context instanceof Root) {
-      if (context.isDestroyed) {
-        throw new Error(LayerError.dictionary.isDestroyed);
+    if (context) {
+      if (context instanceof Root) {
+        if (context.isDestroyed) {
+          throw new Error(LayerError.dictionary.isDestroyed);
+        }
       }
-      context._subscriptions.push(this);
+      if (context._layerEventSubscriptions) {
+        context._layerEventSubscriptions.push(this);
+      }
     }
     if (typeof name === 'string' && name !== 'all') {
       if (eventSplitter.test(name)) {
@@ -689,7 +693,7 @@ Root.prototype.isInitializing = true;
  * @type {layer.Root[]}
  * @private
  */
-Root.prototype._subscriptions = null;
+Root.prototype._layerEventSubscriptions = null;
 
 /**
  * Disable all events triggered on this object.
