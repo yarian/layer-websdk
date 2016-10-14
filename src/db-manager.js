@@ -109,7 +109,7 @@ class DbManager extends Root {
   }
 
   _getDbName() {
-    return 'LayerWebSDK_' + this.client.appId + '_' + this.client.user.userId.replace(/[^a-zA-Z0-9]/g, '');
+    return 'LayerWebSDK_' + this.client.appId;
   }
 
   /**

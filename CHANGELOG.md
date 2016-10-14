@@ -10,6 +10,7 @@
 * Apps using `Component.on(a, b, obj)` can have `obj._layerEventSubscriptions` so that `obj` can find all of the components it needs to unsubscribe from to be garbage collected.
 * FileReader access now prefixed by `window` to support oddly configured server based tests
 * Fixes issue where data persisted after it was rejected by the server
+* No longer writes data to separate databases for each user; now uses a single database and wipes all data from prior user on logging in as new user.
 
 ## 3.0.0 Beta 1
 
