@@ -90,14 +90,19 @@ describe("The DbManager Class", function() {
       });
 
       it("Should listen for conversations:change events", function() {
-        spyOn(dbManager, "writeConversations");
-        client.trigger('conversations:change', {
+        spyOn(dbManager, "_updateConversation");
+        var change = {
           target: conversation,
           oldValue: 1,
           newValue: 2,
           property: 'unreadCount'
-        });
-        expect(dbManager.writeConversations).toHaveBeenCalledWith([conversation]);
+        };
+        client.trigger('conversations:change', change);
+        expect(dbManager._updateConversation).toHaveBeenCalledWith(conversation, [{
+          oldValue: 1,
+          newValue: 2,
+          property: 'unreadCount'
+        }]);
       });
 
       it("Should listen for conversations:delete events", function() {
@@ -305,6 +310,50 @@ describe("The DbManager Class", function() {
           last_message_sent: conversation.lastMessage.sentAt.toISOString(),
           sync_state: conversation.syncState
         }]);
+      });
+    });
+
+    describe("The _updateConversation() method", function() {
+      it ("Should delete the conversation if the id changed, and then write the conversation", function(done) {
+        var oldId = conversation.id;
+        var newId = conversation.id + 'a';
+        // Setup
+        dbManager.writeConversations([conversation], function() {
+          dbManager.getObjects('conversations', [oldId], function(results) {
+            expect(results.length).toEqual(1);
+            conversation.id = newId;
+            conversation.trigger('conversations:change', {
+              property: 'id',
+              oldValue: oldId,
+              newValue: newId
+            });
+            setTimeout(function() {
+              dbManager.getObjects('conversations', [oldId], function(results) {
+                expect(results.length).toEqual(0);
+                dbManager.getObjects('conversations', [newId], function(results) {
+                  expect(results.length).toEqual(1);
+                  done();
+                });
+              });
+            }, 200);
+          });
+        });
+      });
+
+      it ("Should not delete the conversation if the id changed, but still write the conversation", function() {
+        spyOn(dbManager, "deleteObjects");
+        spyOn(dbManager, "writeConversations");
+
+        // Run
+        conversation.trigger('conversations:change', {
+          property: 'unreadCount',
+          oldValue: 5,
+          newValue: 6
+        });
+
+        // Posttest
+        expect(dbManager.deleteObjects).not.toHaveBeenCalled();
+        expect(dbManager.writeConversations).toHaveBeenCalledWith([conversation]);
       });
     });
 

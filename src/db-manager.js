@@ -83,7 +83,8 @@ class DbManager extends Root {
       // If Client is a layer.ClientAuthenticator, it won't support these events; this affects Unit Tests
       if (enabled && this.client.constructor._supportedEvents.indexOf('conversations:add') !== -1) {
         this.client.on('conversations:add', evt => this.writeConversations(evt.conversations));
-        this.client.on('conversations:change', evt => this.writeConversations([evt.target]));
+
+        this.client.on('conversations:change', evt => this._updateConversation(evt.target, evt.changes));
         this.client.on('conversations:delete conversations:sent-error', evt => this.deleteObjects('conversations', [evt.target]));
 
         this.client.on('messages:add', evt => this.writeMessages(evt.messages));
@@ -270,6 +271,17 @@ class DbManager extends Root {
       };
       return item;
     });
+  }
+
+  _updateConversation(conversation, changes) {
+    var idChanges = changes.filter(item => item.property === 'id');
+    if (idChanges.length) {
+      this.deleteObjects('conversations', [{id: idChanges[0].oldValue}], () => {
+        this.writeConversations([conversation]);
+      });
+    } else {
+      this.writeConversations([conversation]);
+    }
   }
 
   /**
