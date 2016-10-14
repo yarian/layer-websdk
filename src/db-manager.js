@@ -1164,7 +1164,7 @@ DbManager.MaxPartSize = 250000;
 
 DbManager._supportedEvents = [
   'open', 'error',
-];
+].concat(Root._supportedEvents);
 
 Root.initClass.apply(DbManager, [DbManager, 'DbManager']);
 module.exports = DbManager;
