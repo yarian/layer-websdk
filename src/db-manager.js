@@ -84,11 +84,11 @@ class DbManager extends Root {
       if (enabled && this.client.constructor._supportedEvents.indexOf('conversations:add') !== -1) {
         this.client.on('conversations:add', evt => this.writeConversations(evt.conversations));
         this.client.on('conversations:change', evt => this.writeConversations([evt.target]));
-        this.client.on('conversations:delete', evt => this.deleteObjects('conversations', [evt.target]));
+        this.client.on('conversations:delete conversations:sent-error', evt => this.deleteObjects('conversations', [evt.target]));
 
         this.client.on('messages:add', evt => this.writeMessages(evt.messages));
         this.client.on('messages:change', evt => this.writeMessages([evt.target]));
-        this.client.on('messages:delete', evt => this.deleteObjects('messages', [evt.target]));
+        this.client.on('messages:delete messages:sent-error', evt => this.deleteObjects('messages', [evt.target]));
 
         this.client.on('identities:add', evt => this.writeIdentities(evt.identities));
         this.client.on('identities:change', evt => this.writeIdentities([evt.target]));

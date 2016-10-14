@@ -106,6 +106,12 @@ describe("The DbManager Class", function() {
         expect(dbManager.deleteObjects).toHaveBeenCalledWith('conversations', [conversation]);
       });
 
+      it("Should listen for conversations:sent-error events", function() {
+        spyOn(dbManager, "deleteObjects");
+        conversation.trigger('conversations:sent-error');
+        expect(dbManager.deleteObjects).toHaveBeenCalledWith('conversations', [conversation]);
+      });
+
       it("Should listen for messages:add events", function() {
         spyOn(dbManager, "writeMessages");
         client.trigger('messages:add', { messages: [message] });
@@ -126,6 +132,12 @@ describe("The DbManager Class", function() {
       it("Should listen for messages:delete events", function() {
         spyOn(dbManager, "deleteObjects");
         client.trigger('messages:delete', { target: message });
+        expect(dbManager.deleteObjects).toHaveBeenCalledWith('messages', [message]);
+      });
+
+      it("Should listen for messages:sent-error events", function() {
+        spyOn(dbManager, "deleteObjects");
+        message.trigger('messages:sent-error');
         expect(dbManager.deleteObjects).toHaveBeenCalledWith('messages', [message]);
       });
 
