@@ -8,7 +8,7 @@
 * Fixes to persisting the Session Token if `isTrustedDevice` is `true`
 * Fixes for React Native community around `window.postMessage()` usage.
 * Apps using `Component.on(a, b, obj)` can have `obj._layerEventSubscriptions` so that `obj` can find all of the components it needs to unsubscribe from to be garbage collected.
-
+* FileReader access now prefixed by `window` to support oddly configured server based tests
 
 ## 3.0.0 Beta 1
 
