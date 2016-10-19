@@ -121,6 +121,30 @@ class TypingIndicatorListener extends Root {
   }
 
   /**
+   * Get the current typing indicator state of a specified Conversation.
+   *
+   * Typically used to see if anyone is currently typing when first opening a Conversation.
+   * Typically accessed via `client.getTypingState(conversationId)`
+   *
+   * @method
+   * @param {String} conversationId
+   */
+  getState(conversationId) {
+    const stateEntry = this.state[conversationId];
+    if (stateEntry) {
+      return {
+        typing: stateEntry.typing.map(id => stateEntry.users[id].identity.toObject()),
+        paused: stateEntry.paused.map(id => stateEntry.users[id].identity.toObject())
+      };
+    } else {
+      return {
+        typing: [],
+        paused: [],
+      };
+    }
+  }
+
+  /**
    * Updates the state of a single stateEntry; a stateEntry
    * represents a single Conversation's typing indicator data.
    *

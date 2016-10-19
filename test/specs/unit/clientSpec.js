@@ -1961,6 +1961,17 @@ describe("The Client class", function() {
             });
         });
 
+        describe("The getTypingState() method", function() {
+            it("Should call typingListener.getState", function() {
+                spyOn(client._typingIndicators, "getState").and.callThrough();
+                expect(client.getTypingState('layer:///conversations/c11')).toEqual({
+                    typing: [],
+                    paused: []
+                });
+                expect(client._typingIndicators.getState).toHaveBeenCalledWith('layer:///conversations/c11');
+            });
+        });
+
         describe("The getClient() static method", function() {
             it("Should get a registered client", function() {
                 var client = new layer.Client({

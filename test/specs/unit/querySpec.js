@@ -1917,6 +1917,28 @@ describe("The Query Class", function() {
                 // Posttest
                 expect(query.trigger).not.toHaveBeenCalled();
             });
+
+
+            it("Should not trigger a move event if the Conversation sorting has not changed", function() {
+                expect(query.data.indexOf(conversation.toObject())).toEqual(1);
+                var evt = new layer.LayerEvent({
+                    property: "participants",
+                    oldValue: ["a"],
+                    newValue: ["a", "b"],
+                    target: conversation
+                }, "conversations:change");
+                spyOn(query, "_triggerChange");
+
+                // Run
+                query._handleConversationChangeEvent(evt);
+
+
+                // Posttest
+                expect(query._triggerChange).not.toHaveBeenCalledWith(jasmine.objectContaining({
+                    type: 'move'
+                }));
+                expect(query.data.indexOf(conversation.toObject())).toEqual(1);
+            });
         });
 
         describe("Sort by createdAt, dataType is instance", function() {
@@ -2013,6 +2035,27 @@ describe("The Query Class", function() {
 
                 // Posttest
                 expect(query.trigger).not.toHaveBeenCalled();
+            });
+
+            it("Should not trigger a move event if the Conversation sorting has not changed", function() {
+                expect(query.data.indexOf(conversation)).toEqual(1);
+                var evt = new layer.LayerEvent({
+                    property: "participants",
+                    oldValue: ["a"],
+                    newValue: ["a", "b"],
+                    target: conversation
+                }, "conversations:change");
+                spyOn(query, "_triggerChange");
+
+                // Run
+                query._handleConversationChangeEvent(evt);
+
+
+                // Posttest
+                expect(query._triggerChange).not.toHaveBeenCalledWith(jasmine.objectContaining({
+                    type: 'move'
+                }));
+                expect(query.data.indexOf(conversation)).toEqual(1);
             });
         });
 
@@ -2137,6 +2180,51 @@ describe("The Query Class", function() {
                 // Posttest
                 expect(query.trigger).not.toHaveBeenCalled();
             });
+
+            it("Should trigger a move event if the Conversation sorting has changed", function() {
+                expect(query.data.indexOf(conversation.toObject())).toEqual(1);
+                spyOn(query, "_handleConversationChangeEvent").and.callThrough();
+                spyOn(query, "_triggerChange");
+
+                // Run
+                // This will trigger a conversations:change event with lastMessage changing, that should call _handleConversationChangeEvent
+                conversation.createMessage('hey').send();
+                jasmine.clock().tick(1);
+                expect(query._handleConversationChangeEvent).toHaveBeenCalled();
+
+
+                // Posttest
+                expect(query._triggerChange).toHaveBeenCalledWith({
+                    type: 'move',
+                    target: conversation.toObject(),
+                    query: query,
+                    isChange: false,
+                    fromIndex: 1,
+                    toIndex: 0
+                });
+                expect(query.data.indexOf(conversation.toObject())).toEqual(0);
+            });
+
+            it("Should not trigger a move event if the Conversation sorting has not changed", function() {
+                expect(query.data.indexOf(conversation.toObject())).toEqual(1);
+                var evt = new layer.LayerEvent({
+                    property: "participants",
+                    oldValue: ["a"],
+                    newValue: ["a", "b"],
+                    target: conversation
+                }, "conversations:change");
+                spyOn(query, "_triggerChange");
+
+                // Run
+                query._handleConversationChangeEvent(evt);
+
+
+                // Posttest
+                expect(query._triggerChange).not.toHaveBeenCalledWith(jasmine.objectContaining({
+                    type: 'move'
+                }));
+                expect(query.data.indexOf(conversation.toObject())).toEqual(1);
+            });
         });
 
         describe("Sort by lastMessage.sentAt, dataType is instance", function() {
@@ -2233,6 +2321,51 @@ describe("The Query Class", function() {
 
                 // Posttest
                 expect(query.trigger).not.toHaveBeenCalled();
+            });
+
+            it("Should trigger a move event if the Conversation sorting has changed", function() {
+                expect(query.data.indexOf(conversation)).toEqual(1);
+                spyOn(query, "_handleConversationChangeEvent").and.callThrough();
+                spyOn(query, "_triggerChange");
+
+                // Run
+                // This will trigger a conversations:change event with lastMessage changing, that should call _handleConversationChangeEvent
+                conversation.createMessage('hey').send();
+                jasmine.clock().tick(1);
+                expect(query._handleConversationChangeEvent).toHaveBeenCalled();
+
+
+                // Posttest
+                expect(query._triggerChange).toHaveBeenCalledWith({
+                    type: 'move',
+                    target: conversation,
+                    query: query,
+                    isChange: false,
+                    fromIndex: 1,
+                    toIndex: 0
+                });
+                expect(query.data.indexOf(conversation)).toEqual(0);
+            });
+
+            it("Should not trigger a move event if the Conversation sorting has not changed", function() {
+                expect(query.data.indexOf(conversation)).toEqual(1);
+                var evt = new layer.LayerEvent({
+                    property: "participants",
+                    oldValue: ["a"],
+                    newValue: ["a", "b"],
+                    target: conversation
+                }, "conversations:change");
+                spyOn(query, "_triggerChange");
+
+                // Run
+                query._handleConversationChangeEvent(evt);
+
+
+                // Posttest
+                expect(query._triggerChange).not.toHaveBeenCalledWith(jasmine.objectContaining({
+                    type: 'move'
+                }));
+                expect(query.data.indexOf(conversation)).toEqual(1);
             });
         });
     });

@@ -12,6 +12,9 @@
 * Fixes issue where data persisted after it was rejected by the server
 * No longer writes data to separate databases for each user; now uses a single database and wipes all data from prior user on logging in as new user.
 * Fixes issue where on creating a Distinct Conversation, if the server returns a new object with a new ID, the locally persisted Conversation didn't get purged and replaced with the new Conversation from the server.
+* Adds `client.getTypingState(conversationId)` which can be used on opening a Conversation to see if there is someone already typing into that Conversation.
+* Adds a `move` event for `layer.Query` for when a result has been resorted from an old position to a new position.
+* Fixes infinite retry loop on `Event.replay`
 
 ## 3.0.0 Beta 1
 

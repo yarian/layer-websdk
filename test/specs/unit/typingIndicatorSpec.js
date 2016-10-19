@@ -390,7 +390,71 @@ describe("The Typing Indicator Classes", function() {
                     conversationId: "layer:///conversations/myconv2"
                 });
             });
+        });
 
+        describe("The getState() method", function() {
+            var listener, state;
+            beforeEach(function() {
+                listener = client._typingIndicators;
+                client._clientReady();
+                client._addIdentity(janeIdentity);
+                client._addIdentity(johnIdentity);
+                listener.state = {
+                    "layer:///conversations/myconv": {
+                        users: {
+                            "layer:///identities/JohnDoh": {
+                                startTime: Date.now(),
+                                state: layer.TypingIndicators.PAUSED,
+                                identity: johnIdentity
+                            },
+                            "layer:///identities/JaneDoh": {
+                                startTime: Date.now() - 1000000,
+                                state: layer.TypingIndicators.STARTED,
+                                identity: janeIdentity
+                            }
+                        },
+                        typing: ["layer:///identities/JaneDoh"],
+                        paused: ["layer:///identities/JohnDoh"]
+                    },
+                    "layer:///conversations/myconv2": {
+                        users: {
+                            "layer:///identities/JohnDoh": {
+                                startTime: Date.now() - 1000000,
+                                state: layer.TypingIndicators.PAUSED,
+                                identity: client.getIdentity('JohnDoh')
+                            },
+                            "layer:///identities/JaneDoh": {
+                                startTime: Date.now() - 1000000,
+                                state: layer.TypingIndicators.STARTED,
+                                identity: client.getIdentity('JaneDoh')
+                            }
+                        },
+                        typing: ["layer:///identities/JaneDoh"],
+                        paused: ["layer:///identities/JohnDoh"]
+                    }
+                };
+            });
+
+            afterEach(function() {
+                listener.destroy();
+            });
+
+            it("Should return the typing state for the specified Conversation", function() {
+                expect(listener.getState("layer:///conversations/myconv2").typing[0]).toEqual(janeIdentity.toObject());
+                expect(listener.getState("layer:///conversations/myconv2").paused[0]).toEqual(johnIdentity.toObject());
+
+                expect(listener.getState("layer:///conversations/myconv2")).toEqual({
+                    typing: [janeIdentity.toObject()],
+                    paused: [johnIdentity.toObject()]
+                });
+            });
+
+            it("Should return reasonable result if Conversation not found", function() {
+                expect(listener.getState("layer:///conversations/myconv2222")).toEqual({
+                    typing: [],
+                    paused: []
+                });
+            });
         });
     });
 

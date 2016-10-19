@@ -630,18 +630,36 @@ describe("The Websocket Socket Manager Class", function() {
             expect(websocketManager.replayEvents).toHaveBeenCalledWith(nexttimestamp);
         });
 
-        it("Should retry replayEvents if it failed", function() {
+        it("Should schedule retry replayEvents if it failed", function() {
             websocketManager._needsReplayFrom = nexttimestamp;
             spyOn(websocketManager, "trigger");
             spyOn(websocketManager, "replayEvents");
 
             // Run
             websocketManager._replayEventsComplete(timestamp, callback, false);
+            expect(websocketManager.replayEvents).not.toHaveBeenCalledWith(timestamp);
 
             // Posttest
+            jasmine.clock().tick(1000);
             expect(websocketManager.trigger).not.toHaveBeenCalled();
             expect(callback).not.toHaveBeenCalled();
             expect(websocketManager.replayEvents).toHaveBeenCalledWith(timestamp);
+        });
+
+
+        it("Should stop scheduling retry replayEvents after repeated failure", function() {
+            websocketManager._needsReplayFrom = nexttimestamp;
+            spyOn(websocketManager, "trigger");
+            spyOn(websocketManager, "replayEvents").and.callFake(function() {
+                websocketManager._replayEventsComplete(timestamp, callback, false);
+            });
+
+            // Run
+            websocketManager._replayEventsComplete(timestamp, callback, false);
+            jasmine.clock().tick(100000000);
+
+            // Posttest
+            expect(websocketManager.replayEvents.calls.count() < 20).toBe(true);
         });
     });
 

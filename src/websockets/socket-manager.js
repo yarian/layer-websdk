@@ -350,29 +350,38 @@ class SocketManager extends Root {
   _replayEventsComplete(timestamp, callback, success) {
     this._inReplay = false;
 
-    // If replay was completed, and no other requests for replay, then trigger synced;
-    // we're done.
-    if (success && !this._needsReplayFrom) {
-      logger.info('Websocket replay complete');
-      this.trigger('synced');
-      if (callback) callback();
+
+    if (success) {
+
+      // If replay was completed, and no other requests for replay, then trigger synced;
+      // we're done.
+      if (!this._needsReplayFrom) {
+        logger.info('Websocket replay complete');
+        this.trigger('synced');
+        if (callback) callback();
+      }
+
+      // If replayEvents was called during a replay, then replay
+      // from the given timestamp.  If request failed, then we need to retry from _lastTimestamp
+      else if (this._needsReplayFrom) {
+        logger.info('Websocket replay partially complete');
+        const t = this._needsReplayFrom;
+        this._needsReplayFrom = null;
+        this.replayEvents(t);
+      }
     }
 
-    // If replayEvents was called during a replay, then replay
-    // from the given timestamp.  If request failed, then we need to retry from _lastTimestamp
-    else if (success && this._needsReplayFrom) {
-      logger.info('Websocket replay partially complete');
-      const t = this._needsReplayFrom;
-      this._needsReplayFrom = null;
-      this.replayEvents(t);
-    }
-
-    // We never got a done event.  We also didn't miss any counters, so the last
-    // message we received was valid; so lets just use that as our timestamp and
-    // try again until we DO get a Event.Replay completion packet
-    else {
-      logger.info('Websocket replay retry');
-      this.replayEvents(timestamp);
+    // We never got a done event; but either got an error from the server or the request timed out.
+    // Use exponential backoff incremented integers that getExponentialBackoffSeconds mapping to roughly
+    // 0.4 seconds - 12.8 seconds, and then stops retrying.
+    else if (this._replayRetryCount < 8) {
+      const maxDelay = 20;
+      const delay = Utils.getExponentialBackoffSeconds(maxDelay, Math.min(15, this._replayRetryCount + 2));
+      logger.info('Websocket replay retry in ' + delay + ' seconds');
+      setTimeout(() => this.replayEvents(timestamp), delay * 1000);
+      this._replayRetryCount++;
+    } else {
+      logger.error('Websocket Event.replay has failed');
     }
   }
 
@@ -583,6 +592,8 @@ SocketManager.prototype._hasCounter = false;
 
 SocketManager.prototype._inReplay = false;
 SocketManager.prototype._needsReplayFrom = null;
+
+SocketManager.prototype._replayRetryCount = 0;
 
 /**
  * Frequency with which the websocket checks to see if any websocket notifications

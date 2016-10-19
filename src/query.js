@@ -173,6 +173,26 @@
  *```
  * Note that `query.on('change:property', function(evt) {}` is also supported.
  *
+ * ### 6. Move Events
+ *
+ * Occasionally, a property change will cause an item to be sorted differently, causing a Move event.
+ * The event will tell you what index the item was at, and where it has moved to in the Query results.
+ * This is currently only supported for Conversations.
+ *
+ * ```javascript
+ * query.on('change', function(evt) {
+ *   if (evt.type === 'move') {
+ *       var changedItem = evt.target;
+ *       var oldIndex = evt.fromIndex;
+ *       var newIndex = evt.newIndex;
+ *       var moveNode = list.childNodes[oldIndex];
+ *       list.removeChild(moveNode);
+ *       list.insertBefore(moveNode, list.childNodes[newIndex]);
+ *   }
+ * });
+ *```
+ * Note that `query.on('change:move', function(evt) {}` is also supported.
+ *
  * @class  layer.Query
  * @extends layer.Root
  *
@@ -851,6 +871,7 @@ class Query extends Root {
     if (index !== -1) {
       const sortField = this._getSortField();
       const reorder = evt.hasProperty('lastMessage') && sortField === 'last_message';
+      let newIndex;
 
       if (this.dataType === Query.ObjectDataType) {
         if (!reorder) {
@@ -861,7 +882,7 @@ class Query extends Root {
             ...this.data.slice(index + 1),
           ];
         } else {
-          const newIndex = this._getInsertConversationIndex(evt.target, this.data);
+          newIndex = this._getInsertConversationIndex(evt.target, this.data);
           this.data.splice(index, 1);
           this.data.splice(newIndex, 0, this._getData(evt.target));
           this.data = this.data.concat([]);
@@ -871,7 +892,7 @@ class Query extends Root {
       // Else dataType is instance not object
       else {
         if (reorder) {
-          const newIndex = this._getInsertConversationIndex(evt.target, this.data);
+          newIndex = this._getInsertConversationIndex(evt.target, this.data);
           if (newIndex !== index) {
             this.data.splice(index, 1);
             this.data.splice(newIndex, 0, evt.target);
@@ -887,6 +908,17 @@ class Query extends Root {
         isChange: true,
         changes: evt.changes,
       });
+
+      if (reorder && newIndex !== index) {
+        this._triggerChange({
+          type: 'move',
+          target: this._getData(evt.target),
+          query: this,
+          isChange: false,
+          fromIndex: index,
+          toIndex: newIndex
+        });
+      }
     }
   }
 
@@ -902,14 +934,19 @@ class Query extends Root {
       }
       return index;
     } else {
+      let oldIndex = -1;
       const d1 = conversation.lastMessage ? conversation.lastMessage.sentAt : conversation.createdAt;
       for (index = 0; index < data.length; index++) {
         const item = data[index];
+        if (item.id === conversation.id) {
+          oldIndex = index;
+          continue;
+        }
         if (item.syncState === SYNC_STATE.NEW || item.syncState === SYNC_STATE.SAVING) continue;
         const d2 = item.lastMessage ? item.lastMessage.sentAt : item.createdAt;
         if (d1 >= d2) break;
       }
-      return index;
+      return oldIndex === -1 || oldIndex > index ? index : index - 1;
     }
   }
 

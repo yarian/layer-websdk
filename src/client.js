@@ -1096,6 +1096,18 @@ class Client extends ClientAuth {
   }
 
   /**
+   * Get the current typing indicator state of a specified Conversation.
+   *
+   * Typically used to see if anyone is currently typing when first opening a Conversation.
+   *
+   * @method
+   * @param {String} conversationId
+   */
+  getTypingState(conversationId) {
+    return this._typingIndicators.getState(conversationId);
+  }
+
+  /**
    * Accessor for getting a Client by appId.
    *
    * Most apps will only have one client,
