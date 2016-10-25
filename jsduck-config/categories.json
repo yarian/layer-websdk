@@ -6,6 +6,7 @@
         "name": "Core Classes",
         "classes": [
           "layer.Client",
+          "layer.Identity",
           "layer.Conversation",
           "layer.Message",
           "layer.Announcement",
@@ -16,14 +17,10 @@
       {
         "name": "Utilities",
         "classes": [
-          "layer.QueryBuilder.ConversationsQuery",
-          "layer.QueryBuilder.MessagesQuery",
-          "layer.QueryBuilder.AnnouncementsQuery",
           "layer.LayerEvent",
           "layer.LayerError",
           "layer.ClientUtils",
           "layer.Root",
-          "layer.Content",
           "layer.Constants"
         ]
       },
@@ -34,6 +31,15 @@
           "layer.TypingIndicators.TypingListener",
           "layer.TypingIndicators.TypingIndicatorListener",
           "layer.SyncManager"
+        ]
+      },
+      {
+        "name": "Query Builder",
+        "classes": [
+          "layer.QueryBuilder.ConversationsQuery",
+          "layer.QueryBuilder.MessagesQuery",
+          "layer.QueryBuilder.AnnouncementsQuery",
+          "layer.QueryBuilder.IdentitiesQuery"
         ]
       }
     ]

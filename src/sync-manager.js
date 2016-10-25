@@ -259,7 +259,7 @@ class SyncManager extends Root {
    *
    * @method _fireRequestXHR
    * @private
-   * @param {layer.XHRSyncEvent} requestEvt
+   * @param {layer.SyncEvent.XHRSyncEvent} requestEvt
    */
   _fireRequestXHR(requestEvt) {
     requestEvt.isFiring = true;
@@ -827,6 +827,7 @@ SyncManager._supportedEvents = [
    * ```
    *
    * @event
+   * @param {Object} result
    * @param {string} result.target - ID of the message/conversation/etc. being operated upon
    * @param {layer.SyncEvent} evt - The request object
    */

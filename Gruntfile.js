@@ -269,7 +269,7 @@ module.exports = function (grunt) {
         options: {
           'builtin-classes': false,
           'warnings': ['-no_doc', '-dup_member', '-link_ambiguous'],
-          'external': ['XMLHttpRequest', 'Blob', 'Websocket', 'KeyboardEvent'],
+          'external': ['XMLHttpRequest', 'Blob', 'Websocket', 'KeyboardEvent', 'IDBVersionChangeEvent', 'IDBKeyRange', 'IDBDatabase'],
           'title': 'Layer Web SDK - API Documentation',
           'categories': ['jsduck-config/categories.json'],
           'head-html': HTML_HEAD,

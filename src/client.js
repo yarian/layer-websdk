@@ -1100,7 +1100,7 @@ class Client extends ClientAuth {
    *
    * Typically used to see if anyone is currently typing when first opening a Conversation.
    *
-   * @method
+   * @method getTypingState
    * @param {String} conversationId
    */
   getTypingState(conversationId) {
@@ -1214,7 +1214,7 @@ Client.prototype._scheduleCheckAndPurgeCacheAt = 0;
  * @static
  * @type {String}
  */
-Client.version = '3.0.0-beta.1';
+Client.version = '3.0.0';
 
 /**
  * Any Conversation or Message that is part of a Query's results are kept in memory for as long as it

@@ -126,7 +126,7 @@ class TypingIndicatorListener extends Root {
    * Typically used to see if anyone is currently typing when first opening a Conversation.
    * Typically accessed via `client.getTypingState(conversationId)`
    *
-   * @method
+   * @method getState
    * @param {String} conversationId
    */
   getState(conversationId) {
