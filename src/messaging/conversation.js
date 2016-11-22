@@ -1,5 +1,5 @@
 /**
- * A Conversation object represents a dialog amongst a set
+ * A Conversation object represents a dialog amongst a small set
  * of participants.
  *
  * Create a Conversation using the client:
@@ -50,16 +50,16 @@
  * @author  Michael Kantor
  */
 
-const Syncable = require('./syncable');
+const Root = require('../root');
+const Syncable = require('../syncable');
+const Container = require('./container');
 const Message = require('./message');
-const LayerError = require('./layer-error');
-const Util = require('./client-utils');
-const Constants = require('./const');
-const Root = require('./root');
-const LayerEvent = require('./layer-event');
+const LayerError = require('../layer-error');
+const Util = require('../client-utils');
+const Constants = require('../const');
+const LayerEvent = require('../layer-event');
 
-class Conversation extends Syncable {
-
+class Conversation extends Container {
   /**
    * Create a new conversation.
    *
@@ -81,40 +81,18 @@ class Conversation extends Syncable {
     // Setup default values
     if (!options.participants) options.participants = [];
     if (!options.metadata) options.metadata = {};
-
-    // Make sure the ID from handle fromServer parameter is used by the Root.constructor
-    if (options.fromServer) options.id = options.fromServer.id;
-
-    // Make sure we have an clientId property
-    if (options.client) options.clientId = options.client.appId;
-
     super(options);
-
-
     this.isInitializing = true;
     const client = this.getClient();
 
-    // If the options contains a full server definition of the object,
-    // copy it in with _populateFromServer; this will add the Conversation
-    // to the Client as well.
-    if (options && options.fromServer) {
-      this._populateFromServer(options.fromServer);
-    }
-
-    // Setup participants
-    else {
+    // If the options doesn't contain server object, setup participants.
+    if (!options || !options.fromServer) {
       this.participants = client._fixIdentities(this.participants);
-
       if (this.participants.indexOf(client.user) === -1) {
         this.participants.push(client.user);
       }
     }
-
-    if (!this.createdAt) {
-      this.createdAt = new Date();
-    }
-
-    client._addConversation(this);
+    this._register();
     this.isInitializing = false;
   }
 
@@ -135,6 +113,7 @@ class Conversation extends Syncable {
     this.participants = null;
     this.metadata = null;
   }
+
 
   /**
    * Create this Conversation on the server.
@@ -331,15 +310,6 @@ class Conversation extends Syncable {
     }
   }
 
-  /**
-   * Populates this instance using server-data.
-   *
-   * Side effects add this to the Client.
-   *
-   * @method _populateFromServer
-   * @private
-   * @param  {Object} conversation - Server representation of the conversation
-   */
   _populateFromServer(conversation) {
     const client = this.getClient();
 
@@ -347,30 +317,12 @@ class Conversation extends Syncable {
     // We still want property change events for anything that DOES change
     this._disableEvents = (this.syncState === Constants.SYNC_STATE.NEW);
 
-    this._setSynced();
-
-    const id = this.id;
-    this.id = conversation.id;
-
-    // IDs change if the server returns a matching Distinct Conversation
-    if (id !== this.id) {
-      client._updateConversationId(this, id);
-      this._triggerAsync('conversations:change', {
-        oldValue: id,
-        newValue: this.id,
-        property: 'id',
-      });
-    }
-
-    this.url = conversation.url;
     this.participants = client._fixIdentities(conversation.participants);
     this.distinct = conversation.distinct;
-    this.createdAt = new Date(conversation.created_at);
     this.metadata = conversation.metadata;
     this.unreadCount = conversation.unread_message_count;
     this.isCurrentParticipant = this.participants.indexOf(client.user) !== -1;
-
-    client._addConversation(this);
+    super._populateFromServer(conversation);
 
     if (typeof conversation.last_message === 'string') {
       this.lastMessage = client.getMessage(conversation.last_message);
@@ -379,6 +331,7 @@ class Conversation extends Syncable {
     } else {
       this.lastMessage = null;
     }
+    this._register();
 
     this._disableEvents = false;
   }
@@ -593,70 +546,7 @@ class Conversation extends Syncable {
     this._delete(queryStr);
   }
 
-  /**
-   * Delete the Conversation from the server (internal version).
-   *
-   * This version of Delete takes a Query String that is packaged up by
-   * layer.Conversation.delete and layer.Conversation.leave.
-   *
-   * @method _delete
-   * @private
-   * @param {string} queryStr - Query string for the DELETE request
-   */
-  _delete(queryStr) {
-    const id = this.id;
-    const client = this.getClient();
-    this._xhr({
-      method: 'DELETE',
-      url: '?' + queryStr,
-    }, result => {
-      if (!result.success && (!result.data || result.data.id !== 'not_found')) Conversation.load(id, client);
-    });
-
-    this._deleted();
-    this.destroy();
-  }
-
-  _handleWebsocketDelete(data) {
-    if (data.mode === Constants.DELETION_MODE.MY_DEVICES && data.from_position) {
-      this.getClient()._purgeMessagesByPosition(this.id, data.from_position);
-    } else {
-      super._handleWebsocketDelete();
-    }
-  }
-
-  /**
-   * Create a new layer.Message instance within this conversation
-   *
-   *      var message = conversation.createMessage('hello');
-   *
-   *      var message = conversation.createMessage({
-   *          parts: [new layer.MessagePart({
-   *                      body: 'hello',
-   *                      mimeType: 'text/plain'
-   *                  })]
-   *      });
-   *
-   * See layer.Message for more options for creating the message.
-   *
-   * @method createMessage
-   * @param  {string|Object} options - If its a string, a MessagePart is created around that string.
-   * @param {layer.MessagePart[]} options.parts - An array of MessageParts.  There is some tolerance for
-   *                                               it not being an array, or for it being a string to be turned
-   *                                               into a MessagePart.
-   * @return {layer.Message}
-   */
-  createMessage(options = {}) {
-    const messageConfig = (typeof options === 'string') ? {
-      parts: [{ body: options, mimeType: 'text/plain' }],
-    } : options;
-    messageConfig.clientId = this.clientId;
-    messageConfig.conversationId = this.id;
-
-    return new Message(messageConfig);
-  }
-
-  /**
+    /**
    * LayerPatch will call this after changing any properties.
    *
    * Trigger any cleanup or events needed after these changes.
@@ -867,46 +757,17 @@ class Conversation extends Syncable {
     return this;
   }
 
-  _getUrl(url) {
-    return this.url + (url || '');
+  _deleteResult(result, id) {
+    const client = this.getClient();
+    if (!result.success && (!result.data || result.data.id !== 'not_found')) Conversation.load(id, client);
   }
 
-  _loaded(data) {
-    this.getClient()._addConversation(this);
+
+  _register() {
+    const client = this.getClient();
+    if (client) client._addConversation(this);
   }
 
-  /**
-   * Standard `on()` provided by layer.Root.
-   *
-   * Adds some special handling of 'conversations:loaded' so that calls such as
-   *
-   *      var c = client.getConversation('layer:///conversations/123', true)
-   *      .on('conversations:loaded', function() {
-   *          myrerender(c);
-   *      });
-   *      myrender(c); // render a placeholder for c until the details of c have loaded
-   *
-   * can fire their callback regardless of whether the client loads or has
-   * already loaded the Conversation.
-   *
-   * @method on
-   * @param  {string} eventName
-   * @param  {Function} callback
-   * @param  {Object} context
-   * @return {layer.Conversation} this
-   */
-  on(name, callback, context) {
-    const hasLoadedEvt = name === 'conversations:loaded' ||
-      name && typeof name === 'object' && name['conversations:loaded'];
-
-    if (hasLoadedEvt && !this.isLoading) {
-      const callNow = name === 'conversations:loaded' ? callback : name['conversations:loaded'];
-      Util.defer(() => callNow.apply(context));
-    }
-    super.on(name, callback, context);
-
-    return this;
-  }
 
   /*
    * Insure that conversation.unreadCount-- can never reduce the value to negative values.
@@ -1048,16 +909,6 @@ class Conversation extends Syncable {
     return this._toObject;
   }
 
-  _triggerAsync(evtName, args) {
-    this._clearObject();
-    super._triggerAsync(evtName, args);
-  }
-
-  trigger(evtName, args) {
-    this._clearObject();
-    super.trigger(evtName, args);
-  }
-
   /**
    * Create a conversation instance from a server representation of the conversation.
    *
@@ -1168,21 +1019,6 @@ class Conversation extends Syncable {
       return conv;
     }
   }
-
-  /**
-   * Identifies whether a Conversation receiving the specified patch data should be loaded from the server.
-   *
-   * Any change to a Conversation indicates that the Conversation is active and of potential interest; go ahead and load that
-   * Conversation in case the app has need of it.  In the future we may ignore changes to unread count.  Only relevant
-   * when we get Websocket events for a Conversation that has not been loaded/cached on Client.
-   *
-   * @method _loadResourceForPatch
-   * @static
-   * @private
-   */
-  static _loadResourceForPatch(patchData) {
-    return true;
-  }
 }
 
 /**
@@ -1196,12 +1032,6 @@ class Conversation extends Syncable {
  */
 Conversation.prototype.participants = null;
 
-/**
- * Time that the conversation was created on the server.
- *
- * @type {Date}
- */
-Conversation.prototype.createdAt = null;
 
 /**
  * Number of unread messages in the conversation.
@@ -1232,22 +1062,6 @@ Conversation.prototype.metadata = null;
 
 
 /**
- * The authenticated user is a current participant in this Conversation.
- *
- * Set to false if the authenticated user has been removed from this conversation.
- *
- * A removed user can see messages up to the time they were removed,
- * but can no longer interact with the conversation.
- *
- * A removed user can no longer see the participant list.
- *
- * Read and Delivery receipts will fail on any Message in such a Conversation.
- *
- * @type {Boolean}
- */
-Conversation.prototype.isCurrentParticipant = true;
-
-/**
  * The last layer.Message to be sent/received for this Conversation.
  *
  * Value may be a Message that has been locally created but not yet received by server.
@@ -1255,14 +1069,9 @@ Conversation.prototype.isCurrentParticipant = true;
  */
 Conversation.prototype.lastMessage = null;
 
-/**
- * Caches last result of toObject()
- * @type {Object}
- * @private
- */
-Conversation.prototype._toObject = null;
 
 Conversation.eventPrefix = 'conversations';
+
 
 /**
  * Cache's a Distinct Event.
@@ -1277,6 +1086,7 @@ Conversation.eventPrefix = 'conversations';
  */
 Conversation.prototype._sendDistinctEvent = null;
 
+
 /**
  * Prefix to use when generating an ID for instances of this class
  * @type {String}
@@ -1284,47 +1094,6 @@ Conversation.prototype._sendDistinctEvent = null;
  * @private
  */
 Conversation.prefixUUID = 'layer:///conversations/';
-
-/**
- * Property to look for when bubbling up events.
- * @type {String}
- * @static
- * @private
- */
-Conversation.bubbleEventParent = 'getClient';
-
-/**
- * The Conversation that was requested has been created.
- *
- * Used in `conversations:sent` events.
- * @type {String}
- * @static
- */
-Conversation.CREATED = 'Created';
-
-/**
- * The Conversation that was requested has been found.
- *
- * This means that it did not need to be created.
- *
- * Used in `conversations:sent` events.
- * @type {String}
- * @static
- */
-Conversation.FOUND = 'Found';
-
-/**
- * The Conversation that was requested has been found, but there was a mismatch in metadata.
- *
- * If the createConversation request contained metadata and it did not match the Distinct Conversation
- * that matched the requested participants, then this value is passed to notify your app that the Conversation
- * was returned but does not exactly match your request.
- *
- * Used in `conversations:sent` events.
- * @type {String}
- * @static
- */
-Conversation.FOUND_WITHOUT_REQUESTED_METADATA = 'FoundMismatch';
 
 Conversation._supportedEvents = [
 

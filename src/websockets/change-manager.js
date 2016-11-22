@@ -7,8 +7,8 @@
  */
 const Utils = require('../client-utils');
 const logger = require('../logger');
-const Message = require('../message');
-const Conversation = require('../conversation');
+const Message = require('../messaging/message');
+const Conversation = require('../messaging/conversation');
 
 
 class WebsocketChangeManager {

@@ -13,9 +13,9 @@
  */
 
 const Message = require('./message');
-const Syncable = require('./syncable');
-const Root = require('./root');
-const LayerError = require('./layer-error');
+const Syncable = require('../syncable');
+const Root = require('../root');
+const LayerError = require('../layer-error');
 
 
 class Announcement extends Message {

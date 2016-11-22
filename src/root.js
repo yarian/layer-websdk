@@ -644,6 +644,22 @@ function initClass(newClass, className) {
   if (!newClass._supportedEvents) newClass._supportedEvents = Root._supportedEvents;
   if (!newClass._ignoredEvents) newClass._ignoredEvents = Root._ignoredEvents;
 
+  if (newClass.mixins) {
+    newClass.mixins.forEach(mixin => {
+      if (mixin.events) newClass._supportedEvents = newClass._supportedEvents.concat(mixin.events);
+      if (mixin.properties) {
+        Object.keys(mixin.properties).forEach((key) => {
+          newClass.prototype[key] = mixin.properties[key];
+        });
+      }
+      if (mixin.methods) {
+        Object.keys(mixin.methods).forEach((key) => {
+          newClass.prototype[key] = mixin.methods[key];
+        });
+      }
+    });
+  }
+
   // Generate a list of properties for this class; we don't include any
   // properties from layer.Root
   const keys = Object.keys(newClass.prototype).filter(key =>

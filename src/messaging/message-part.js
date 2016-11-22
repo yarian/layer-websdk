@@ -63,13 +63,13 @@
  * @author Michael Kantor
  */
 
-const Root = require('./root');
+const Root = require('../root');
 const Content = require('./content');
-const xhr = require('./xhr');
-const ClientRegistry = require('./client-registry');
-const LayerError = require('./layer-error');
-const Util = require('./client-utils');
-const logger = require('./logger');
+const xhr = require('../xhr');
+const ClientRegistry = require('../client-registry');
+const LayerError = require('../layer-error');
+const Util = require('../client-utils');
+const logger = require('../logger');
 
 class MessagePart extends Root {
 

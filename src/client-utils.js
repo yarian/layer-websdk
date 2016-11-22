@@ -43,6 +43,15 @@ exports.typeFromID = (id) => {
   return matches ? matches[1] : '';
 };
 
+/**
+ * Returns the UUID portion of a Layer ID
+ *
+ * @method
+ * @param  {string} id
+ * @return {string}
+ */
+exports.uuid = (id) => (id || '').replace(/^.*\//, '');
+
 exports.isEmpty = (obj) => Object.prototype.toString.apply(obj) === '[object Object]' && Object.keys(obj).length === 0;
 
 /**

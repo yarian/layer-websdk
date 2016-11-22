@@ -112,13 +112,18 @@ module.exports = function (grunt) {
           "lib/xhr.js": "src/xhr.js",
           "lib/client-authenticator.js": "src/client-authenticator.js",
           "lib/client.js": "src/client.js",
+          "lib/mixins/client-identities.js": "src/mixins/client-identities.js",
+          "lib/mixins/client-conversations.js": "src/mixins/client-conversations.js",
+          "lib/mixins/client-messages.js": "src/mixins/client-messages.js",
+          "lib/mixins/client-queries.js": "src/mixins/client-queries.js",
           "lib/syncable.js": "src/syncable.js",
-          "lib/conversation.js": "src/conversation.js",
-          "lib/message-part.js": "src/message-part.js",
-          "lib/message.js": "src/message.js",
-          "lib/announcement.js": "src/announcement.js",
+          "lib/messaging/container.js": "src/messaging/container.js",
+          "lib/messaging/conversation.js": "src/messaging/conversation.js",
+          "lib/messaging/message-part.js": "src/messaging/message-part.js",
+          "lib/messaging/message.js": "src/messaging/message.js",
+          "lib/messaging/announcement.js": "src/messaging/announcement.js",
+          "lib/messaging/content.js": "src/messaging/content.js",
           "lib/identity.js": "src/identity.js",
-          "lib/content.js": "src/content.js",
           "lib/query.js": "src/query.js",
           "lib/query-builder.js": "src/query-builder.js",
           "lib/sync-manager.js": "src/sync-manager.js",
@@ -264,7 +269,7 @@ module.exports = function (grunt) {
     // Documentation
     jsduck: {
       build: {
-        src: ["lib/**.js", "lib/typing-indicators/**.js", "lib/websockets/**.js"],
+        src: ["lib/**.js", "lib/typing-indicators/**.js", "lib/websockets/**.js", "lib/mixins/**.js"],
         dest: 'docs',
         options: {
           'builtin-classes': false,
@@ -307,14 +312,13 @@ module.exports = function (grunt) {
     function replace(fileGroup, version) {
       fileGroup.src.forEach(function(file, index) {
         var contents = grunt.file.read(file);
-        contents = contents.replace(/Client\.version = (.*)$/m, "Client.version = '" + options.version + "';");
-        grunt.file.write(fileGroup.dest, contents);
+        var newContents = contents.replace(/Client\.version = (.*)$/m, "Client.version = '" + options.version + "';");
+        if (newContents != contents) grunt.file.write(fileGroup.dest, contents);
       });
     }
 
     // Iterate over each file set and fire away on that set
     this.files.forEach(function(fileGroup) {
-      console.dir(options);
       replace(fileGroup, options.version);
     });
   });

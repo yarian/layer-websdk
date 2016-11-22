@@ -18,8 +18,8 @@
  * @author Michael Kantor
  */
 
-const Root = require('./root');
-const xhr = require('./xhr');
+const Root = require('../root');
+const xhr = require('../xhr');
 
 class Content extends Root {
 
