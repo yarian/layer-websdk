@@ -203,17 +203,16 @@
  * @extends layer.Root
  *
  */
-const Root = require('./root');
-const LayerError = require('./layer-error');
-const Util = require('./client-utils');
-const Logger = require('./logger');
-const { SYNC_STATE } = require('./const');
+const Root = require('../root');
+const LayerError = require('../layer-error');
+const Util = require('../client-utils');
+const Logger = require('../logger');
+const { SYNC_STATE } = require('../const');
 
 const CONVERSATION = 'Conversation';
 const CHANNEL = 'Channel';
 const MESSAGE = 'Message';
 const ANNOUNCEMENT = 'Announcement';
-const IDENTITY = 'Identity';
 const findConvIdRegex = new RegExp(
   /^conversation.id\s*=\s*['"]((layer:\/\/\/conversations\/)?.{8}-.{4}-.{4}-.{4}-.{12})['"]$/);
 const findChannelIdRegex = new RegExp(
@@ -245,7 +244,7 @@ class Query extends Root {
     this.data = [];
     this._initialPaginationWindow = this.paginationWindow;
     if (!this.client) throw new Error(LayerError.dictionary.clientMissing);
-    this.client.on('all', this._handleChangeEvents, this);
+    this.client.on('all', this._handleEvents, this);
 
     if (!this.client.isReady) {
       this.client.once('ready', () => this._run(), this);
@@ -282,7 +281,7 @@ class Query extends Root {
    * @returns {number}
    */
   _getMaxPageSize() {
-    return this.model === Query.Identity ? Query.MaxPageSizeIdentity : Query.MaxPageSize;
+    return this.constructor.MaxPageSize;
   }
 
   /**
@@ -319,8 +318,7 @@ class Query extends Root {
       needsRefresh = true;
     }
     if ('model' in optionsBuilt && this.model !== optionsBuilt.model) {
-      this.model = optionsBuilt.model;
-      needsRecreate = true;
+      throw new Error(LayerError.dictionary.modelImmutable);
     }
 
     if ('predicate' in optionsBuilt) {
@@ -444,11 +442,15 @@ class Query extends Root {
         case ANNOUNCEMENT:
           this._runAnnouncement(pageSize);
           break;
-        case IDENTITY:
-          this._runIdentity(pageSize);
+        case '':
           break;
       }
+      this._fetchData(pageSize);
     }
+  }
+
+  _fetchData(pageSize) {
+    // Noop
   }
 
   /**
@@ -688,38 +690,6 @@ class Query extends Root {
   }
 
   /**
-   * Get Identities from the server.
-   *
-   * @method _runIdentities
-   * @private
-   * @param  {number} pageSize - Number of new results to request
-   */
-  _runIdentity(pageSize) {
-    // There is not yet support for paging Identities;  as all identities are loaded,
-    // if there is a _nextDBFromId, we no longer need to get any more from the database
-    if (!this._nextDBFromId) {
-      this.client.dbManager.loadIdentities((identities) => {
-        if (identities.length) this._appendResults({ data: identities }, true);
-      });
-    }
-
-    const newRequest = `identities?page_size=${pageSize}` +
-      (this._nextServerFromId ? '&from_id=' + this._nextServerFromId : '');
-
-    // Don't repeat still firing queries
-    if (newRequest !== this._firingRequest) {
-      this.isFiring = true;
-      this._firingRequest = newRequest;
-      this.client.xhr({
-        url: newRequest,
-        method: 'GET',
-        sync: false,
-      }, results => this._processRunResults(results, newRequest, pageSize));
-    }
-  }
-
-
-  /**
    * Process the results of the `_run` method; calls __appendResults.
    *
    * @method _processRunResults
@@ -801,9 +771,9 @@ class Query extends Root {
         case CHANNEL:
           index = 0;
           break;
-        case IDENTITY:
-          index = data.length;
-          break;
+        default:
+          this._appendResultsSplice(item);
+          return;
       }
       data.splice(index, 0, this._getData(item));
     });
@@ -816,6 +786,10 @@ class Query extends Root {
       query: this,
       target: this.client,
     });
+  }
+
+  _appendResultsSplice(item) {
+    // Noop
   }
 
   /**
@@ -859,12 +833,6 @@ class Query extends Root {
    */
   _getItem(id) {
     switch (Util.typeFromID(id)) {
-      case 'announcements':
-        if (this.model === ANNOUNCEMENT) {
-          const index = this._getIndex(id);
-          return index === -1 ? null : this.data[index];
-        }
-        break;
       case 'messages':
         if (this.model === MESSAGE) {
           const index = this._getIndex(id);
@@ -877,24 +845,10 @@ class Query extends Root {
           return null;
         }
         break;
-      case 'conversations':
-        if (this.model === CONVERSATION) {
-          const index = this._getIndex(id);
-          return index === -1 ? null : this.data[index];
-        }
-        break;
-      case 'channels':
-        if (this.model === CHANNEL) {
-          const index = this._getIndex(id);
-          return index === -1 ? null : this.data[index];
-        }
-        break;
-      case 'identities':
-        if (this.model === IDENTITY) {
-          const index = this._getIndex(id);
-          return index === -1 ? null : this.data[index];
-        }
-        break;
+      default: {
+        const index = this._getIndex(id);
+        return index === -1 ? null : this.data[index];
+      }
     }
   }
 
@@ -922,12 +876,12 @@ class Query extends Root {
    * The event does not necessarily apply to this Query, but the Query
    * must examine it to determine if it applies.
    *
-   * @method _handleChangeEvents
+   * @method _handleEvents
    * @private
    * @param {string} eventName - "messages:add", "conversations:change"
    * @param {layer.LayerEvent} evt
    */
-  _handleChangeEvents(eventName, evt) {
+  _handleEvents(eventName, evt) {
     switch (this.model) {
       case CONVERSATION:
       case CHANNEL:
@@ -936,9 +890,6 @@ class Query extends Root {
       case MESSAGE:
       case ANNOUNCEMENT:
         this._handleMessageEvents(evt);
-        break;
-      case IDENTITY:
-        this._handleIdentityEvents(evt);
         break;
     }
   }
@@ -1338,109 +1289,6 @@ class Query extends Root {
     });
   }
 
-  _handleIdentityEvents(evt) {
-    switch (evt.eventName) {
-
-      // If a Identity has changed and its in our result set, replace
-      // it with a new immutable object
-      case 'identities:change':
-        this._handleIdentityChangeEvent(evt);
-        break;
-
-      // If Identities are added, and they aren't already in our result set
-      // add them.
-      case 'identities:add':
-        this._handleIdentityAddEvent(evt);
-        break;
-
-      // If a Identity is deleted and its in our result set, remove it
-      // and trigger an event
-      case 'identities:remove':
-        this._handleIdentityRemoveEvent(evt);
-        break;
-    }
-  }
-
-
-  _handleIdentityChangeEvent(evt) {
-    const index = this._getIndex(evt.target.id);
-
-    if (index !== -1) {
-      if (this.dataType === Query.ObjectDataType) {
-        this.data = [
-          ...this.data.slice(0, index),
-          evt.target.toObject(),
-          ...this.data.slice(index + 1),
-        ];
-      }
-      this._triggerChange({
-        type: 'property',
-        target: this._getData(evt.target),
-        query: this,
-        isChange: true,
-        changes: evt.changes,
-      });
-    }
-  }
-
-  _handleIdentityAddEvent(evt) {
-    const list = evt.identities
-      .filter(identity => this._getIndex(identity.id) === -1)
-      .map(identity => this._getData(identity));
-
-    // Add them to our result set and trigger an event for each one
-    if (list.length) {
-      const data = this.data = this.dataType === Query.ObjectDataType ? [].concat(this.data) : this.data;
-      list.forEach(item => data.push(item));
-
-      this.totalSize += list.length;
-
-      // Index calculated above may shift after additional insertions.  This has
-      // to be done after the above insertions have completed.
-      list.forEach((item) => {
-        this._triggerChange({
-          type: 'insert',
-          index: this.data.indexOf(item),
-          target: item,
-          query: this,
-        });
-      });
-    }
-  }
-
-  _handleIdentityRemoveEvent(evt) {
-    const removed = [];
-    evt.identities.forEach((identity) => {
-      const index = this._getIndex(identity.id);
-      if (index !== -1) {
-        if (identity.id === this._nextDBFromId) this._nextDBFromId = this._updateNextFromId(index);
-        if (identity.id === this._nextServerFromId) this._nextServerFromId = this._updateNextFromId(index);
-        removed.push({
-          data: identity,
-          index,
-        });
-        if (this.dataType === Query.ObjectDataType) {
-          this.data = [
-            ...this.data.slice(0, index),
-            ...this.data.slice(index + 1),
-          ];
-        } else {
-          this.data.splice(index, 1);
-        }
-      }
-    });
-
-    this.totalSize -= removed.length;
-    removed.forEach((removedObj) => {
-      this._triggerChange({
-        type: 'remove',
-        target: this._getData(removedObj.data),
-        index: removedObj.index,
-        query: this,
-      });
-    });
-  }
-
   /**
    * If the current next-id is removed from the list, get a new nextId.
    *
@@ -1519,7 +1367,7 @@ Query.Announcement = ANNOUNCEMENT;
  * @type {string}
  * @static
  */
-Query.Identity = IDENTITY;
+Query.Identity = 'Identity';
 
 /**
  * Get data as POJOs/immutable objects.
@@ -1548,14 +1396,6 @@ Query.InstanceDataType = 'instance';
  * @static
  */
 Query.MaxPageSize = 100;
-
-/**
- * Set the maximum page size for Identity queries.
- *
- * @type {number}
- * @static
- */
-Query.MaxPageSizeIdentity = 500;
 
 /**
  * Access the number of results currently loaded.

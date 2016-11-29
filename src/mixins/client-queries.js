@@ -4,7 +4,8 @@
  * @class layer.mixins.ClientQueries
  */
 
-const Query = require('../query');
+const Query = require('../queries/query');
+const IdentitiesQuery = require('../queries/identities-query');
 const ErrorDictionary = require('../layer-error').dictionary;
 
 module.exports = {
@@ -18,7 +19,6 @@ module.exports = {
     _queriesHash: null,
   },
   events: [
-
 
   ],
   lifecycle: {
@@ -79,11 +79,17 @@ module.exports = {
      */
     createQuery(options) {
       let query;
+
       if (typeof options.build === 'function') {
-        query = new Query(this, options);
-      } else {
-        options.client = this;
-        query = new Query(options);
+        options = options.build();
+      }
+      options.client = this;
+      switch (options.model) {
+        case Query.Identity:
+          query = new IdentitiesQuery(options);
+          break;
+        default:
+          query = new Query(options);
       }
       this._addQuery(query);
       return query;

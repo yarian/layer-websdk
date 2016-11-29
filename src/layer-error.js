@@ -170,6 +170,7 @@ LayerError.dictionary = {
   invalidPredicate: 'The predicate does not match the expected format',
   appIdImmutable: 'The appId property cannot be changed',
   clientMustBeReady: 'The Client must have triggered its "ready" event before you can call this',
+  modelImmutable: 'The model property cannot be changed',
 };
 
 module.exports = LayerError;

@@ -1,5 +1,4 @@
 const Query = require('./query');
-const LayerError = require('./layer-error');
 
 /**
  * Query builder class generating queries for a set of messages.

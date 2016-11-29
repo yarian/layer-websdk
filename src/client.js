@@ -83,7 +83,7 @@
 
 const ClientAuth = require('./client-authenticator');
 const Conversation = require('./messaging/conversation');
-const Query = require('./query');
+const Query = require('./queries/query');
 const ErrorDictionary = require('./layer-error').dictionary;
 const Syncable = require('./syncable');
 const Message = require('./messaging/message');
