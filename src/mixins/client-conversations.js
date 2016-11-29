@@ -309,7 +309,7 @@ module.exports = {
      * Iterates over conversations calling a matching function until
      * the conversation is found or all conversations tested.
      *
-     *      var c = client.findConversation(function(conversation) {
+     *      var c = client.findCachedConversation(function(conversation) {
      *          if (conversation.participants.indexOf('a') != -1) return true;
      *      });
      *

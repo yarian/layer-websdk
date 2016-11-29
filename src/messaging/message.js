@@ -512,6 +512,7 @@ class Message extends Syncable {
    * @return {layer.Message} this
    */
   sendReceipt(type = Constants.RECEIPT_STATE.READ) {
+    if (this.channelId) return;
     if (type === Constants.RECEIPT_STATE.READ) {
       if (this.isRead) {
         return this;
@@ -543,6 +544,7 @@ class Message extends Syncable {
    * @param {string} [type=read] - One of layer.Constants.RECEIPT_STATE.READ or layer.Constants.RECEIPT_STATE.DELIVERY
    */
   _sendReceipt(type) {
+    if (this.channelId) return;
     // This little test exists so that we don't send receipts on Conversations we are no longer
     // participants in (participants = [] if we are not a participant)
     const conversation = this.getConversation(false);
@@ -595,9 +597,9 @@ class Message extends Syncable {
       throw new Error(LayerError.dictionary.clientMissing);
     }
 
-    const conversation = this.getConversation(true);
+    const parent = this.getParent(true);
 
-    if (!conversation) {
+    if (!parent) {
       throw new Error(LayerError.dictionary.conversationMissing);
     }
 
@@ -606,8 +608,8 @@ class Message extends Syncable {
     }
 
 
-    if (conversation.isLoading) {
-      conversation.once('conversations:loaded', () => this.send(notification));
+    if (parent.isLoading) {
+      parent.once(parent.constructor.eventPrefix + ':loaded', () => this.send(notification));
       return this;
     }
 
@@ -619,7 +621,7 @@ class Message extends Syncable {
 
     // Make sure that the Conversation has been created on the server
     // and update the lastMessage property
-    conversation.send(this);
+    parent.send(this);
 
     // If we are sending any File/Blob objects, and their Mime Types match our test,
     // wait until the body is updated to be a string rather than File before calling _addMessage
@@ -710,14 +712,14 @@ class Message extends Syncable {
    */
   _send(data) {
     const client = this.getClient();
-    const conversation = this.getConversation(false);
+    const parent = this.getParent(false);
 
     this.sentAt = new Date();
     client.sendSocketRequest({
       method: 'POST',
       body: {
         method: 'Message.create',
-        object_id: conversation.id,
+        object_id: parent.id,
         data,
       },
       sync: {

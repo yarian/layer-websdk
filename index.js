@@ -4,12 +4,13 @@ if (!global.layer) global.layer = {};
 /* istanbul ignore next */
 if (!global.layer.plugins) global.layer.plugins = {};
 
-var layer = global.layer;
+const layer = global.layer;
 layer.Root = require('./lib/root');
 layer.Client = require('./lib/client');
 layer.ClientAuthenticator = require('./lib/client-authenticator');
 layer.Syncable = require('./lib/syncable');
 layer.Conversation = require('./lib/messaging/conversation');
+layer.Channel = require('./lib/messaging/channel');
 layer.Message = require('./lib/messaging/message');
 layer.Announcement = require('./lib/messaging/announcement');
 layer.MessagePart = require('./lib/messaging/message-part');
@@ -36,4 +37,5 @@ layer.Util = require('./lib/client-utils');
 layer.TypingIndicators = require('./lib/typing-indicators/typing-indicators');
 layer.TypingIndicators.TypingListener = require('./lib/typing-indicators/typing-listener');
 layer.TypingIndicators.TypingPublisher = require('./lib/typing-indicators/typing-publisher');
+
 module.exports = layer;

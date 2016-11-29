@@ -4,6 +4,7 @@ module.exports = {
   ClientAuthenticator: require('./src/client-authenticator'),
   Syncable: require('./src/syncable'),
   Conversation: require('./src/messaging/conversation'),
+  Channel: require('./src/messaging/channel'),
   Message: require('./src/messaging/message'),
   Announcement: require('./src/messaging/announcement'),
   MessagePart: require('./src/messaging/message-part'),

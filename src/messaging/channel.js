@@ -48,6 +48,8 @@
 const Root = require('../root');
 const Syncable = require('../syncable');
 const Container = require('./container');
+const LayerError = require('../layer-error');
+const LayerEvent = require('../layer-event');
 const Util = require('../client-utils');
 const Constants = require('../const');
 
@@ -202,6 +204,58 @@ class Channel extends Container {
       fromServer: channel,
       _fromDB: channel._fromDB,
     });
+  }
+
+  /**
+   * Find or create a new Channel.
+   *
+   *      var channel = layer.Channel.create({
+   *          members: ['a', 'b'],
+   *          private: true,
+   *          metadata: {
+   *              titleDetails: 'I am not a detail!'
+   *          },
+   *          client: client,
+   *          'channels:loaded': function(evt) {
+   *
+   *          }
+   *      });
+   *
+   * Recommend using `client.createChannel({...})`
+   * instead of `Channel.create({...})`.
+   *
+   * @method create
+   * @static
+   * @protected
+   * @param  {Object} options
+   * @param  {layer.Client} options.client
+   * @param  {string[]/layer.Identity[]} options.members - Array of Participant IDs or layer.Identity objects to create a channel with.
+   * @param {boolean} [options.private=false] - Create a private channel
+   * @param {Object} [options.metadata={}] - Initial metadata for Channel
+   * @return {layer.Channel}
+   */
+  static create(options) {
+    if (!options.client) throw new Error(LayerError.dictionary.clientMissing);
+    if (!options.name) options.name = 'channel-' + String(Math.random()).replace(/\./, '');
+    const newOptions = {
+      name: options.name,
+      private: options.private,
+      members: options.client._fixIdentities(options.members),
+      metadata: options.metadata,
+      client: options.client,
+    };
+
+    const channel = options.client.findCachedChannel(aChannel => aChannel.name === newOptions.name);
+
+    if (channel) {
+      channel._sendDistinctEvent = new LayerEvent({
+        target: channel,
+        result: !options.metadata || Util.doesObjectMatch(options.metadata, channel.metadata) ?
+          Channel.FOUND : Channel.FOUND_WITHOUT_REQUESTED_METADATA,
+      }, 'channels:sent');
+    }
+
+    return channel || new Channel(newOptions);
   }
 }
 

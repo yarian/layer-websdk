@@ -65,12 +65,12 @@ module.exports = {
      *
      *      client.on('channels:change', function(evt) {
      *          var metadataChanges = evt.getChangesFor('metadata');
-     *          var participantChanges = evt.getChangesFor('participants');
+     *          var participantChanges = evt.getChangesFor('members');
      *          if (metadataChanges.length) {
      *              myView.renderTitle(evt.target.metadata.title);
      *          }
      *          if (participantChanges.length) {
-     *              myView.renderParticipants(evt.target.participants);
+     *              myView.rendermembers(evt.target.members);
      *          }
      *      });
      *
@@ -223,7 +223,7 @@ module.exports = {
      *
      *      var conv = new layer.Channel({
      *          client: client,
-     *          participants: ['a', 'b']
+     *          members: ['a', 'b']
      *      });
      *
      *      // OR:
@@ -296,6 +296,109 @@ module.exports = {
               .filter(id => this._messagesHash[id].parentId === oldId)
               .forEach(id => (this._messagesHash[id].parentId = channel.id));
       }
+    },
+
+    /**
+     * Searches locally cached channels for a matching channel.
+     *
+     * Iterates over channels calling a matching function until
+     * the channel is found or all channels tested.
+     *
+     *      var c = client.findCachedChannel(function(channel) {
+     *          if (channel.participants.indexOf('a') != -1) return true;
+     *      });
+     *
+     * @method findCachedChannel
+     * @param  {Function} f - Function to call until we find a match
+     * @param  {layer.Channel} f.channel - A channel to test
+     * @param  {boolean} f.return - Return true if the channel is a match
+     * @param  {Object} [context] - Optional context for the *this* object
+     * @return {layer.Channel}
+     *
+     * @deprecated
+     * This should be replaced by iterating over your layer.Query data.
+     */
+    findCachedChannel(func, context) {
+      const test = context ? func.bind(context) : func;
+      const list = Object.keys(this._channelsHash);
+      const len = list.length;
+      for (let index = 0; index < len; index++) {
+        const key = list[index];
+        const channel = this._channelsHash[key];
+        if (test(channel, index)) return channel;
+      }
+      return null;
+    },
+
+    /**
+     * This method is recommended way to create a Channel.
+     *
+     * There are a few ways to invoke it; note that the default behavior is to create a Public Channel
+     * unless otherwise stated via the layer.Channel.private property.
+     *
+     *         client.createChannel({members: ['a', 'b']});
+     *         client.createChannel({members: [userIdentityA, userIdentityB]});
+     *
+     *         client.createChannel({
+     *             members: ['a', 'b'],
+     *             private: true
+     *         });
+     *
+     *         client.createChannel({
+     *             members: ['a', 'b'],
+     *             metadata: {
+     *                 topicDetails: 'I am a detail'
+     *             }
+     *         });
+     *
+     * If you try to create a Distinct Conversation that already exists,
+     * you will get back an existing Conversation, and any requested metadata
+     * will NOT be set; you will get whatever metadata the matching Conversation
+     * already had.
+     *
+     * The default value for distinct is `true`.
+     *
+     * Whether the Channel already exists or not, a 'channels:sent' event
+     * will be triggered asynchronously and the Channel object will be ready
+     * at that time.  Further, the event will provide details on the result:
+     *
+     *       var channel = client.createChannel({
+     *          members: ['a', 'b'],
+     *          metadata: {
+     *                 topicDetails: 'I am a detail'
+     *          }
+     *       });
+     *       channel.on('channels:sent', function(evt) {
+     *           switch(evt.result) {
+     *               case Channel.CREATED:
+     *                   alert(channel.id + ' was created');
+     *                   break;
+     *               case Channel.FOUND:
+     *                   alert(channel.id + ' was found');
+     *                   break;
+     *               case Channel.FOUND_WITHOUT_REQUESTED_METADATA:
+     *                   alert(channel.id + ' was found but it already has a title so your requested title was not set');
+     *                   break;
+     *            }
+     *       });
+     *
+     * Warning: This method will throw an error if called when you are not (or are no longer) an authenticated user.
+     * That means if authentication has expired, and you have not yet reauthenticated the user, this will throw an error.
+     *
+     *
+     * @method createChannel
+     * @param  {Object} options
+     * @param {string[]/layer.Identity[]} members - Array of UserIDs or UserIdentities
+     * @param {Boolean} [options.distinct=true] Is this a distinct Channel?
+     * @param {Object} [options.metadata={}] Metadata for your Channel
+     * @return {layer.Channel}
+     */
+    createChannel(options) {
+      // If we aren't authenticated, then we don't yet have a UserID, and won't create the correct Channel
+      if (!this.isAuthenticated) throw new Error(ErrorDictionary.clientMustBeReady);
+      if (!('private' in options)) options.private = false;
+      options.client = this;
+      return Channel.create(options);
     },
   },
 };
