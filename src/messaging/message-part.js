@@ -35,7 +35,9 @@
  * layer.MessagePart.TextualMimeTypes = ['text/plain', 'text/mountain', /^application\/json(\+.+)$/]
  * ```
  *
- * Any mimeType matching the above strings and regular expressions will be transformed to text before being delivered to your app; otherwise it must be a Blob.
+ * Any mimeType matching the above strings and regular expressions will be transformed to text before being delivered to your app; otherwise it
+ * must be a Blob.  Note that the above snippet sets a static property that is set once, and affects all MessagePart objects for the lifespan of
+ * the app.
  *
  * ### Accesing Rich Content
  *

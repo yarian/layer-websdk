@@ -216,7 +216,7 @@ class ClientAuthenticator extends Root {
    *
    * Called by constructor().
    *
-   * Will either attempt to validate the cached sessionToken by getting converations,
+   * Will either attempt to validate the cached sessionToken by getting conversations,
    * or if no sessionToken, will call /nonces to start process of getting a new one.
    *
    * ```javascript

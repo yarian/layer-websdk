@@ -19,7 +19,17 @@ const LayerError = require('../layer-error');
 
 
 class Announcement extends Message {
+
+  /**
+   * @method send
+   * @ignore
+   */
   send() {}
+
+  /**
+   * @method getConversation
+   * @ignore
+   */
   getConversation() {}
 
   _loaded(data) {
@@ -69,6 +79,74 @@ class Announcement extends Message {
     });
   }
 }
+
+/**
+ * @property {String} conversationId
+ * @hide
+ */
+
+/**
+ * @property {String} channelId
+ * @hide
+ */
+
+/**
+ * @property {Object} deliveryStatus
+ * @hide
+ */
+
+/**
+ * @property {Object} readStatus
+ * @hide
+ */
+
+/**
+ * @property {Object} recipientStatus
+ * @hide
+ */
+
+/**
+ * @method getConversation
+ * @hide
+ */
+
+/**
+ * @method getChannel
+ * @hide
+ */
+
+/**
+ * @method getParent
+ * @hide
+ */
+
+/**
+ * @method addPart
+ * @hide
+ */
+
+/**
+ * @method send
+ * @hide
+ */
+
+/**
+ * @method isSaved
+ * @hide
+ */
+
+/**
+ * @method isSaving
+ * @hide
+ */
+
+/**
+ * Announcement parentId is hardcoded to `announcement`.
+ *
+ * @property {String} [parentId='announcement']
+ * @readonly
+ */
+Announcement.prototype.parentId = 'announcement';
 
 Announcement.prefixUUID = 'layer:///announcements/';
 

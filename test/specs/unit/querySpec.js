@@ -700,7 +700,8 @@ describe("The Query Class", function() {
           query.predicate = 'conversation.id = "' + conversation.id + '"'
           expect(query._getConversationPredicateIds()).toEqual({
             uuid: conversation.id.replace(/layer\:\/\/\/conversations\//, ""),
-            id: conversation.id
+            id: conversation.id,
+            type: layer.Query.Conversation
           });
         });
 
@@ -816,7 +817,8 @@ describe("The Query Class", function() {
         it("Should set isFiring to true if _getConversationPredicateIds returns an id", function() {
             spyOn(query, "_getConversationPredicateIds").and.returnValue({
               uuid: conversation.id.replace(/^layer\:\/\/\/conversations\//,''),
-              id: conversation.id
+              id: conversation.id,
+              type: layer.Query.Conversation
             });
             query.isFiring = false;
             query._runMessage(37);

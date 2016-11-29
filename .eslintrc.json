@@ -13,7 +13,8 @@
     "no-underscore-dangle": 0,
     "no-unused-vars": [2, {"args": "none"}],
     "operator-assignment": 0,
-    "no-restricted-syntax": 0
+    "no-restricted-syntax": 0,
+    "no-plusplus": 0
   },
   "env": {
       "browser": true,

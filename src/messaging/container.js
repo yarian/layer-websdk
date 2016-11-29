@@ -81,7 +81,7 @@ class Container extends Syncable {
 
     // IDs change if the server returns a matching Container
     if (id !== this.id) {
-      client._updateConversationId(this, id);
+      client._updateContainerId(this, id);
       this._triggerAsync(`${this.constructor.eventPrefix}:change`, {
         oldValue: id,
         newValue: this.id,
@@ -92,7 +92,6 @@ class Container extends Syncable {
     this.url = container.url;
     this.createdAt = new Date(container.created_at);
   }
-
 
 
   /**
@@ -140,7 +139,7 @@ class Container extends Syncable {
    * See layer.Message for more options for creating the message.
    *
    * @method createMessage
-   * @param  {string|Object} options - If its a string, a MessagePart is created around that string.
+   * @param  {String|Object} options - If its a string, a MessagePart is created around that string.
    * @param {layer.MessagePart[]} options.parts - An array of MessageParts.  There is some tolerance for
    *                                               it not being an array, or for it being a string to be turned
    *                                               into a MessagePart.
@@ -151,7 +150,7 @@ class Container extends Syncable {
       parts: [{ body: options, mimeType: 'text/plain' }],
     } : options;
     messageConfig.clientId = this.clientId;
-    messageConfig.conversationId = this.id;
+    messageConfig.parentId = this.id;
 
     return new Message(messageConfig);
   }

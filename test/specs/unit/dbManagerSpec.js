@@ -189,6 +189,7 @@ describe("The DbManager Class", function() {
           client: client,
           tables: {
             conversations: true,
+            channels: true,
             messages: true,
             identities: false,
             syncQueue: true
@@ -205,6 +206,7 @@ describe("The DbManager Class", function() {
           client: client,
           tables: {
             conversations: true,
+            channels: true,
             messages: false,
             identities: false,
             syncQueue: true
@@ -415,7 +417,7 @@ describe("The DbManager Class", function() {
             recipient_status: message.recipientStatus,
             sent_at: message.sentAt.toISOString(),
             received_at: message.receivedAt.toISOString(),
-            conversation: message.conversationId,
+            parentId: message.conversationId,
             is_unread: false,
             sender: {
               id: "layer:///identities/Frodo",
@@ -464,7 +466,7 @@ describe("The DbManager Class", function() {
             sent_at: message.sentAt.toISOString(),
             received_at: message.receivedAt.toISOString(),
             is_unread: true,
-            conversation: 'announcement',
+            parentId: 'announcement',
             sender: {
               user_id: '',
               id: '',
@@ -505,7 +507,7 @@ describe("The DbManager Class", function() {
             recipient_status: message.recipientStatus,
             sent_at: message.sentAt.toISOString(),
             received_at: message.receivedAt.toISOString(),
-            conversation: message.conversationId,
+            parentId: message.conversationId,
             is_unread: false,
             sender: {
               id: "layer:///identities/Frodo",
@@ -558,7 +560,7 @@ describe("The DbManager Class", function() {
             recipient_status: message.recipientStatus,
             sent_at: message.sentAt.toISOString(),
             received_at: message.receivedAt.toISOString(),
-            conversation: message.conversationId,
+            parentId: message.conversationId,
             is_unread: false,
             sender: {
               id: "layer:///identities/Frodo",
@@ -596,7 +598,7 @@ describe("The DbManager Class", function() {
             recipient_status: message.recipientStatus,
             sent_at: message.sentAt.toISOString(),
             received_at: message.receivedAt.toISOString(),
-            conversation: 'announcement',
+            parentId: 'announcement',
             is_unread: message.isUnread,
             sender: {
               user_id: 'admin',
@@ -1061,7 +1063,7 @@ describe("The DbManager Class", function() {
 
 
         var range = dbManager._loadByIndex.calls.allArgs()[0][2];
-        expect(dbManager._loadByIndex).toHaveBeenCalledWith('messages', 'conversation', jasmine.any(IDBKeyRange), false, undefined, jasmine.any(Function));
+        expect(dbManager._loadByIndex).toHaveBeenCalledWith('messages', 'parent', jasmine.any(IDBKeyRange), false, undefined, jasmine.any(Function));
         expect(range.lower).toEqual([conversation.id, 0]);
         expect(range.upper).toEqual([conversation.id, MAX_SAFE_INTEGER]);
       });
@@ -1071,7 +1073,7 @@ describe("The DbManager Class", function() {
         dbManager.loadMessages(conversation.id, message.id, 12);
 
         var range = dbManager._loadByIndex.calls.allArgs()[0][2];
-        expect(dbManager._loadByIndex).toHaveBeenCalledWith('messages', 'conversation', jasmine.any(IDBKeyRange), true, 12, jasmine.any(Function));
+        expect(dbManager._loadByIndex).toHaveBeenCalledWith('messages', 'parent', jasmine.any(IDBKeyRange), true, 12, jasmine.any(Function));
         expect(range.lower).toEqual([conversation.id, 0]);
         expect(range.upper).toEqual([conversation.id, message.position]);
       });
@@ -1093,7 +1095,7 @@ describe("The DbManager Class", function() {
         dbManager.loadAnnouncements();
 
         var range = dbManager._loadByIndex.calls.allArgs()[0][2];
-        expect(dbManager._loadByIndex).toHaveBeenCalledWith('messages', 'conversation', jasmine.any(IDBKeyRange), false, undefined, jasmine.any(Function));
+        expect(dbManager._loadByIndex).toHaveBeenCalledWith('messages', 'parent', jasmine.any(IDBKeyRange), false, undefined, jasmine.any(Function));
         expect(range.lower).toEqual(['announcement', 0]);
         expect(range.upper).toEqual(['announcement', MAX_SAFE_INTEGER]);
       });
@@ -1102,7 +1104,7 @@ describe("The DbManager Class", function() {
         spyOn(dbManager, "_loadByIndex");
         dbManager.loadAnnouncements(announcement.id, 12);
         var range = dbManager._loadByIndex.calls.allArgs()[0][2];
-        expect(dbManager._loadByIndex).toHaveBeenCalledWith('messages', 'conversation', jasmine.any(IDBKeyRange), true, 12, jasmine.any(Function));
+        expect(dbManager._loadByIndex).toHaveBeenCalledWith('messages', 'parent', jasmine.any(IDBKeyRange), true, 12, jasmine.any(Function));
         expect(range.lower).toEqual(['announcement', 0]);
         expect(range.upper).toEqual(['announcement', announcement.position]);
       });
@@ -1568,7 +1570,7 @@ describe("The DbManager Class", function() {
         var expectedResult;
         dbManager._getMessageData([m2, m1], function(result) { expectedResult = result; });
         const query = window.IDBKeyRange.bound([conversation.id, 0], [conversation.id, MAX_SAFE_INTEGER]);
-        dbManager._loadByIndex('messages', 'conversation', query, false, null, function(result) {
+        dbManager._loadByIndex('messages', 'parent', query, false, null, function(result) {
           var sortedExpect =  layer.Util.sortBy(expectedResult, function(item) {return item.position}).reverse();
           expect(result).toEqual(sortedExpect);
           done();
@@ -1580,7 +1582,7 @@ describe("The DbManager Class", function() {
         dbManager._getMessageData([m2, m1, message], function(result) { expectedResult = result; });
 
         const query = window.IDBKeyRange.bound([conversation.id, 0], [conversation.id, MAX_SAFE_INTEGER]);
-        dbManager._loadByIndex('messages', 'conversation', query, false, 2, function(result) {
+        dbManager._loadByIndex('messages', 'parent', query, false, 2, function(result) {
           var sortedExpect =  layer.Util.sortBy(expectedResult, function(item) {return item.position}).reverse();
 
           expect(result).toEqual([sortedExpect[0], sortedExpect[1]]);
@@ -1593,7 +1595,7 @@ describe("The DbManager Class", function() {
         dbManager._getMessageData([m2, m1], function(result) { expectedResult = result; });
 
         const query = window.IDBKeyRange.bound([conversation.id, 0], [conversation.id, MAX_SAFE_INTEGER]);
-        dbManager._loadByIndex('messages', 'conversation', query, true, null, function(result) {
+        dbManager._loadByIndex('messages', 'parent', query, true, null, function(result) {
           var sortedExpect =  layer.Util.sortBy(expectedResult, function(item) {return item.position}).reverse();
 
           expect(result).toEqual([sortedExpect[1]]);
@@ -1608,7 +1610,7 @@ describe("The DbManager Class", function() {
           tables: {messages: false}
          });
         const query = window.IDBKeyRange.bound([conversation.id, 0], [conversation.id, MAX_SAFE_INTEGER]);
-        dbManager._loadByIndex('messages', 'conversation', query, false, null, function(result) {
+        dbManager._loadByIndex('messages', 'parent', query, false, null, function(result) {
           expect(result).toEqual([]);
           done();
         });
@@ -1687,9 +1689,6 @@ describe("The DbManager Class", function() {
         var expectedResult;
         dbManager._getMessageData([m1], function(result) {
           expectedResult = result;
-          expectedResult[0].conversation = {
-            id: expectedResult[0].conversation
-          };
         });
         dbManager.getObject('messages', m1.id, function(result) {
           result.parts.pop(); expectedResult[0].parts.pop(); // Next test focuses on blobs

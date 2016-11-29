@@ -391,7 +391,7 @@ describe("The Message class", function() {
 
         it("Should load the Conversation", function() {
             var m = new layer.Message({
-                conversationId: conversation.id + 'a',
+                parentId: conversation.id + 'a',
                 client: client
             });
             var c = m.getConversation(true);
@@ -402,7 +402,7 @@ describe("The Message class", function() {
 
         it("Should not load the Conversation", function() {
             var m = new layer.Message({
-                conversationId: conversation.id + 'a',
+                parentId: conversation.id + 'a',
                 client: client
             });
             var c = m.getConversation(false);
@@ -563,7 +563,7 @@ describe("The Message class", function() {
           m = new layer.Message({
               client: client,
               fromServer: messageData,
-              conversationId: conversation.id
+              parentId: conversation.id
           });
       });
 
@@ -583,8 +583,8 @@ describe("The Message class", function() {
       });
 
       it("Should return {} for a new Message with no Conversation", function() {
-        m.conversationId = '';
-        m.recipientStatus = null;
+        m.parentId = '';
+        m.__recipientStatus = null;
         expect(m.recipientStatus).toEqual({});
       });
 
@@ -613,7 +613,7 @@ describe("The Message class", function() {
             };
             m = new layer.Message({
               client: client,
-              conversationId: conversation.id,
+              parentId: conversation.id,
               fromServer: messageData
           });
         });
@@ -1160,8 +1160,8 @@ describe("The Message class", function() {
             }).toThrowError(layer.LayerError.dictionary.clientMissing);
         });
 
-        it("Should fail if conversationId is missing", function() {
-            delete m.conversationId;
+        it("Should fail if parentId is missing", function() {
+            delete m.parentId;
 
             // Run
             expect(function() {
@@ -1170,12 +1170,12 @@ describe("The Message class", function() {
         });
 
         it("Should load Conversation if missing", function() {
-            client._removeConversation(client.getConversation(m.conversationId));
-            expect(client.getConversation(m.conversationId)).toBe(null);
+            client._removeConversation(client.getConversation(m.parentId));
+            expect(client.getConversation(m.parentId)).toBe(null);
 
             // Run
              m.send();
-            var conversation = client.getConversation(m.conversationId);
+            var conversation = client.getConversation(m.parentId);
             expect(conversation).toEqual(jasmine.any(layer.Conversation));
             expect(conversation.isLoading).toBe(true);
         });
@@ -1468,7 +1468,7 @@ describe("The Message class", function() {
           m.destroy();
       });
       it("Should update the Conversation ID of a create request", function() {
-        m.conversationId = "new id";
+        m.parentId = "new id";
         expect(m._getSendData({
           method: 'Message.create',
           object_id: conversation.id,
@@ -1508,7 +1508,7 @@ describe("The Message class", function() {
           m.destroy();
       });
       it("Should update the Conversation ID of a create request", function() {
-        m.conversationId = "new id";
+        m.parentId = "new id";
         expect(m._getSendData({
           method: 'Message.create',
           object_id: conversation.id,
@@ -2412,7 +2412,7 @@ describe("The Message class", function() {
       });
 
       it("Should setup the Conversation ID", function() {
-        message.conversationId = '';
+        message.parentId = '';
         message._loaded(responses.message1);
         expect(message.conversationId).toEqual(responses.message1.conversation.id);
       });

@@ -213,6 +213,83 @@ class ConversationsQuery {
   }
 }
 
+/**
+ * Query builder class generating queries for a set of Channels.
+ *
+ * Used in Creating and Updating layer.Query instances.
+ *
+ * To get started:
+ *
+ *      var qBuilder = QueryBuilder
+ *       .channels()
+ *       .paginationWindow(100);
+ *      var query = client.createQuery(qBuilder);
+ *
+ * You can then create additional builders and update the query:
+ *
+ *      var qBuilder2 = QueryBuilder
+ *       .conversations()
+ *       .paginationWindow(200);
+ *      query.update(qBuilder);
+ *
+ * @class layer.QueryBuilder.ChannelsQuery
+ */
+class ChannelsQuery {
+
+  /**
+   * Creates a new query builder for a set of conversations.
+   *
+   * Standard use is without any arguments.
+   *
+   * @method constructor
+   * @param  {Object} [query=null]
+   */
+  constructor(query) {
+    if (query) {
+      this._query = {
+        model: query.model,
+        returnType: query.returnType,
+        dataType: query.dataType,
+        paginationWindow: query.paginationWindow,
+        sortBy: null,
+      };
+    } else {
+      this._query = {
+        model: Query.Conversation,
+        returnType: 'object',
+        dataType: 'object',
+        paginationWindow: Query.prototype.paginationWindow,
+        sortBy: null,
+      };
+    }
+  }
+
+  /**
+   * Sets the pagination window/number of messages to fetch from the local cache or server.
+   *
+   * Currently only positive integers are supported.
+   *
+   * @method paginationWindow
+   * @param  {number} win
+   * @return {layer.QueryBuilder} this
+   */
+  paginationWindow(win) {
+    this._query.paginationWindow = win;
+    return this;
+  }
+
+  /**
+   * Returns the built query object to send to the server.
+   *
+   * Called by layer.QueryBuilder. You should not need to call this.
+   *
+   * @method build
+   */
+  build() {
+    return this._query;
+  }
+}
+
 
 /**
  * Query builder class generating queries for a set of Identities followed by this user.
@@ -332,6 +409,17 @@ const QueryBuilder = {
   },
 
   /**
+   * Create a new layer.ChannelsQuery instance.
+   *
+   * @method conversations
+   * @static
+   * @returns {layer.QueryBuilder.ChannelsQuery}
+   */
+  channels() {
+    return new ChannelsQuery();
+  },
+
+  /**
    * Create a new layer.IdentitiesQuery instance.
    *
    * @method identities
@@ -360,6 +448,8 @@ const QueryBuilder = {
         return new AnnouncementsQuery(obj);
       case Query.Conversation:
         return new ConversationsQuery(obj);
+      case Query.Channel:
+        return new ChannelsQuery(obj);
       case Query.Identity:
         return new IdentitiesQuery(obj);
       default:

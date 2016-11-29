@@ -162,7 +162,7 @@ module.exports = {
     'conversations:delete',
   ],
   lifecycle: {
-     constructor(options) {
+    constructor(options) {
       this._conversationsHash = {};
     },
     cleanup() {
@@ -257,7 +257,7 @@ module.exports = {
      * Typically, you do not need to call this; the following code
      * automatically calls _removeConversation for you:
      *
-     *      converation.destroy();
+     *      conversation.destroy();
      *
      * @method _removeConversation
      * @protected
@@ -273,7 +273,7 @@ module.exports = {
       }
 
       // Remove any Message associated with this Conversation
-      Object.keys(this._messagesHash).forEach(id => {
+      Object.keys(this._messagesHash).forEach((id) => {
         if (this._messagesHash[id].conversationId === conversation.id) {
           this._messagesHash[id].destroy();
         }
@@ -297,10 +297,11 @@ module.exports = {
         // conversationId properties of all Messages or the Query's won't
         // see these as matching the query.
         Object.keys(this._messagesHash)
-              .filter(id => this._messagesHash[id].conversationId === oldId)
-              .forEach(id => (this._messagesHash[id].conversationId = conversation.id));
+              .filter(id => this._messagesHash[id].parentId === oldId)
+              .forEach(id => (this._messagesHash[id].parentId = conversation.id));
       }
     },
+
 
     /**
      * Searches locally cached conversations for a matching conversation.
@@ -393,7 +394,7 @@ module.exports = {
      * @method createConversation
      * @param  {Object} options
      * @param {string[]/layer.Identity[]} participants - Array of UserIDs or UserIdentities
-     * @param {Boolean} [options.distinct=true] Is this a distinct Converation?
+     * @param {Boolean} [options.distinct=true] Is this a distinct Conversation?
      * @param {Object} [options.metadata={}] Metadata for your Conversation
      * @return {layer.Conversation}
      */
@@ -403,6 +404,6 @@ module.exports = {
       if (!('distinct' in options)) options.distinct = true;
       options.client = this;
       return Conversation.create(options);
-    }
-  }
+    },
+  },
 };

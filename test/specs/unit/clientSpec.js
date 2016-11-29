@@ -156,7 +156,7 @@ describe("The Client class", function() {
 
         describe("The _cleanup() method", function() {
             afterEach(function() {
-                client._messagesHash = client._conversationsHash = client._queriesHash = client._identitiesHash = {};
+                client._channelsHash = client._messagesHash = client._conversationsHash = client._queriesHash = client._identitiesHash = {};
             });
 
             it("Should destroy all Messages", function() {
@@ -164,7 +164,7 @@ describe("The Client class", function() {
                 var conversation = client.createConversation({ participants: ["a"] });
                 var message = conversation.createMessage("Hi").send();
                 conversation.lastMessage = null;
-                message.conversationId = "c1";
+                message.parentId = "c1";
 
                 // Pretest
                 expect(client._messagesHash[message.id]).toBe(message);
@@ -178,6 +178,7 @@ describe("The Client class", function() {
             });
 
             it("Should destroy all Conversations", function() {
+                debugger;
                 // Setup
                 var conversation = client.createConversation({ participants: ["a"] });
 
@@ -493,8 +494,8 @@ describe("The Client class", function() {
                 client._updateConversationId(c1, c1id);
 
                 // Posttest
-                expect(m1.conversationId).toEqual("fred");
-                expect(m2.conversationId).toEqual("fred");
+                expect(m1.parentId).toEqual("fred");
+                expect(m2.parentId).toEqual("fred");
             });
 
         });
@@ -634,7 +635,7 @@ describe("The Client class", function() {
 
         it("Should call _scheduleCheckAndPurgeCache if no Conversation found", function() {
                 spyOn(client, "_scheduleCheckAndPurgeCache");
-                message.conversationId = '';
+                message.parentId = '';
                 client._messagesHash = {};
 
                 // Run

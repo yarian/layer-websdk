@@ -372,7 +372,7 @@ describe("The Syncable Class", function() {
         it("Should call _addMessage if message success", function() {
             // Setup
             spyOn(client, "_addMessage");
-            message.conversationId = '';
+            message.parentId = '';
 
             // Run
             message._loadResult({
@@ -388,7 +388,7 @@ describe("The Syncable Class", function() {
         it("Should call _addMessage if announcement success", function() {
             // Setup
             spyOn(client, "_addMessage");
-            announcement.conversationId = '';
+            announcement.parentId = '';
 
             // Run
             announcement._loadResult({

@@ -119,6 +119,7 @@ module.exports = function (grunt) {
           "lib/syncable.js": "src/syncable.js",
           "lib/messaging/container.js": "src/messaging/container.js",
           "lib/messaging/conversation.js": "src/messaging/conversation.js",
+          "lib/messaging/channel.js": "src/messaging/channel.js",
           "lib/messaging/message-part.js": "src/messaging/message-part.js",
           "lib/messaging/message.js": "src/messaging/message.js",
           "lib/messaging/announcement.js": "src/messaging/announcement.js",
@@ -269,7 +270,7 @@ module.exports = function (grunt) {
     // Documentation
     jsduck: {
       build: {
-        src: ["lib/**.js", "lib/typing-indicators/**.js", "lib/websockets/**.js", "lib/mixins/**.js"],
+        src: ["lib/**.js", "lib/messaging/**.js", "lib/typing-indicators/**.js", "lib/websockets/**.js", "lib/mixins/**.js"],
         dest: 'docs',
         options: {
           'builtin-classes': false,

@@ -5,7 +5,6 @@
  */
 
 const Syncable = require('../syncable');
-const Message = require('../messaging/message');
 const ErrorDictionary = require('../layer-error').dictionary;
 
 module.exports = {
@@ -318,8 +317,8 @@ module.exports = {
      * @param {number} fromPosition
      */
     _purgeMessagesByPosition(conversationId, fromPosition) {
-      Object.keys(this._messagesHash).forEach(mId => {
-        const message = this._messagesHash[mId];
+      Object.keys(this._messagesHash).forEach((id) => {
+        const message = this._messagesHash[id];
         if (message.conversationId === conversationId && message.position <= fromPosition) {
           message.destroy();
         }

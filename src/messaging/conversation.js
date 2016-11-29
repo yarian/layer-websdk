@@ -46,14 +46,13 @@
  * Finally, to access a list of Messages in a Conversation, see layer.Query.
  *
  * @class  layer.Conversation
- * @extends layer.Syncable
+ * @extends layer.Container
  * @author  Michael Kantor
  */
 
 const Root = require('../root');
 const Syncable = require('../syncable');
 const Container = require('./container');
-const Message = require('./message');
 const LayerError = require('../layer-error');
 const Util = require('../client-utils');
 const Constants = require('../const');
@@ -160,7 +159,7 @@ class Conversation extends Container {
       // WARNING: The query will NOT be resorted using the server's position value.
       let position;
       if (this.lastMessage) {
-        position = this.lastMessage.position + Date.now() - this.lastMessage.sentAt.getTime();
+        position = (this.lastMessage.position + Date.now()) - this.lastMessage.sentAt.getTime();
         if (position === this.lastMessage.position) position++;
       } else {
         position = 0;
@@ -197,7 +196,7 @@ class Conversation extends Container {
         depends: this.id,
         target: this.id,
       },
-    }, (result) => this._createResult(result));
+    }, result => this._createResult(result));
     return this;
   }
 
@@ -439,7 +438,7 @@ class Conversation extends Container {
     this.isCurrentParticipant = this.participants.indexOf(this.getClient().user) !== -1;
 
     const ops = [];
-    change.remove.forEach(participant => {
+    change.remove.forEach((participant) => {
       ops.push({
         operation: 'remove',
         property: 'participants',
@@ -447,7 +446,7 @@ class Conversation extends Container {
       });
     });
 
-    change.add.forEach(participant => {
+    change.add.forEach((participant) => {
       ops.push({
         operation: 'add',
         property: 'participants',
@@ -462,7 +461,7 @@ class Conversation extends Container {
       headers: {
         'content-type': 'application/vnd.layer-patch+json',
       },
-    }, result => {
+    }, (result) => {
       if (!result.success) this._load();
     });
   }
@@ -481,10 +480,10 @@ class Conversation extends Container {
    */
   _applyParticipantChange(change) {
     const participants = [].concat(this.participants);
-    change.add.forEach(participant => {
+    change.add.forEach((participant) => {
       if (participants.indexOf(participant) === -1) participants.push(participant);
     });
-    change.remove.forEach(participant => {
+    change.remove.forEach((participant) => {
       const index = participants.indexOf(participant);
       if (index !== -1) participants.splice(index, 1);
     });
@@ -654,7 +653,7 @@ class Conversation extends Container {
    */
   setMetadataProperties(props) {
     const layerPatchOperations = [];
-    Object.keys(props).forEach(name => {
+    Object.keys(props).forEach((name) => {
       let fullName = name;
       if (name) {
         if (name !== 'metadata' && name.indexOf('metadata.') !== 0) {
@@ -687,7 +686,7 @@ class Conversation extends Container {
       headers: {
         'content-type': 'application/vnd.layer-patch+json',
       },
-    }, result => {
+    }, (result) => {
       if (!result.success && !this.isDestroyed) this._load();
     });
 
@@ -721,7 +720,7 @@ class Conversation extends Container {
    */
   deleteMetadataProperties(props) {
     const layerPatchOperations = [];
-    props.forEach(property => {
+    props.forEach((property) => {
       if (property !== 'metadata' && property.indexOf('metadata.') !== 0) {
         property = 'metadata.' + property;
       }
@@ -750,7 +749,7 @@ class Conversation extends Container {
       headers: {
         'content-type': 'application/vnd.layer-patch+json',
       },
-    }, result => {
+    }, (result) => {
       if (!result.success) this._load();
     });
 
@@ -931,7 +930,7 @@ class Conversation extends Container {
   }
 
   /**
-   * Find or create a new converation.
+   * Find or create a new conversation.
    *
    *      var conversation = layer.Conversation.create({
    *          participants: ['a', 'b'],
@@ -1001,7 +1000,7 @@ class Conversation extends Container {
       participantsHash[participant.id] = participant;
     });
 
-    const conv = options.client.findCachedConversation(aConv => {
+    const conv = options.client.findCachedConversation((aConv) => {
       if (aConv.distinct && aConv.participants.length === options.participants.length) {
         for (let index = 0; index < aConv.participants.length; index++) {
           if (!participantsHash[aConv.participants[index].id]) return false;

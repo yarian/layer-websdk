@@ -613,6 +613,7 @@ describe("The Conversation Class", function() {
             conversation._createResult({success: false, data: {
                 id: 'conflict',
                 data:{
+                    id: 'layer:///conversations/frododialog',
                     participants: []
                 }
             }});

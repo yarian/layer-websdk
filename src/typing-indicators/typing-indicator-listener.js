@@ -258,7 +258,7 @@ TypingIndicatorListener._supportedEvents = [
    * @param {layer.LayerEvent} evt
    * @param {layer.Identity[]} evt.typing - Array of Identities of people who are typing
    * @param {layer.Identity[]} evt.paused - Array of Identities of people who are paused
-   * @param {string} evt.conversationId - ID of the Converation that has changed typing indicator state
+   * @param {string} evt.conversationId - ID of the Conversation that has changed typing indicator state
    */
   'typing-indicator-change',
 ].concat(Root._supportedEvents);

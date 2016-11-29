@@ -8,6 +8,7 @@
           "layer.Client",
           "layer.Identity",
           "layer.Conversation",
+          "layer.Channel",
           "layer.Message",
           "layer.Announcement",
           "layer.MessagePart",

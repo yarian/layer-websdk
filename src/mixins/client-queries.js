@@ -119,6 +119,5 @@ module.exports = {
         this.off(null, null, query);
       }
     },
-
   },
 };

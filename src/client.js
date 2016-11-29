@@ -76,6 +76,7 @@
  * @extends layer.ClientAuthenticator
  * @mixin layer.mixins.ClientIdentities
  * @mixin layer.mixins.ClientConversations
+ * @mixin layer.mixins.ClientChannels
  * @mixin layer.mixins.ClientMessages
  * @mixin layer.mixins.ClientQueries
  */
@@ -169,11 +170,6 @@ class Client extends ClientAuth {
     if (this.appId) throw new Error(ErrorDictionary.appIdImmutable);
   }
 
-
-
-
-
-
   /**
    * Takes an array of Identity instances, User IDs, Identity IDs, Identity objects,
    * or Server formatted Identity Objects and returns an array of Identity instances.
@@ -256,6 +252,14 @@ class Client extends ClientAuth {
       }
     }
     return null;
+  }
+
+  _updateContainerId(container, oldId) {
+    if (container instanceof Conversation) {
+      this._updateConversationId(container, oldId);
+    } else {
+      this._updateContainerId(container, oldId);
+    }
   }
 
   /**
@@ -650,6 +654,7 @@ Client.mixins = [
   require('./mixins/client-queries'),
   require('./mixins/client-identities'),
   require('./mixins/client-conversations'),
+  require('./mixins/client-channels'),
   require('./mixins/client-messages'),
 ];
 Root.initClass.apply(Client, [Client, 'Client']);

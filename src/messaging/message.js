@@ -5,10 +5,13 @@
  * The simplest way to create and send a message is:
  *
  *      var m = conversation.createMessage('Hello there').send();
+ *      var m = channel.createMessage('Hello there').send();
  *
  * For conversations that involve notifications (primarily for Android and IOS), the more common pattern is:
  *
  *      var m = conversation.createMessage('Hello there').send({text: "Message from Fred: Hello there"});
+ *
+ * Channels do not at this time support notifications.
  *
  * Typically, rendering would be done as follows:
  *
@@ -145,7 +148,8 @@ class Message extends Syncable {
 
     if (options.client) options.clientId = options.client.appId;
     if (!options.clientId) throw new Error('clientId property required to create a Message');
-    if (options.conversation) options.conversationId = options.conversation.id;
+    if (options.conversation) options.parentId = options.conversation.id;
+    if (options.channel) options.parentId = options.channel.id;
 
     // Insure __adjustParts is set AFTER clientId is set.
     const parts = options.parts;
@@ -186,11 +190,47 @@ class Message extends Syncable {
    * Uses the layer.Message.conversationId.
    *
    * @method getConversation
+   * @param {Boolean} load       Pass in true if the layer.Conversation should be loaded if not found locally
    * @return {layer.Conversation}
    */
   getConversation(load) {
     if (this.conversationId) {
       return ClientRegistry.get(this.clientId).getConversation(this.conversationId, load);
+    }
+    return null;
+  }
+
+  /**
+   * Get the layer.Channel associated with this layer.Message.
+   *
+   * Uses the layer.Message.channelId.
+   *
+   * @method getChannel
+   * @param {Boolean} load       Pass in true if the layer.Channel should be loaded if not found locally
+   * @return {layer.Channel}
+   */
+  getChannel(load) {
+    if (this.channelId) {
+      return ClientRegistry.get(this.clientId).getChannel(this.channelId, load);
+    }
+    return null;
+  }
+
+  /**
+   * Get the layer.Channel or layer.Conversation associated with this layer.Message,
+   * without having to figure out which one you are looking for.
+   *
+   * Uses the layer.Message.channelId or layer.Message.conversationId.
+   *
+   * @method getParent
+   * @param {Boolean} load       Pass in true if the layer.Conversation or layer.Channel should be loaded if not found locally
+   * @return {layer.Root}
+   */
+  getParent(load) {
+    if (this.channelId) {
+      return this.getChannel(load);
+    } else if (this.conversationId) {
+      return this.getConversation(load);
     }
     return null;
   }
@@ -216,7 +256,7 @@ class Message extends Syncable {
         clientId: this.clientId,
       })];
     } else if (Array.isArray(parts)) {
-      return parts.map(part => {
+      return parts.map((part) => {
         let result;
         if (part instanceof MessagePart) {
           result = part;
@@ -272,13 +312,14 @@ class Message extends Syncable {
    * @return {Object}
    */
   __getRecipientStatus(pKey) {
+    if (this.channelId) return {};
     const value = this[pKey] || {};
     const client = this.getClient();
     if (client) {
       const id = client.user.id;
       const conversation = this.getConversation(false);
       if (conversation) {
-        conversation.participants.forEach(participant => {
+        conversation.participants.forEach((participant) => {
           if (!value[participant.id]) {
             value[participant.id] = participant.id === id ?
               Constants.RECEIPT_STATE.READ : Constants.RECEIPT_STATE.PENDING;
@@ -365,7 +406,7 @@ class Message extends Syncable {
       deliveredCount = 0;
     Object.keys(status)
       .filter(participant => participant !== id)
-      .forEach(participant => {
+      .forEach((participant) => {
         if (status[participant] === Constants.RECEIPT_STATE.READ) {
           readCount++;
           deliveredCount++;
@@ -420,6 +461,7 @@ class Message extends Syncable {
    * @param  {boolean} value - True if isRead is true.
    */
   __updateIsRead(value) {
+    // RESUME HERE.... MOVE THIS TO PARENT CONTAINER
     if (value) {
       if (!this._inPopulateFromServer) {
         this._sendReceipt(Constants.RECEIPT_STATE.READ);
@@ -639,7 +681,7 @@ class Message extends Syncable {
     const client = this.getClient();
     let count = 0;
     this.parts.forEach((part, index) => {
-      part.once('parts:send', evt => {
+      part.once('parts:send', (evt) => {
         data.parts[index] = {
           mime_type: evt.mime_type,
         };
@@ -679,14 +721,14 @@ class Message extends Syncable {
         data,
       },
       sync: {
-        depends: [this.conversationId, this.id],
+        depends: [this.parentId, this.id],
         target: this.id,
       },
     }, (success, socketData) => this._sendResult(success, socketData));
   }
 
   _getSendData(data) {
-    data.object_id = this.conversationId;
+    data.object_id = this.parentId;
     return data;
   }
 
@@ -735,7 +777,7 @@ class Message extends Syncable {
    */
   on(name, callback, context) {
     const hasLoadedEvt = name === 'messages:loaded' ||
-      name && typeof name === 'object' && name['messages:loaded'];
+      (name && typeof name === 'object' && name['messages:loaded']);
 
     if (hasLoadedEvt && !this.isLoading) {
       const callNow = name === 'messages:loaded' ? callback : name['messages:loaded'];
@@ -780,7 +822,7 @@ class Message extends Syncable {
     this._xhr({
       url: '?' + queryStr,
       method: 'DELETE',
-    }, result => {
+    }, (result) => {
       if (!result.success && (!result.data || result.data.id !== 'not_found')) Message.load(id, client);
     });
 
@@ -831,7 +873,7 @@ class Message extends Syncable {
       });
     }
 
-    this.parts = message.parts.map(part => {
+    this.parts = message.parts.map((part) => {
       const existingPart = this.getPartById(part.id);
       if (existingPart) {
         existingPart._populateFromServer(part);
@@ -843,7 +885,7 @@ class Message extends Syncable {
 
     this.recipientStatus = message.recipient_status || {};
 
-    this.isRead = !message.is_unread;
+    this.isRead = 'is_unread' in message ? !message.is_unread : true;
 
     this.sentAt = new Date(message.sent_at);
     this.receivedAt = message.received_at ? new Date(message.received_at) : undefined;
@@ -858,7 +900,6 @@ class Message extends Syncable {
       sender = Identity._createFromServer(message.sender, client);
     }
     this.sender = sender;
-
 
     this._setSynced();
 
@@ -921,9 +962,9 @@ class Message extends Syncable {
     if (sync !== false) {
       sync = super._setupSyncObject(sync);
       if (!sync.depends) {
-        sync.depends = [this.conversationId];
+        sync.depends = [this.parentId];
       } else if (sync.depends.indexOf(this.id) === -1) {
-        sync.depends.push(this.conversationId);
+        sync.depends.push(this.parentId);
       }
     }
     return sync;
@@ -992,8 +1033,17 @@ class Message extends Syncable {
    */
   static _createFromServer(message, client) {
     const fromWebsocket = message.fromWebsocket;
+    let parentId;
+    if (message.conversation) {
+      parentId = message.conversation.id;
+    } else if (message.channel) {
+      parentId = message.channel.id;
+    } else {
+      parentId = message.parentId;
+    }
+
     return new Message({
-      conversationId: message.conversation.id,
+      parentId,
       fromServer: message,
       clientId: client.appId,
       _fromDB: message._fromDB,
@@ -1002,8 +1052,20 @@ class Message extends Syncable {
   }
 
   _loaded(data) {
-    this.conversationId = data.conversation.id;
+    if (data.conversation) {
+      this.parentId = data.conversation.id;
+    } else if (data.channel) {
+      this.parentId = data.channel.id;
+    }
     this.getClient()._addMessage(this);
+  }
+
+  __getConversationId() {
+    return this.parentId.indexOf('layer:///conversations/') === 0 ? this.parentId : '';
+  }
+
+  __getChannelId() {
+    return this.parentId.indexOf('layer:///channels/') === 0 ? this.parentId : '';
   }
 
   /**
@@ -1036,15 +1098,35 @@ class Message extends Syncable {
  */
 Message.prototype.clientId = '';
 
-/**
- * Conversation that this Message belongs to.
+/*
+ * Conversation ID that this Message belongs to.
  *
- * Actual value is the ID of the Conversation's ID.
+ * Use layer.Message.parentId for a simple way to get IDs
+ * regardless of whether the Message is in a Conversation or Channel.
  *
  * @type {string}
  * @readonly
  */
 Message.prototype.conversationId = '';
+
+/*
+ * Channel ID that this Message belongs to.
+ *
+ * Use layer.Message.parentId for a simple way to get IDs
+ * regardless of whether the Message is in a Conversation or Channel.
+ *
+ * @type {string}
+ * @readonly
+ */
+Message.prototype.channelId = '';
+
+/**
+ * The `parentId` will contain either the conversationId, parentId or just 'announcement'.
+ *
+ * @type {string} parentId
+ * @readonly
+ */
+Message.prototype.parentId = '';
 
 /**
  * Array of layer.MessagePart objects.

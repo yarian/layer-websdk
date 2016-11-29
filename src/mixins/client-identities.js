@@ -246,6 +246,6 @@ module.exports = {
       }
       identity.unfollow();
       return identity;
-    }
+    },
   },
 };
