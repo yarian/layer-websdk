@@ -113,20 +113,21 @@ class IdentitiesQuery extends Query {
     evt.identities.forEach((identity) => {
       const index = this._getIndex(identity.id);
 
-  // Review to see if identical to parent      if (index !== -1) {
-      if (identity.id === this._nextDBFromId) this._nextDBFromId = this._updateNextFromId(index);
-      if (identity.id === this._nextServerFromId) this._nextServerFromId = this._updateNextFromId(index);
-      removed.push({
-        data: identity,
-        index,
-      });
-      if (this.dataType === Query.ObjectDataType) {
-        this.data = [
-          ...this.data.slice(0, index),
-          ...this.data.slice(index + 1),
-        ];
-      } else {
-        this.data.splice(index, 1);
+      if (index !== -1) {
+        if (identity.id === this._nextDBFromId) this._nextDBFromId = this._updateNextFromId(index);
+        if (identity.id === this._nextServerFromId) this._nextServerFromId = this._updateNextFromId(index);
+        removed.push({
+          data: identity,
+          index,
+        });
+        if (this.dataType === Query.ObjectDataType) {
+          this.data = [
+            ...this.data.slice(0, index),
+            ...this.data.slice(index + 1),
+          ];
+        } else {
+          this.data.splice(index, 1);
+        }
       }
     });
 

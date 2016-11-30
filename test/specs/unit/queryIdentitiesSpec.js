@@ -1,5 +1,5 @@
 /*eslint-disable */
-describe("The Query Class", function() {
+describe("The IdentitiesQuery Class", function() {
     var appId = "Fred's App";
 
     var conversation, conversationUUID,
@@ -46,6 +46,7 @@ describe("The Query Class", function() {
         client._clientReady();
         client.onlineManager.isOnline = true;
 
+        identity = client._createObject(responses.useridentity);
         query = client.createQuery({
           model: layer.Query.Identity
         });
@@ -206,7 +207,7 @@ describe("The Query Class", function() {
         });
 
         it("Should call _handleChangeEvent", function() {
-            query._handleEvents("identities:change", ({a: "b", eventName: "identities:change"})
+            query._handleEvents("identities:change", ({a: "b", eventName: "identities:change"}));
             expect(query._handleChangeEvent).toHaveBeenCalledWith({a: "b", eventName: "identities:change"});
             expect(query._handleAddEvent).not.toHaveBeenCalled();
             expect(query._handleRemoveEvent).not.toHaveBeenCalled();

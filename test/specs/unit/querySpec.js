@@ -112,7 +112,7 @@ describe("The Query Class", function() {
             spyOn(layer.Query.prototype, "_run");
 
             // Run
-            var query = new layer.Query({
+            var query = client.createQuery({
                 client: client
             });
 
@@ -130,7 +130,7 @@ describe("The Query Class", function() {
             client.isReady = false;
 
             // Run
-            var query = new layer.Query({
+            var query = client.createQuery({
                 client: client
             });
 
@@ -148,23 +148,23 @@ describe("The Query Class", function() {
         });
 
         // Integration test verifies that new Conversation in the Client
-        // triggers _handleConversationEvents in Query
+        // triggers _handleEvents in Query
         it("Should setup change event handlers", function() {
-            var query = new layer.Query({
-                client: client,
+            var query = client.createQuery({
                 model: layer.Query.Conversation
             });
-            spyOn(query, "_handleConversationEvents");
+            var spy = client._events.all[0].callback = jasmine.createSpy('callback');
+            spyOn(query, "_handleEvents");
 
             // Run
             client.trigger("conversations:add", {conversations: [conversation]});
 
             // Posttest
-            expect(query._handleConversationEvents).toHaveBeenCalledWith(jasmine.any(layer.LayerEvent));
+            expect(spy).toHaveBeenCalledWith("conversations:add", jasmine.any(layer.LayerEvent));
         });
 
         it("Should force paginationWindow to acceptable value", function() {
-          var query = new layer.Query({
+          var query = client.createQuery({
             client: client,
             paginationWindow: 12345
           });
@@ -172,7 +172,7 @@ describe("The Query Class", function() {
         });
 
         it("Should accept a full predicate", function() {
-          var query = new layer.Query({
+          var query = client.createQuery({
             client: client,
             model: layer.Query.Message,
             predicate: 'conversation.id  =    "layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"'
@@ -181,7 +181,7 @@ describe("The Query Class", function() {
         });
 
         it("Should accept a UUID predicate", function() {
-          var query = new layer.Query({
+          var query = client.createQuery({
             client: client,
             model: layer.Query.Message,
             predicate: 'conversation.id  =    "fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"'
@@ -190,7 +190,7 @@ describe("The Query Class", function() {
         });
 
         it("Should accept a full predicate double quote", function() {
-          var query = new layer.Query({
+          var query = client.createQuery({
             client: client,
             model: layer.Query.Message,
             predicate: 'conversation.id  =    "layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"'
@@ -199,7 +199,7 @@ describe("The Query Class", function() {
         });
 
         it("Should accept a UUID predicate double quote", function() {
-          var query = new layer.Query({
+          var query = client.createQuery({
             client: client,
             model: layer.Query.Message,
             predicate: 'conversation.id  =    "fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"'
@@ -209,7 +209,7 @@ describe("The Query Class", function() {
 
          it("Should reject predicate on Conversations", function() {
             expect(function() {
-                var query = new layer.Query({
+                var query = client.createQuery({
                     client: client,
                     model: layer.Query.Conversation,
                     predicate: 'conversation.id  =    "fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"'
@@ -220,7 +220,7 @@ describe("The Query Class", function() {
 
         it("Should reject an invalid predicate", function() {
           expect(function() {
-            var query = new layer.Query({
+            var query = client.createQuery({
                 client: client,
                 model: layer.Query.Message,
                 predicate: "layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf-hey"
@@ -232,7 +232,7 @@ describe("The Query Class", function() {
 
     describe("The destroy() method", function() {
         it("Should notify any views that its data has been cleared", function() {
-            var query = new layer.Query({
+            var query = client.createQuery({
                 client: client
             });
             var changed = false;
@@ -254,7 +254,7 @@ describe("The Query Class", function() {
         });
 
         it("Should call _removeQuery", function() {
-            var query = new layer.Query({
+            var query = client.createQuery({
                 client: client
             });
             spyOn(client, "_removeQuery");
@@ -270,7 +270,7 @@ describe("The Query Class", function() {
     describe("The update() method", function() {
         var query;
         beforeEach(function() {
-            query = new layer.Query({
+            query = client.createQuery({
                 client: client,
                 model: layer.Query.Message,
                 paginationWindow: 15
@@ -366,7 +366,7 @@ describe("The Query Class", function() {
     describe("The _reset() method", function() {
         var query;
         beforeEach(function() {
-            query = new layer.Query({
+            query = client.createQuery({
                 client: client,
                 model: 'Conversation',
                 paginationWindow: 15
@@ -421,8 +421,7 @@ describe("The Query Class", function() {
     describe("The reset() method", function() {
         var query;
         beforeEach(function() {
-            query = new layer.Query({
-                client: client,
+            query = client.createQuery({
                 model: 'Conversation',
                 paginationWindow: 15
             });
@@ -444,8 +443,7 @@ describe("The Query Class", function() {
     describe("The _run() method", function() {
         var query;
         beforeEach(function() {
-            query = new layer.Query({
-                client: client,
+            query = client.createQuery({
                 model: 'Conversation',
                 paginationWindow: 15
             });
@@ -464,7 +462,7 @@ describe("The Query Class", function() {
                 }));
             }
             var data = query.data;
-            spyOn(query, "_runConversation");
+            spyOn(query, "_fetchData");
             spyOn(query, "_runMessage");
             spyOn(client, "_checkAndPurgeCache");
             spyOn(query, "_triggerAsync");
@@ -475,7 +473,7 @@ describe("The Query Class", function() {
             // Posttest
             expect(query.data.length).toEqual(10);
             expect(client._checkAndPurgeCache).toHaveBeenCalledWith(data.slice(10));
-            expect(query._runConversation).not.toHaveBeenCalled();
+            expect(query._fetchData).not.toHaveBeenCalled();
             expect(query._runMessage).not.toHaveBeenCalled();
             expect(query._triggerAsync).toHaveBeenCalledWith("change", {data: []});
         });
@@ -514,83 +512,12 @@ describe("The Query Class", function() {
         it("Should do nothing if there are no more results requested", function() {
             for (var i = 0; i < 50; i++) query.data.push(message);
             query.paginationWindow = 50;
-            spyOn(query, "_runConversation");
+            spyOn(query, "_fetchData");
             query._run();
-            expect(query._runConversation).not.toHaveBeenCalled();
+            expect(query._fetchData).not.toHaveBeenCalled();
 
             // cleanup
             query.data = [];
-        });
-    });
-
-    describe("The _runConversation() method", function() {
-        var query;
-        beforeEach(function() {
-            query = new layer.Query({
-                client: client,
-                model: 'Conversation',
-                paginationWindow: 15
-            });
-        });
-
-        afterEach(function() {
-            query.destroy();
-        });
-
-        it("Should set isFiring to true", function() {
-            query.isFiring = false;
-            query._runConversation();
-            expect(query.isFiring).toBe(true);
-        });
-
-        it("Should call server with _nextServerFromId", function() {
-            // Test 1
-            query._runConversation(32);
-            expect(requests.mostRecent().url).toEqual(client.url + "/conversations?sort_by=created_at&page_size=32");
-
-            // Test 2
-            query._nextServerFromId = 'howdy';
-            query._runConversation(32);
-            expect(requests.mostRecent().url).toEqual(client.url + "/conversations?sort_by=created_at&page_size=32&from_id=howdy");
-        });
-
-        it("Should call DB with _nextDBFromId", function() {
-          spyOn(client.dbManager, "loadConversations");
-
-          // Test 1
-          query._runConversation(17);
-          expect(client.dbManager.loadConversations).toHaveBeenCalledWith('created_at', '', 17, jasmine.any(Function));
-
-          // Test 2
-          query._nextDBFromId = 'howdy';
-          query._runConversation(17);
-          expect(client.dbManager.loadConversations).toHaveBeenCalledWith('created_at', 'howdy', 17, jasmine.any(Function));
-        });
-
-        it("Should refuse to call if already firing with same url", function() {
-            requests.reset();
-            query._runConversation(45);
-            query._runConversation(45);
-            expect(requests.count()).toEqual(1);
-        });
-
-        it("Should call with last_message sorting", function() {
-            query.sortBy = [{'lastMessage.sentAt': 'desc'}];
-            query._runConversation(32);
-            expect(requests.mostRecent().url).toEqual(client.url + "/conversations?sort_by=last_message&page_size=32");
-        });
-
-        it("Should call _processRunResults", function() {
-            spyOn(query, "_processRunResults");
-            query._runConversation(36);
-            requests.mostRecent().response({
-                status: 200,
-                responseText: JSON.stringify([{id: "a"}, {id: "b"}])
-            });
-            expect(query._processRunResults).toHaveBeenCalledWith(jasmine.objectContaining({
-                success: true,
-                data: [{id: "a"}, {id: "b"}]
-            }), "conversations?sort_by=created_at&page_size=36", 36);
         });
     });
 
@@ -599,7 +526,7 @@ describe("The Query Class", function() {
         beforeEach(function() {
             var tmp = layer.Query.prototype._run;
             layer.Query.prototype._run = function() {}
-            query = new layer.Query({
+            query = client.createQuery({
                 client: client,
                 model: 'Message',
                 paginationWindow: 15
@@ -646,7 +573,7 @@ describe("The Query Class", function() {
         beforeEach(function() {
             var tmp = layer.Query.prototype._run;
             layer.Query.prototype._run = function() {}
-            query = new layer.Query({
+            query = client.createQuery({
                 client: client,
                 model: layer.Query.Announcement,
                 paginationWindow: 15
@@ -716,7 +643,7 @@ describe("The Query Class", function() {
             client._conversationsHash[conversation.id] = conversation;
             var tmp = layer.Query.prototype._run;
             layer.Query.prototype._run = function() {}
-            query = new layer.Query({
+            query = client.createQuery({
                 client: client,
                 model: 'Message',
                 paginationWindow: 15,
@@ -860,7 +787,7 @@ describe("The Query Class", function() {
     describe("The _processRunResults() method", function() {
         var query, requestUrl;
         beforeEach(function() {
-            query = new layer.Query({
+            query = client.createQuery({
                 client: client,
                 model: 'Message',
                 paginationWindow: 15,
@@ -1065,7 +992,7 @@ describe("The Query Class", function() {
     describe("The _appendResults() method", function() {
         var query;
         beforeEach(function() {
-            query = new layer.Query({
+            query = client.createQuery({
                 client: client,
                 model: 'Conversation',
                 paginationWindow: 15
@@ -1188,7 +1115,7 @@ describe("The Query Class", function() {
             expect(query.data[0] instanceof layer.Conversation).toBe(false);
         });
 
-        it("Should use _getInsertConversationIndex to position result", function() {
+        it("Should use _getInsertIndex to position result", function() {
           var c1 = client.createConversation({ participants: ["a", "b", "c"] });
           var c2 = client.createConversation({ participants: ["b", "c", "d"] });
           var c3 = JSON.parse(JSON.stringify(responses.conversation2));
@@ -1198,7 +1125,7 @@ describe("The Query Class", function() {
           c3.created_at = new Date("2010-10-9");
           query.data = [c1.toObject(), c2.toObject()];
           query.dataType = "object";
-          spyOn(query, "_getInsertConversationIndex").and.callFake(function(conversation, data) {
+          spyOn(query, "_getInsertIndex").and.callFake(function(conversation, data) {
             expect(conversation).toBe(client.getConversation(c3.id));
             expect(data).toEqual([c1.toObject(), c2.toObject()]);
           }).and.returnValue(1);
@@ -1215,7 +1142,7 @@ describe("The Query Class", function() {
           });
 
           // Posttest
-          expect(query._getInsertConversationIndex).toHaveBeenCalled();
+          expect(query._getInsertIndex).toHaveBeenCalled();
           expect(query.data).toEqual([c1.toObject(), client.getConversation(c3.id).toObject(), c2.toObject()]);
         });
 
@@ -1255,7 +1182,7 @@ describe("The Query Class", function() {
     describe("The _getData() method", function() {
         var query;
         beforeEach(function() {
-            query = new layer.Query({
+            query = client.createQuery({
                 client: client,
                 model: 'Conversation',
                 paginationWindow: 15
@@ -1282,7 +1209,7 @@ describe("The Query Class", function() {
     describe("The _getInstance() method", function() {
         var query;
         beforeEach(function() {
-            query = new layer.Query({
+            query = client.createQuery({
                 client: client,
                 model: 'Conversation',
                 paginationWindow: 15
@@ -1305,7 +1232,7 @@ describe("The Query Class", function() {
     describe("The _getItem() method", function() {
         var query;
         beforeEach(function() {
-            query = new layer.Query({
+            query = client.createQuery({
                 client: client,
                 model: 'Conversation',
                 paginationWindow: 15
@@ -1391,7 +1318,7 @@ describe("The Query Class", function() {
     describe("The _getIndex() method", function() {
         var query;
         beforeEach(function() {
-            query = new layer.Query({
+            query = client.createQuery({
                 client: client,
                 model: 'Conversation',
                 paginationWindow: 15
@@ -1415,13 +1342,12 @@ describe("The Query Class", function() {
     describe("The _handleEvents() method", function() {
         var query;
         beforeEach(function() {
-            query = new layer.Query({
+            query = client.createQuery({
                 client: client,
-                model: 'Conversation',
+                model: 'Message',
                 paginationWindow: 15
             });
-            query.data = [conversation];
-            spyOn(query, "_handleConversationEvents");
+            query.data = [message];
             spyOn(query, "_handleMessageEvents");
         });
 
@@ -1429,66 +1355,17 @@ describe("The Query Class", function() {
             query.destroy();
         });
 
-        it("Should call _handleConversationEvents", function() {
-            query.model = "Conversation";
-            query._handleEvents("evtName", {a: "b"});
-            expect(query._handleConversationEvents).toHaveBeenCalledWith({a: "b"});
-            expect(query._handleMessageEvents).not.toHaveBeenCalled();
-        });
-
         it("Should call _handleMessageEvents", function() {
-            query.model = "Message";
             query._handleEvents("evtName", {a: "b"});
             expect(query._handleMessageEvents).toHaveBeenCalledWith({a: "b"});
-            expect(query._handleConversationEvents).not.toHaveBeenCalled();
         });
 
-    });
-
-    describe("The _handleConversationEvents() method", function() {
-        var query;
-        beforeEach(function() {
-            query = new layer.Query({
-                client: client,
-                model: 'Conversation',
-                paginationWindow: 15
-            });
-            query.data = [conversation];
-            spyOn(query, "_handleConversationChangeEvent");
-            spyOn(query, "_handleConversationAddEvent");
-            spyOn(query, "_handleConversationRemoveEvent");
-        });
-
-        afterEach(function() {
-            query.destroy();
-        });
-
-        it("Should call _handleConversationChangeEvent", function() {
-            query._handleConversationEvents({a: "b", eventName: "conversations:change"})
-            expect(query._handleConversationChangeEvent).toHaveBeenCalledWith({a: "b", eventName: "conversations:change"});
-            expect(query._handleConversationAddEvent).not.toHaveBeenCalled();
-            expect(query._handleConversationRemoveEvent).not.toHaveBeenCalled();
-        });
-
-        it("Should call _handleConversationAddEvent", function() {
-            query._handleConversationEvents({a: "b", eventName: "conversations:add"})
-            expect(query._handleConversationChangeEvent).not.toHaveBeenCalled();
-            expect(query._handleConversationAddEvent).toHaveBeenCalledWith({a: "b", eventName: "conversations:add"});
-            expect(query._handleConversationRemoveEvent).not.toHaveBeenCalled();
-        });
-
-        it("Should call _handleConversationRemoveEvent", function() {
-            query._handleConversationEvents({a: "b", eventName: "conversations:remove"})
-            expect(query._handleConversationChangeEvent).not.toHaveBeenCalled();
-            expect(query._handleConversationAddEvent).not.toHaveBeenCalled();
-            expect(query._handleConversationRemoveEvent).toHaveBeenCalledWith({a: "b", eventName: "conversations:remove"});
-        });
     });
 
     describe("The _handleMessageEvents() method", function() {
         var query;
         beforeEach(function() {
-            query = new layer.Query({
+            query = client.createQuery({
                 client: client,
                 model: 'Message',
                 paginationWindow: 15
@@ -1537,609 +1414,15 @@ describe("The Query Class", function() {
         });
     });
 
-    describe("The _handleConversationChangeEvent() method", function() {
-        describe("Sort by createdAt, dataType is object", function() {
-            var query;
-            beforeEach(function() {
-                query = new layer.Query({
-                    client: client,
-                    model: 'Conversation',
-                    paginationWindow: 15,
-                    dataType: "object",
-                    sortBy: [{'createdAt': 'desc'}]
-                });
-                query.data = [conversation2.toObject(), conversation.toObject()];
-            });
 
-            afterEach(function() {
-                query.destroy();
-            });
-
-            it("Should find the Conversation and apply Conversation ID changes without reordering and using a new data array", function() {
-                // Setup
-                var id = conversation.id;
-                var tempId = layer.Util.generateUUID();
-                query.data[1].id = tempId;
-                var data = query.data;
-                conversation._clearObject();
-                conversation.id = id;
-                var evt = new layer.LayerEvent({
-                    property: "id",
-                    oldValue: tempId,
-                    newValue: id,
-                    target: conversation
-                }, "conversations:change");
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-                // Posttest
-                expect(query.data).not.toBe(data);
-                expect(query.data[1].id).toEqual(id);
-                expect(data[1].id).toEqual(tempId);
-            });
-
-            it("Should update the array object and the conversation object for unreadCount change", function() {
-                // Setup
-                var data = query.data;
-                var originalObject = data[1];
-                originalObject.unreadCount = 1;
-                conversation._clearObject();
-                var evt = new layer.LayerEvent({
-                    property: "unreadCount",
-                    oldValue: 1,
-                    newValue: 2,
-                    target: conversation
-                }, "conversations:change");
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-                // Posttest
-                expect(query.data).not.toBe(data);
-                expect(query.data[1]).not.toEqual(originalObject);
-            });
-
-            it("Should update the array object but not reorder for lastMessage events", function() {
-                // Setup
-                var data = query.data;
-                conversation._clearObject();
-                var evt = new layer.LayerEvent({
-                    property: "lastMessage",
-                    oldValue: null,
-                    newValue: message,
-                    target: conversation
-                }, "conversations:change");
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-                // Posttest
-                expect(query.data).not.toBe(data);
-                expect(query.data).toEqual(data);
-            });
-
-            it("Should not touch data array if dataType is object but item not in the data", function() {
-                var conversation = client.createConversation({ participants: ["abc"] });
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["abc"],
-                    newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
-                var data = query.data;
-                data[0].id += "1";
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-                // Posttest
-                expect(query.data).toBe(data);
-            });
-
-            it("Should trigger change event if the Conversation is in the data", function() {
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["a"],
-                    newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
-                spyOn(query, "_triggerChange");
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-                // Posttest
-                expect(query._triggerChange).toHaveBeenCalledWith({
-                    type: "property",
-                    target: conversation.toObject(),
-                    query: query,
-                    isChange: true,
-                    changes: [{
-                        property: "participants",
-                        oldValue: ["a"],
-                        newValue: ["a", "b"]
-                    }]
-                });
-            });
-
-            it("Should not trigger change event if Conversation is NOT in the data", function() {
-                var data = query.data;
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["a"],
-                    newValue: ["a", "b"],
-                    target: {id: conversation.id + "1"}
-                }, "conversations:change");
-                spyOn(query, "trigger");
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-                // Posttest
-                expect(query.trigger).not.toHaveBeenCalled();
-            });
-
-
-            it("Should not trigger a move event if the Conversation sorting has not changed", function() {
-                expect(query.data.indexOf(conversation.toObject())).toEqual(1);
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["a"],
-                    newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
-                spyOn(query, "_triggerChange");
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-
-                // Posttest
-                expect(query._triggerChange).not.toHaveBeenCalledWith(jasmine.objectContaining({
-                    type: 'move'
-                }));
-                expect(query.data.indexOf(conversation.toObject())).toEqual(1);
-            });
-        });
-
-        describe("Sort by createdAt, dataType is instance", function() {
-            var query;
-            beforeEach(function() {
-                query = new layer.Query({
-                    client: client,
-                    model: 'Conversation',
-                    paginationWindow: 15,
-                    dataType: "instance",
-                    sortBy: [{'createdAt': 'desc'}]
-                });
-                query.data = [conversation2, conversation];
-            });
-
-            afterEach(function() {
-                query.destroy();
-            });
-
-            it("Should not touch data array for a participant change event", function() {
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["abc"],
-                    newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
-                var data = query.data;
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-                // Posttest
-                expect(query.data).toEqual([conversation2, conversation]);
-                expect(query.data).toBe(data);
-            });
-
-            it("Should not reorder the array for a lastMessage event", function() {
-                // Setup
-                var data = query.data;
-                var dataCopy = [].concat(query.data);
-                var evt = new layer.LayerEvent({
-                    property: "lastMessage",
-                    oldValue: null,
-                    newValue: message,
-                    target: conversation
-                }, "conversations:change");
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-                // Posttest
-                expect(query.data).toBe(data);
-                expect(query.data).toEqual(dataCopy);
-            });
-
-            it("Should trigger change event if the Conversation is in the data", function() {
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["a"],
-                    newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
-                spyOn(query, "_triggerChange");
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-                // Posttest
-                expect(query._triggerChange).toHaveBeenCalledWith({
-                    type: "property",
-                    target: conversation,
-                    query: query,
-                    isChange: true,
-                    changes: [{
-                        property: "participants",
-                        oldValue: ["a"],
-                        newValue: ["a", "b"]
-                    }]
-                });
-            });
-
-            it("Should not trigger change event if Conversation is NOT in the data", function() {
-                var data = query.data;
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["a"],
-                    newValue: ["a", "b"],
-                    target: {id: conversation.id + "1"}
-                }, "conversations:change");
-                spyOn(query, "trigger");
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-                // Posttest
-                expect(query.trigger).not.toHaveBeenCalled();
-            });
-
-            it("Should not trigger a move event if the Conversation sorting has not changed", function() {
-                expect(query.data.indexOf(conversation)).toEqual(1);
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["a"],
-                    newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
-                spyOn(query, "_triggerChange");
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-
-                // Posttest
-                expect(query._triggerChange).not.toHaveBeenCalledWith(jasmine.objectContaining({
-                    type: 'move'
-                }));
-                expect(query.data.indexOf(conversation)).toEqual(1);
-            });
-        });
-
-        describe("Sort by lastMessage.sentAt, dataType is object", function() {
-            var query;
-            beforeEach(function() {
-                query = new layer.Query({
-                    client: client,
-                    model: 'Conversation',
-                    paginationWindow: 15,
-                    dataType: "object",
-                    sortBy: [{'lastMessage.sentAt': 'desc'}]
-                });
-                query.data = [conversation2.toObject(), conversation.toObject()];
-            });
-
-            afterEach(function() {
-                query.destroy();
-            });
-
-            it("Should find the Conversation and apply Conversation ID changes but not reorder", function() {
-                // Setup
-                var id = conversation.id;
-                var tempId = layer.Util.generateUUID();
-                query.data[1].id = tempId;
-                var data = query.data = [conversation2.toObject(), conversation.toObject()];
-                conversation._clearObject();
-                conversation.id = id;
-                var evt = new layer.LayerEvent({
-                    property: "id",
-                    oldValue: tempId,
-                    newValue: id,
-                    target: conversation
-                }, "conversations:change");
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-                // Posttest
-                expect(query.data).not.toBe(data);
-                expect(query.data[1].id).toEqual(id);
-                expect(data[1].id).toEqual(tempId);
-                expect(query.data).toEqual([conversation2.toObject(), conversation.toObject()]);
-            });
-
-            it("Should update the array object and reorder for lastMessage events", function() {
-                // Setup
-                var data = query.data;
-                conversation._clearObject();
-                var evt = new layer.LayerEvent({
-                    property: "lastMessage",
-                    oldValue: null,
-                    newValue: message,
-                    target: conversation
-                }, "conversations:change");
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-                // Posttest
-                expect(query.data).not.toBe(data);
-                expect(query.data).toEqual([conversation.toObject(), conversation2.toObject()]);
-            });
-
-            it("Should not touch data array if dataType is object but item not in the data", function() {
-                var conversation = client.createConversation({ participants: ["abc"] });
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["abc"],
-                    newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
-                var data = query.data;
-                data[0].id += "1";
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-                // Posttest
-                expect(query.data).toBe(data);
-            });
-
-            it("Should trigger change event if the Conversation is in the data", function() {
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["a"],
-                    newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
-                spyOn(query, "_triggerChange");
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-                // Posttest
-                expect(query._triggerChange).toHaveBeenCalledWith({
-                    type: "property",
-                    target: conversation.toObject(),
-                    query: query,
-                    isChange: true,
-                    changes: [{
-                        property: "participants",
-                        oldValue: ["a"],
-                        newValue: ["a", "b"]
-                    }]
-                });
-            });
-
-            it("Should not trigger change event if Conversation is NOT in the data", function() {
-                var data = query.data;
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["a"],
-                    newValue: ["a", "b"],
-                    target: {id: conversation.id + "1"}
-                }, "conversations:change");
-                spyOn(query, "trigger");
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-                // Posttest
-                expect(query.trigger).not.toHaveBeenCalled();
-            });
-
-            it("Should trigger a move event if the Conversation sorting has changed", function() {
-                expect(query.data.indexOf(conversation.toObject())).toEqual(1);
-                spyOn(query, "_handleConversationChangeEvent").and.callThrough();
-                spyOn(query, "_triggerChange");
-
-                // Run
-                // This will trigger a conversations:change event with lastMessage changing, that should call _handleConversationChangeEvent
-                conversation.createMessage('hey').send();
-                jasmine.clock().tick(1);
-                expect(query._handleConversationChangeEvent).toHaveBeenCalled();
-
-
-                // Posttest
-                expect(query._triggerChange).toHaveBeenCalledWith({
-                    type: 'move',
-                    target: conversation.toObject(),
-                    query: query,
-                    isChange: false,
-                    fromIndex: 1,
-                    toIndex: 0
-                });
-                expect(query.data.indexOf(conversation.toObject())).toEqual(0);
-            });
-
-            it("Should not trigger a move event if the Conversation sorting has not changed", function() {
-                expect(query.data.indexOf(conversation.toObject())).toEqual(1);
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["a"],
-                    newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
-                spyOn(query, "_triggerChange");
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-
-                // Posttest
-                expect(query._triggerChange).not.toHaveBeenCalledWith(jasmine.objectContaining({
-                    type: 'move'
-                }));
-                expect(query.data.indexOf(conversation.toObject())).toEqual(1);
-            });
-        });
-
-        describe("Sort by lastMessage.sentAt, dataType is instance", function() {
-            var query;
-            beforeEach(function() {
-                query = new layer.Query({
-                    client: client,
-                    model: 'Conversation',
-                    paginationWindow: 15,
-                    dataType: "instance",
-                    sortBy: [{'lastMessage.sentAt': 'desc'}]
-                });
-                query.data = [conversation2, conversation];
-            });
-
-            afterEach(function() {
-                query.destroy();
-            });
-
-            it("Should not touch data array for a participant change event", function() {
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["abc"],
-                    newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
-                var data = query.data;
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-                // Posttest
-                expect(query.data).toEqual([conversation2, conversation]);
-                expect(query.data).toBe(data);
-            });
-
-            it("Should reorder the array for a lastMessage event", function() {
-                // Setup
-                var data = query.data;
-                var dataCopy = [].concat(query.data);
-                var evt = new layer.LayerEvent({
-                    property: "lastMessage",
-                    oldValue: null,
-                    newValue: message,
-                    target: conversation
-                }, "conversations:change");
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-                // Posttest
-                expect(query.data).toBe(data);
-                expect(query.data).toEqual([conversation, conversation2]);
-            });
-
-            it("Should trigger change event if the Conversation is in the data", function() {
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["a"],
-                    newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
-                spyOn(query, "_triggerChange");
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-                // Posttest
-                expect(query._triggerChange).toHaveBeenCalledWith({
-                    type: "property",
-                    target: conversation,
-                    query: query,
-                    isChange: true,
-                    changes: [{
-                        property: "participants",
-                        oldValue: ["a"],
-                        newValue: ["a", "b"]
-                    }]
-                });
-            });
-
-            it("Should not trigger change event if Conversation is NOT in the data", function() {
-                var data = query.data;
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["a"],
-                    newValue: ["a", "b"],
-                    target: {id: conversation.id + "1"}
-                }, "conversations:change");
-                spyOn(query, "trigger");
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-                // Posttest
-                expect(query.trigger).not.toHaveBeenCalled();
-            });
-
-            it("Should trigger a move event if the Conversation sorting has changed", function() {
-                expect(query.data.indexOf(conversation)).toEqual(1);
-                spyOn(query, "_handleConversationChangeEvent").and.callThrough();
-                spyOn(query, "_triggerChange");
-
-                // Run
-                // This will trigger a conversations:change event with lastMessage changing, that should call _handleConversationChangeEvent
-                conversation.createMessage('hey').send();
-                jasmine.clock().tick(1);
-                expect(query._handleConversationChangeEvent).toHaveBeenCalled();
-
-
-                // Posttest
-                expect(query._triggerChange).toHaveBeenCalledWith({
-                    type: 'move',
-                    target: conversation,
-                    query: query,
-                    isChange: false,
-                    fromIndex: 1,
-                    toIndex: 0
-                });
-                expect(query.data.indexOf(conversation)).toEqual(0);
-            });
-
-            it("Should not trigger a move event if the Conversation sorting has not changed", function() {
-                expect(query.data.indexOf(conversation)).toEqual(1);
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["a"],
-                    newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
-                spyOn(query, "_triggerChange");
-
-                // Run
-                query._handleConversationChangeEvent(evt);
-
-
-                // Posttest
-                expect(query._triggerChange).not.toHaveBeenCalledWith(jasmine.objectContaining({
-                    type: 'move'
-                }));
-                expect(query.data.indexOf(conversation)).toEqual(1);
-            });
-        });
-    });
-
-    describe("The _getInsertConversationIndex() method", function() {
+    describe("The _getInsertIndex() method", function() {
         var query;
         beforeEach(function() {
             conversation.createdAt = 5;
             conversation2.createdAt = 10;
             conversation2.lastMessage.sentAt = 8;
             conversation.lastMessage.sentAt = 12;
-            query = new layer.Query({
+            query = client.createQuery({
                 client: client,
                 model: 'Conversation',
                 paginationWindow: 15,
@@ -2152,21 +1435,21 @@ describe("The Query Class", function() {
             var c = client.createConversation({participants: ["a"]});
             c.syncState = layer.Constants.SYNCED;
             c.createdAt = 15;
-            expect(query._getInsertConversationIndex(c, [conversation2, conversation])).toEqual(0);
+            expect(query._getInsertIndex(c, [conversation2, conversation])).toEqual(0);
         });
 
         it("Should insert as second element if sort by createdAt", function() {
             var c = client.createConversation({participants: ["a"]});
             c.syncState = layer.Constants.SYNCED;
             c.createdAt = 8;
-            expect(query._getInsertConversationIndex(c, [conversation2, conversation])).toEqual(1);
+            expect(query._getInsertIndex(c, [conversation2, conversation])).toEqual(1);
         });
 
         it("Should insert as last element if sort by createdAt", function() {
             var c = client.createConversation({participants: ["a"]});
             c.syncState = layer.Constants.SYNCED;
             c.createdAt = 3;
-            expect(query._getInsertConversationIndex(c, [conversation2, conversation])).toEqual(2);
+            expect(query._getInsertIndex(c, [conversation2, conversation])).toEqual(2);
         });
 
         it("Should insert as first element if sort by lastMessage", function() {
@@ -2174,7 +1457,7 @@ describe("The Query Class", function() {
             var c = client.createConversation({participants: ["a"]});
             c.syncState = layer.Constants.SYNCED;
             c.createdAt = 15;
-            expect(query._getInsertConversationIndex(c, [conversation, conversation2])).toEqual(0);
+            expect(query._getInsertIndex(c, [conversation, conversation2])).toEqual(0);
         });
 
         it("Should insert as second element if sort by lastMessage", function() {
@@ -2182,7 +1465,7 @@ describe("The Query Class", function() {
             var c = client.createConversation({participants: ["a"]});
             c.syncState = layer.Constants.SYNCED;
             c.createdAt = 11;
-            expect(query._getInsertConversationIndex(c, [conversation, conversation2])).toEqual(1);
+            expect(query._getInsertIndex(c, [conversation, conversation2])).toEqual(1);
         });
 
         it("Should insert as last element if sort by lastMessage", function() {
@@ -2190,7 +1473,7 @@ describe("The Query Class", function() {
             var c = client.createConversation({participants: ["a"]});
             c.syncState = layer.Constants.SYNCED;
             c.createdAt = 3;
-            expect(query._getInsertConversationIndex(c, [conversation, conversation2])).toEqual(2);
+            expect(query._getInsertIndex(c, [conversation, conversation2])).toEqual(2);
         });
 
         it("Should use createdAt field in sort by lastMessage test 1", function() {
@@ -2198,7 +1481,7 @@ describe("The Query Class", function() {
             var c = client.createConversation({participants: ["a"]});
             c.syncState = layer.Constants.SYNCED;
             c.createdAt = 11;
-            expect(query._getInsertConversationIndex(c, [conversation, conversation2])).toEqual(1);
+            expect(query._getInsertIndex(c, [conversation, conversation2])).toEqual(1);
         });
 
         it("Should use createdAt field in sort by lastMessage test 2", function() {
@@ -2209,35 +1492,35 @@ describe("The Query Class", function() {
             data = [conversation, conversation2];
             data[0].createdAt = data[0].lastMessage.sentAt;
             delete data[0].lastMessage;
-            expect(query._getInsertConversationIndex(c, data)).toEqual(1);
+            expect(query._getInsertIndex(c, data)).toEqual(1);
         });
 
         it("Should insert NEW items at top for sort by lastMessage", function() {
             query.sortBy = [{"lastMessage.sentAt": "desc"}];
             var c = client.createConversation({participants: ["layer:///identities/doh"]});
             data = [conversation, conversation2];
-            expect(query._getInsertConversationIndex(c, data)).toEqual(0);
+            expect(query._getInsertIndex(c, data)).toEqual(0);
         });
 
         it("Should insert NEW items at top for sort by createdAt", function() {
             query.sortBy = [{"createdAt": "desc"}];
             var c = client.createConversation({participants: ["layer:///identities/doh"]});
             data = [conversation, conversation2];
-            expect(query._getInsertConversationIndex(c, data)).toEqual(0);
+            expect(query._getInsertIndex(c, data)).toEqual(0);
         });
 
         it("Should insert added items after NEW items for sort by lastMessage", function() {
             query.sortBy = [{"lastMessage.sentAt": "desc"}];
             var c = client.createConversation({participants: ["layer:///identities/doh"]});
             data = [c, conversation2];
-            expect(query._getInsertConversationIndex(conversation, data)).toEqual(1);
+            expect(query._getInsertIndex(conversation, data)).toEqual(1);
         });
 
         it("Should insert added items after NEW items for sort by createdAt", function() {
             query.sortBy = [{"createdAt": "desc"}];
             var c = client.createConversation({participants: ["layer:///identities/doh"]});
             data = [c, conversation2];
-            expect(query._getInsertConversationIndex(conversation, data)).toEqual(2);
+            expect(query._getInsertIndex(conversation, data)).toEqual(2);
         });
     });
 
@@ -2247,7 +1530,7 @@ describe("The Query Class", function() {
             message.position = 5;
             message2 = conversation.createMessage("hey");
             message2.position = 10;
-            query = new layer.Query({
+            query = client.createQuery({
                 client: client,
                 model: 'Message',
                 paginationWindow: 15,
@@ -2271,248 +1554,11 @@ describe("The Query Class", function() {
         });
     });
 
-    describe("The _handleConversationAddEvent() method", function() {
-        var query;
-        beforeEach(function() {
-            query = new layer.Query({
-                client: client,
-                model: 'Conversation',
-                paginationWindow: 15,
-                dataType: "object"
-            });
-            query.data = [conversation];
-            spyOn(query, "_getInsertConversationIndex").and.returnValue(0);
-        });
-
-        afterEach(function() {
-            query.destroy();
-        });
-
-        it("Should replace data with a new array containing new results if dataType is object", function() {
-            var conversation2 = client.createConversation({ participants: ["aza"] });
-            var data = query.data = [];
-
-            // Run
-            query._handleConversationAddEvent({
-                conversations: [conversation, conversation2]
-            });
-
-            // Posttest
-            expect(query.data).not.toBe(data);
-            expect(query.data).toEqual([conversation2.toObject(), conversation.toObject()]);
-        });
-
-        it("Should insert new data into results if dataType is instance", function() {
-            var conversation2 = client.createConversation({ participants: ["aza"] });
-            query.dataType = "instance";
-            var data = query.data = [];
-
-            // Run
-            query._handleConversationAddEvent({
-                conversations: [conversation, conversation2]
-            });
-
-            // Posttest
-            expect(query.data).toBe(data);
-            expect(query.data).toEqual([conversation2, conversation]);
-        });
-
-        it("Should only operate on new values", function() {
-            var conversation2 = client.createConversation({ participants: ["aza"] });
-            var data = query.data = [conversation.toObject()];
-
-            // Run
-            query._handleConversationAddEvent({
-                conversations: [conversation, conversation2]
-            });
-
-            // Posttest
-            expect(query.data).toEqual([conversation2.toObject(), conversation.toObject()]);
-
-        });
-
-        it("Should trigger change event if new values", function() {
-            var conversation2 = client.createConversation({ participants: ["aza"] });
-            var data = query.data = [];
-            spyOn(query, "trigger");
-
-            // Run
-            query._handleConversationAddEvent({
-                conversations: [conversation, conversation2]
-            });
-
-            // Posttest
-            expect(query.trigger).toHaveBeenCalledWith("change", {
-                type: 'insert',
-                index: 1,
-                target: conversation.toObject(),
-                query: query
-            });
-            expect(query.trigger).toHaveBeenCalledWith("change", {
-                type: 'insert',
-                index: 0,
-                target: conversation2.toObject(),
-                query: query
-            });
-        });
-
-        it("Should not trigger change event if no new values", function() {
-            spyOn(query, "trigger");
-
-            // Run
-            query._handleConversationAddEvent({
-                conversations: [conversation]
-            });
-
-            // Posttest
-            expect(query.trigger).not.toHaveBeenCalled();
-        });
-
-        it("Should increase the totalSize property", function() {
-            var conversation2 = client.createConversation({ participants: ["aza"] });
-            var data = query.data = [];
-            expect(query.totalSize).toEqual(0);
-
-            // Run
-            query._handleConversationAddEvent({
-                conversations: [conversation, conversation2]
-            });
-
-            // Posttest
-            expect(query.totalSize).toEqual(2);
-        });
-    });
-
-    describe("The _handleConversationRemoveEvent() method", function() {
-        var query, conversation2;
-        beforeEach(function() {
-            query = new layer.Query({
-                client: client,
-                model: 'Conversation',
-                paginationWindow: 15,
-                dataType: "object"
-            });
-            conversation2 = client.createConversation({ participants: ["cdc"] });
-            query.data = [conversation.toObject(), conversation2.toObject()];
-
-        });
-
-        afterEach(function() {
-            query.destroy();
-        });
-
-        it("Should call _updateNextFromId for db and server indexes", function() {
-            spyOn(query, "_updateNextFromId").and.returnValue("heyho");
-            query._nextDBFromId = conversation.id;
-            query._nextServerFromId = conversation2.id;
-
-            // Run
-            query._handleConversationRemoveEvent({
-                conversations: [conversation, conversation2]
-            });
-
-            // Posttest
-            expect(query._nextDBFromId).toEqual('heyho');
-            expect(query._nextServerFromId).toEqual('heyho');
-        });
-
-        it("Should replace data with a new array removes conversations if dataType is object", function() {
-
-            var data = query.data;
-
-            // Run
-            query._handleConversationRemoveEvent({
-                conversations: [conversation, conversation2]
-            });
-
-            // Posttest
-            expect(query.data).not.toBe(data);
-            expect(query.data).toEqual([]);
-        });
-
-        it("Should remove data from results if dataType is instance", function() {
-            query.dataType = "instance";
-            var data = query.data;
-
-            // Run
-            query._handleConversationRemoveEvent({
-                conversations: [conversation, conversation2]
-            });
-
-            // Posttest
-            expect(query.data).toBe(data);
-            expect(query.data).toEqual([]);
-        });
-
-        it("Should only operate on existing values", function() {
-            var conversation3 = client.createConversation({ participants: ["zbd"] });
-
-            // Run
-            query._handleConversationRemoveEvent({
-                conversations: [conversation, conversation3]
-            });
-
-            // Posttest
-            expect(query.data).toEqual([conversation2.toObject()]);
-
-        });
-
-        it("Should trigger change event for each removal", function() {
-            spyOn(query, "_triggerChange");
-
-            // Run
-            query._handleConversationRemoveEvent({
-                conversations: [conversation, conversation2]
-            });
-
-            // Posttest
-            expect(query._triggerChange).toHaveBeenCalledWith({
-                type: 'remove',
-                index: 0,
-                target: conversation.toObject(),
-                query: query
-            });
-            expect(query._triggerChange).toHaveBeenCalledWith({
-                type: 'remove',
-                index: 0,
-                target: conversation2.toObject(),
-                query: query
-            });
-        });
-
-        it("Should not trigger change event if no values affected", function() {
-            spyOn(query, "trigger");
-            query.data = [conversation2.toObject()];
-
-            // Run
-            query._handleConversationRemoveEvent({
-                conversations: [conversation]
-            });
-
-            // Posttest
-            expect(query.trigger).not.toHaveBeenCalled();
-        });
-
-        it("Should increase the totalSize property", function() {
-            var conversation2 = client.createConversation({ participants: ["aza"] });
-            var conversation3 = client.createConversation({ participants: ["azab"] });
-            var data = query.data = [conversation, conversation2, conversation3];
-            query.totalSize = 3;
-
-            // Run
-            query._handleConversationRemoveEvent({
-                conversations: [conversation, conversation2]
-            });
-
-            // Posttest
-            expect(query.totalSize).toEqual(1);
-        });
-    });
 
     describe("The _handleMessageConvIdChangeEvent() method", function() {
         var query;
         beforeEach(function() {
-            query = new layer.Query({
+            query = client.createQuery({
                 client: client,
                 model: 'Message',
                 paginationWindow: 15,
@@ -2564,7 +1610,7 @@ describe("The Query Class", function() {
     describe("The _handleMessagePositionChange() method", function() {
         var query, message, evt;
         beforeEach(function() {
-            query = new layer.Query({
+            query = client.createQuery({
                 client: client,
                 model: 'Message',
                 paginationWindow: 15,
@@ -2650,7 +1696,7 @@ describe("The Query Class", function() {
     describe("The _handleMessageChangeEvent() method", function() {
         var query, message;
         beforeEach(function() {
-            query = new layer.Query({
+            query = client.createQuery({
                 client: client,
                 model: 'Message',
                 paginationWindow: 15,
@@ -2773,7 +1819,7 @@ describe("The Query Class", function() {
         beforeEach(function() {
             message1 = conversation.createMessage("hi").send();
             message2 = conversation.createMessage("ho").send();
-            query = new layer.Query({
+            query = client.createQuery({
                 client: client,
                 model: 'Message',
                 paginationWindow: 15,
@@ -2902,7 +1948,7 @@ describe("The Query Class", function() {
         beforeEach(function() {
             message1 = conversation.createMessage("hi");
             message2 = conversation.createMessage("ho");
-            query = new layer.Query({
+            query = client.createQuery({
                 client: client,
                 model: 'Message',
                 paginationWindow: 15,
@@ -3026,7 +2072,7 @@ describe("The Query Class", function() {
     describe('The _triggerChange() method', function() {
       var query;
       beforeEach(function() {
-          query = new layer.Query({
+          query = client.createQuery({
               client: client,
               model: 'Message',
               paginationWindow: 15,
@@ -3068,7 +2114,7 @@ describe("The Query Class", function() {
     describe("The size property getter", function() {
       var query;
       beforeEach(function() {
-          query = new layer.Query({
+          query = client.createQuery({
               client: client,
               model: 'Message',
               paginationWindow: 15,

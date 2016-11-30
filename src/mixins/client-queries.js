@@ -6,6 +6,7 @@
 
 const Query = require('../queries/query');
 const IdentitiesQuery = require('../queries/identities-query');
+const ConversationsQuery = require('../queries/conversations-query');
 const ErrorDictionary = require('../layer-error').dictionary;
 
 module.exports = {
@@ -87,6 +88,10 @@ module.exports = {
       switch (options.model) {
         case Query.Identity:
           query = new IdentitiesQuery(options);
+          break;
+        case Query.Conversation:
+        case Query.Channel:
+          query = new ConversationsQuery(options);
           break;
         default:
           query = new Query(options);

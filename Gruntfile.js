@@ -127,6 +127,7 @@ module.exports = function (grunt) {
           "lib/identity.js": "src/identity.js",
           "lib/queries/query.js": "src/queries/query.js",
           "lib/queries/identities-query.js": "src/queries/identities-query.js",
+          "lib/queries/conversations-query.js": "src/queries/conversations-query.js",
           "lib/queries/query-builder.js": "src/queries/query-builder.js",
           "lib/sync-manager.js": "src/sync-manager.js",
           "lib/sync-event.js": "src/sync-event.js",
