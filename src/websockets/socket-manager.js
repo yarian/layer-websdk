@@ -626,7 +626,7 @@ SocketManager.prototype._lostConnectionCount = 0;
  * Time in miliseconds since the last call to _validateSessionBeforeReconnect
  * @type {Number}
  */
-SocketManager.prototype.__lastValidateSessionRequest = 0;
+SocketManager.prototype._lastValidateSessionRequest = 0;
 
 /**
  * A Timeout ID for scheduling calls to _validateSessionBeforeReconnect
