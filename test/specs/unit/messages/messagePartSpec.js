@@ -184,7 +184,7 @@ describe("The MessageParts class", function() {
         it("Should set the URL property", function() {
           expect(part.url).toEqual("");
           part._fetchContentCallback(null, generateBlob());
-          expect(part.url).toMatch(/^blob:(http%3A|file:\/\/\/)/);
+          expect(part.url).toMatch(/^blob:(http|file)(:\/{2,3}|%3A)/);
         });
 
         it("Should clear the isFiring property", function() {

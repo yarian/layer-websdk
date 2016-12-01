@@ -885,7 +885,7 @@ describe("The Websocket Socket Manager Class", function() {
 
         // Posttest
         jasmine.clock().tick(10);
-        expect(websocketManager._validateSessionBeforeReconnect).toHaveBeenCalled();
+        expect(websocketManager._validateSessionBeforeReconnect).toHaveBeenCalledWith();
 
         // Cleanup
         layer.Util.getExponentialBackoffSeconds = tmp;
@@ -903,7 +903,7 @@ describe("The Websocket Socket Manager Class", function() {
           spyOn(client, "xhr");
           websocketManager._validateSessionBeforeReconnect();
           expect(client.xhr).toHaveBeenCalledWith({
-              url: "/",
+              url: "/?client=websdk1.0.13",
               sync: false,
               method: "GET"
             }, jasmine.any(Function));

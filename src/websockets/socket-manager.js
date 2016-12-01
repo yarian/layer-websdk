@@ -539,14 +539,26 @@ class SocketManager extends Root {
   _validateSessionBeforeReconnect() {
     if (this.isDestroyed || !this.client.isOnline) return;
 
-    this.client.xhr({
-      url: '/',
-      method: 'GET',
-      sync: false,
-    }, (result) => {
-      if (result.success) this.connect();
-      // if not successful, the this.client.xhr will handle reauthentication
-    });
+    const maxDelay = 30 * 1000; // maximum delay of 30 seconds per ping
+    const diff = Date.now() - this._lastValidateSessionRequest - maxDelay;
+    if (diff < 0) {
+      if (!this._lastValidateTimeout) {
+        this._lastValidateTimeout = setTimeout(() => {
+          this._lastValidateTimeout = 0;
+          this._validateSessionBeforeReconnect();
+        }, Math.abs(diff) + 1000);
+      }
+    } else {
+      this._lastValidateSessionRequest = Date.now();
+      this.client.xhr({
+        url: '/?client=websdk1.0.13',
+        method: 'GET',
+        sync: false,
+      }, (result) => {
+        if (result.success) this.connect();
+        // if not successful, the this.client.xhr will handle reauthentication
+      });
+    }
   }
 }
 
@@ -610,6 +622,17 @@ SocketManager.prototype._closing = false;
  */
 SocketManager.prototype._lostConnectionCount = 0;
 
+/**
+ * Time in miliseconds since the last call to _validateSessionBeforeReconnect
+ * @type {Number}
+ */
+SocketManager.prototype.__lastValidateSessionRequest = 0;
+
+/**
+ * A Timeout ID for scheduling calls to _validateSessionBeforeReconnect
+ * @type {Number}
+ */
+SocketManager.prototype._lastValidateTimeout = 0;
 
 SocketManager._supportedEvents = [
   /**
