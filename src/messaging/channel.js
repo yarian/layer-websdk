@@ -1,11 +1,8 @@
 /*
  * TODO:
  * 1. Websocket events need to create/modify the proper object (channel vs conversation)
- * 2. Messages need to be setup with the right container
- * 3. Messages need to route custom operations to the right contianer
- * 4. Messages need conditional code around things like recipient_status.
- * 5. Sanity check that we haven't broken Announcements
- * 5. Querying for Channels you are a member of / Account for Querying for Full channel list and Channels you are NOT a member of
+ * 6. Tests on MessageQuery that handle channel and conversations
+ * 7. DbManager and Channels
  */
 
 /**

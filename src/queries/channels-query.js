@@ -5,17 +5,16 @@ const Util = require('../client-utils');
 const Logger = require('../logger');
 const { SYNC_STATE } = require('../const');
 const Query = require('./query');
+const ConversationsQuery = require('./conversations-query');
 
-class ConversationsQuery extends Query {
+class ChannelsQuery extends ConversationsQuery {
 
   _fetchData(pageSize) {
-    const sortBy = this._getSortField();
-
-    this.client.dbManager.loadConversations(sortBy, this._nextDBFromId, pageSize, (conversations) => {
-      if (conversations.length) this._appendResults({ data: conversations }, true);
+    this.client.dbManager.loadChannels(this._nextDBFromId, pageSize, (channels) => {
+      if (channels.length) this._appendResults({ data: channels }, true);
     });
 
-    const newRequest = `conversations?sort_by=${sortBy}&page_size=${pageSize}` +
+    const newRequest = `channels?page_size=${pageSize}` +
       (this._nextServerFromId ? '&from_id=' + this._nextServerFromId : '');
 
     if (newRequest !== this._firingRequest) {
@@ -30,56 +29,11 @@ class ConversationsQuery extends Query {
   }
 
   _getSortField() {
-    if (this.sortBy && this.sortBy[0] && this.sortBy[0]['lastMessage.sentAt']) {
-      return 'last_message';
-    } else {
-      return 'created_at';
-    }
-  }
-
-  _getItem(id) {
-    switch (Util.typeFromID(id)) {
-      case 'messages':
-        for (let index = 0; index < this.data.length; index++) {
-          const conversation = this.data[index];
-          if (conversation.lastMessage && conversation.lastMessage.id === id) return conversation.lastMessage;
-        }
-        return null;
-      case 'conversations':
-        return super._getItem(id);
-    }
+    return 'created_at';
   }
 
   _appendResultsSplice(item) {
-    const data = this.data;
-    const index = this._getInsertIndex(item, data);
-    data.splice(index, 0, this._getData(item));
-  }
-
-  _handleEvents(eventName, evt) {
-    switch (eventName) {
-
-      // If a Conversation's property has changed, and the Conversation is in this
-      // Query's data, then update it.
-      case 'conversations:change':
-      case 'channels:change':
-        this._handleChangeEvent(evt);
-        break;
-
-      // If a Conversation is added, and it isn't already in the Query,
-      // add it and trigger an event
-      case 'conversations:add':
-      case 'channels:add':
-        this._handleAddEvent(evt);
-        break;
-
-      // If a Conversation is deleted, and its still in our data,
-      // remove it and trigger an event.
-      case 'conversations:remove':
-      case 'channels:remove':
-        this._handleRemoveEvent(evt);
-        break;
-    }
+    this.data.unshift(this._getData(item));
   }
 
   // TODO WEB-968: Refactor this into functions for instance, object, sortBy createdAt, sortBy lastMessage
@@ -244,15 +198,15 @@ class ConversationsQuery extends Query {
   }
 }
 
-ConversationsQuery._supportedEvents = [
+ChannelsQuery._supportedEvents = [
 
-].concat(Query._supportedEvents);
+].concat(ConversationsQuery._supportedEvents);
 
 
-ConversationsQuery.MaxPageSize = 100;
+ChannelsQuery.MaxPageSize = 100;
 
-ConversationsQuery.prototype.model = Query.Conversation;
+ChannelsQuery.prototype.model = Query.Conversation;
 
-Root.initClass.apply(ConversationsQuery, [ConversationsQuery, 'ConversationsQuery']);
+Root.initClass.apply(ChannelsQuery, [ChannelsQuery, 'ChannelsQuery']);
 
-module.exports = ConversationsQuery;
+module.exports = ChannelsQuery;

@@ -7,6 +7,9 @@
 const Query = require('../queries/query');
 const IdentitiesQuery = require('../queries/identities-query');
 const ConversationsQuery = require('../queries/conversations-query');
+const ChannelsQuery = require('../queries/channels-query');
+const MessagesQuery = require('../queries/messages-query');
+const AnnouncementsQuery = require('../queries/announcements-query');
 const ErrorDictionary = require('../layer-error').dictionary;
 
 module.exports = {
@@ -90,9 +93,18 @@ module.exports = {
           query = new IdentitiesQuery(options);
           break;
         case Query.Conversation:
-        case Query.Channel:
           query = new ConversationsQuery(options);
           break;
+        case Query.Channel:
+          query = new ChannelsQuery(options);
+          break;
+        case Query.Message:
+          query = new MessagesQuery(options);
+          break;
+        case Query.Announcement:
+          query = new AnnouncementsQuery(options);
+          break;
+
         default:
           query = new Query(options);
       }

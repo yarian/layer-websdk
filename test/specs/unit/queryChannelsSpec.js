@@ -1,9 +1,9 @@
 /*eslint-disable */
-describe("The ConversationsQuery Class", function() {
+describe("The ChannelsQuery Class", function() {
     var appId = "Fred's App";
 
-    var conversation, conversationUUID,
-        conversation2,
+    var channel, channelUUID,
+        channel2,
         message,
         identity,
         client,
@@ -49,11 +49,10 @@ describe("The ConversationsQuery Class", function() {
         client.onlineManager.isOnline = true;
 
         query = client.createQuery({
-          model: layer.Query.Conversation
+          model: layer.Query.Channel
         });
-        conversation = client._createObject(responses.conversation1);
-        conversation2 = client._createObject(responses.conversation2);
-        message = conversation.createMessage("Hey").send();
+        channel = client._createObject(responses.channel1);
+        message = channel.createMessage("Hey").send();
 
         jasmine.clock().tick(1);
         requests.reset();
@@ -70,17 +69,16 @@ describe("The ConversationsQuery Class", function() {
         layer.Client.destroyAllClients();
     });
 
-    it("Should be an ConversationsQuery", function() {
-      expect(query.constructor.prototype.model).toEqual(layer.Query.Conversation);
+    it("Should be an ChannelsQuery", function() {
+      expect(query.constructor.prototype.model).toEqual(layer.Query.Channel);
     });
 
     describe("The constructor() method", function() {
-         it("Should reject predicate on Conversations", function() {
+         it("Should reject predicate on Channel", function() {
             expect(function() {
                 var query = client.createQuery({
-                    client: client,
-                    model: layer.Query.Conversation,
-                    predicate: 'conversation.id  =    "fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"'
+                    model: layer.Query.Channel,
+                    predicate: 'channel.id  =    "fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"'
                 });
             }).toThrowError(layer.LayerError.dictionary.predicateNotSupported);
             expect(layer.LayerError.dictionary.predicateNotSupported.length > 0).toBe(true);
@@ -91,7 +89,7 @@ describe("The ConversationsQuery Class", function() {
         var query;
         beforeEach(function() {
             query = client.createQuery({
-                model: 'Conversation',
+                model: layer.Query.Channel,
                 paginationWindow: 15
             });
         });
@@ -109,25 +107,25 @@ describe("The ConversationsQuery Class", function() {
         it("Should call server with _nextServerFromId", function() {
             // Test 1
             query._fetchData(32);
-            expect(requests.mostRecent().url).toEqual(client.url + "/conversations?sort_by=created_at&page_size=32");
+            expect(requests.mostRecent().url).toEqual(client.url + "/channels?page_size=32");
 
             // Test 2
             query._nextServerFromId = 'howdy';
             query._fetchData(32);
-            expect(requests.mostRecent().url).toEqual(client.url + "/conversations?sort_by=created_at&page_size=32&from_id=howdy");
+            expect(requests.mostRecent().url).toEqual(client.url + "/channels?page_size=32&from_id=howdy");
         });
 
         it("Should call DB with _nextDBFromId", function() {
-          spyOn(client.dbManager, "loadConversations");
+          spyOn(client.dbManager, "loadChannels");
 
           // Test 1
           query._fetchData(17);
-          expect(client.dbManager.loadConversations).toHaveBeenCalledWith('created_at', '', 17, jasmine.any(Function));
+          expect(client.dbManager.loadChannels).toHaveBeenCalledWith('created_at', '', 17, jasmine.any(Function));
 
           // Test 2
           query._nextDBFromId = 'howdy';
           query._fetchData(17);
-          expect(client.dbManager.loadConversations).toHaveBeenCalledWith('created_at', 'howdy', 17, jasmine.any(Function));
+          expect(client.dbManager.loadChannels).toHaveBeenCalledWith('created_at', 'howdy', 17, jasmine.any(Function));
         });
 
         it("Should refuse to call if already firing with same url", function() {
@@ -135,12 +133,6 @@ describe("The ConversationsQuery Class", function() {
             query._fetchData(45);
             query._fetchData(45);
             expect(requests.count()).toEqual(1);
-        });
-
-        it("Should call with last_message sorting", function() {
-            query.sortBy = [{'lastMessage.sentAt': 'desc'}];
-            query._fetchData(32);
-            expect(requests.mostRecent().url).toEqual(client.url + "/conversations?sort_by=last_message&page_size=32");
         });
 
         it("Should call _processRunResults", function() {
@@ -153,12 +145,12 @@ describe("The ConversationsQuery Class", function() {
             expect(query._processRunResults).toHaveBeenCalledWith(jasmine.objectContaining({
                 success: true,
                 data: [{id: "a"}, {id: "b"}]
-            }), "conversations?sort_by=created_at&page_size=36", 36);
+            }), "channels?page_size=36", 36);
         });
     });
 
     describe("The _getSortField() method", function() {
-      it("Should return last_message", function() {
+      it("Should return created_at even though sentAt was requested", function() {
         query.update({sortBy: [{'lastMessage.sentAt': 'desc'}]});
         expect(query._getSortField()).toEqual('last_message');
       });
@@ -179,7 +171,7 @@ describe("The ConversationsQuery Class", function() {
             conversation.lastMessage.sentAt = 12;
             query = client.createQuery({
                 client: client,
-                model: 'Conversation',
+                model: layer.Query.Channel,
                 paginationWindow: 15,
                 dataType: "object",
                 sortBy: [{"createdAt": "desc"}]
@@ -284,7 +276,7 @@ describe("The ConversationsQuery Class", function() {
         beforeEach(function() {
             query = client.createQuery({
                 client: client,
-                model: 'Conversation',
+                model: layer.Query.Channel,
                 paginationWindow: 15
             });
             query.data = [conversation];
@@ -325,7 +317,7 @@ describe("The ConversationsQuery Class", function() {
             beforeEach(function() {
                 query = client.createQuery({
                     client: client,
-                    model: 'Conversation',
+                    model: layer.Query.Channel,
                     paginationWindow: 15,
                     dataType: "object",
                     sortBy: [{'createdAt': 'desc'}]
@@ -489,7 +481,7 @@ describe("The ConversationsQuery Class", function() {
             beforeEach(function() {
                 query = client.createQuery({
                     client: client,
-                    model: 'Conversation',
+                    model: layer.Query.Channel,
                     paginationWindow: 15,
                     dataType: "instance",
                     sortBy: [{'createdAt': 'desc'}]
@@ -607,7 +599,7 @@ describe("The ConversationsQuery Class", function() {
             beforeEach(function() {
                 query = client.createQuery({
                     client: client,
-                    model: 'Conversation',
+                    model: layer.Query.Channel,
                     paginationWindow: 15,
                     dataType: "object",
                     sortBy: [{'lastMessage.sentAt': 'desc'}]
@@ -775,7 +767,7 @@ describe("The ConversationsQuery Class", function() {
             beforeEach(function() {
                 query = client.createQuery({
                     client: client,
-                    model: 'Conversation',
+                    model: layer.Query.Channel,
                     paginationWindow: 15,
                     dataType: "instance",
                     sortBy: [{'lastMessage.sentAt': 'desc'}]
@@ -919,7 +911,7 @@ describe("The ConversationsQuery Class", function() {
         beforeEach(function() {
             query = client.createQuery({
                 client: client,
-                model: 'Conversation',
+                model: layer.Query.Channel,
                 paginationWindow: 15,
                 dataType: "object"
             });
@@ -1031,7 +1023,7 @@ describe("The ConversationsQuery Class", function() {
         beforeEach(function() {
             query = client.createQuery({
                 client: client,
-                model: 'Conversation',
+                model: layer.Query.Channel,
                 paginationWindow: 15,
                 dataType: "object"
             });

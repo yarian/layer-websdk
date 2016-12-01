@@ -98,6 +98,16 @@ responses = {
             "background_color": "#3c3c3c"
         }
     },
+    channel1: {
+        "id": "layer:///channels/f3cc7b32-3c92-11e4-baad-164230d1df68",
+        "url": "https://doh.com/channels/f3cc7b32-3c92-11e4-baad-164230d1df68",
+        "created_at": "2014-09-15T04:44:47+00:00",
+        "name": "just a channel",
+        "metadata": {
+            "favorite": "true",
+            "background_color": "#3c3c3c"
+        }
+    },
     message1: sampleMessage2,
     message2: sampleMessage3,
     announcement: {

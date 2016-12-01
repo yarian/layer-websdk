@@ -205,18 +205,7 @@
  */
 const Root = require('../root');
 const LayerError = require('../layer-error');
-const Util = require('../client-utils');
 const Logger = require('../logger');
-const { SYNC_STATE } = require('../const');
-
-const CHANNEL = 'Channel';
-const MESSAGE = 'Message';
-const ANNOUNCEMENT = 'Announcement';
-
-const findConvIdRegex = new RegExp(
-  /^conversation.id\s*=\s*['"]((layer:\/\/\/conversations\/)?.{8}-.{4}-.{4}-.{4}-.{12})['"]$/);
-const findChannelIdRegex = new RegExp(
-  /^channel.id\s*=\s*['"]((layer:\/\/\/channels\/)?.{8}-.{4}-.{4}-.{4}-.{12})['"]$/);
 
 class Query extends Root {
 
@@ -347,24 +336,8 @@ class Query extends Root {
    * @private
    */
   _fixPredicate(inValue) {
-    if (inValue === '') return '';
-    if (this.model === Query.Message) {
-      if (inValue.indexOf('conversation.id') !== -1) {
-        let conversationId = inValue.match(findConvIdRegex) ? inValue.replace(findConvIdRegex, '$1') : null;
-        if (!conversationId) throw new Error(LayerError.dictionary.invalidPredicate);
-        if (conversationId.indexOf('layer:///conversations/') !== 0) conversationId = 'layer:///conversations/' + conversationId;
-        return `conversation.id = '${conversationId}'`;
-      } else if (inValue.indexOf('channel.id') !== -1) {
-        let channelId = inValue.match(findConvIdRegex) ? inValue.replace(findConvIdRegex, '$1') : null;
-        if (!channelId) throw new Error(LayerError.dictionary.invalidPredicate);
-        if (channelId.indexOf('layer:///channels/') !== 0) channelId = 'layer:///channels/' + channelId;
-        return `channel.id = '${channelId}'`;
-      } else {
-        throw new Error(LayerError.dictionary.invalidPredicate);
-      }
-    } else {
-      throw new Error(LayerError.dictionary.predicateNotSupported);
-    }
+    if (inValue) throw new Error(LayerError.dictionary.predicateNotSupported);
+    return '';
   }
 
   /**
@@ -429,19 +402,6 @@ class Query extends Root {
     } else if (pageSize === 0 || this.pagedToEnd) {
       // No need to load 0 results.
     } else {
-      switch (this.model) {
-        case CHANNEL:
-          this._runChannel(pageSize);
-          break;
-        case MESSAGE:
-          if (this.predicate) this._runMessage(pageSize);
-          break;
-        case ANNOUNCEMENT:
-          this._runAnnouncement(pageSize);
-          break;
-        case '':
-          break;
-      }
       this._fetchData(pageSize);
     }
   }
@@ -463,196 +423,7 @@ class Query extends Root {
    * @return {String} sort key used by server
    */
   _getSortField() {
-    if (this.model === MESSAGE || this.model === ANNOUNCEMENT) return 'position';
-    if (this.model === CHANNEL) return 'created_at';
-  }
-
-  /**
-   * Get the Conversation UUID from the predicate property.
-   *
-   * Extract the Conversation's UUID from the predicate... or returned the cached value.
-   *
-   * @method _getConversationPredicateIds
-   * @private
-   */
-  _getConversationPredicateIds() {
-    if (this.predicate.indexOf('conversation.id') !== -1) {
-      if (this.predicate.match(findConvIdRegex)) {
-        const conversationId = this.predicate.replace(findConvIdRegex, '$1');
-
-        // We will already have a this._predicate if we are paging; else we need to extract the UUID from
-        // the conversationId.
-        const uuid = (this._predicate || conversationId).replace(/^layer:\/\/\/conversations\//, '');
-        if (uuid) {
-          return {
-            uuid,
-            id: conversationId,
-            type: Query.Conversation,
-          };
-        }
-      }
-    } else if (this.predicate.indexOf('channel.id') !== -1) {
-      if (this.predicate.match(findChannelIdRegex)) {
-        const channelId = this.predicate.replace(findChannelIdRegex, '$1');
-
-        // We will already have a this._predicate if we are paging; else we need to extract the UUID from
-        // the channelId.
-        const uuid = (this._predicate || channelId).replace(/^layer:\/\/\/channels\//, '');
-        if (uuid) {
-          return {
-            uuid,
-            id: channelId,
-            type: CHANNEL,
-          };
-        }
-      }
-    }
-  }
-
-  /**
-   * Get Channels from the server.
-   *
-   * @method _runChannel
-   * @private
-   * @param  {number} pageSize - Number of new results to request
-   */
-  _runChannel(pageSize) {
-    this.client.dbManager.loadChannels(this._nextDBFromId, pageSize, (channels) => {
-      if (channels.length) this._appendResults({ data: channels }, true);
-    });
-
-    const newRequest = `channels?page_size=${pageSize}` +
-      (this._nextServerFromId ? '&from_id=' + this._nextServerFromId : '');
-
-    if (newRequest !== this._firingRequest) {
-      this.isFiring = true;
-      this._firingRequest = newRequest;
-      this.client.xhr({
-        url: this._firingRequest,
-        method: 'GET',
-        sync: false,
-      }, results => this._processRunResults(results, this._firingRequest, pageSize));
-    }
-  }
-
-  /**
-   * Get Messages from the server.
-   *
-   * @method _runMessage
-   * @private
-   * @param  {number} pageSize - Number of new results to request
-   */
-  _runMessage(pageSize) {
-    const predicateIds = this._getConversationPredicateIds();
-
-    // Do nothing if we don't have a conversation to query on
-    if (!predicateIds) {
-      if (!this.predicate.match(/['"]/)) {
-        Logger.error('This query may need to quote its value');
-      }
-      return;
-    }
-
-    switch (predicateIds.type) {
-      case Query.Conversation:
-        this._runConversationMessages(pageSize, predicateIds);
-        break;
-      case CHANNEL:
-        this._runChannelMessages(pageSize, predicateIds);
-        break;
-    }
-  }
-
-  _runConversationMessages(pageSize, predicateIds) {
-    const conversationId = 'layer:///conversations/' + predicateIds.uuid;
-    if (!this._predicate) this._predicate = predicateIds.id;
-    const conversation = this.client.getConversation(conversationId);
-
-    // Retrieve data from db cache in parallel with loading data from server
-    this.client.dbManager.loadMessages(conversationId, this._nextDBFromId, pageSize, (messages) => {
-      if (messages.length) this._appendResults({ data: messages }, true);
-    });
-
-    const newRequest = `conversations/${predicateIds.uuid}/messages?page_size=${pageSize}` +
-      (this._nextServerFromId ? '&from_id=' + this._nextServerFromId : '');
-
-    // Don't query on unsaved conversations, nor repeat still firing queries
-    if ((!conversation || conversation.isSaved()) && newRequest !== this._firingRequest) {
-      this.isFiring = true;
-      this._firingRequest = newRequest;
-      this.client.xhr({
-        url: newRequest,
-        method: 'GET',
-        sync: false,
-      }, results => this._processRunResults(results, newRequest, pageSize));
-    }
-
-    // If there are no results, then its a new query; automatically populate it with the Conversation's lastMessage.
-    if (this.data.length === 0) {
-      if (conversation && conversation.lastMessage) {
-        this.data = [this._getData(conversation.lastMessage)];
-        // Trigger the change event
-        this._triggerChange({
-          type: 'data',
-          data: [this._getData(conversation.lastMessage)],
-          query: this,
-          target: this.client,
-        });
-      }
-    }
-  }
-
-  _runChannelMessages(pageSize, predicateIds) {
-    const channelId = 'layer:///channels/' + predicateIds.uuid;
-    if (!this._predicate) this._predicate = predicateIds.id;
-    const channel = this.client.getChannel(channelId);
-
-    // Retrieve data from db cache in parallel with loading data from server
-    this.client.dbManager.loadMessages(channelId, this._nextDBFromId, pageSize, (messages) => {
-      if (messages.length) this._appendResults({ data: messages }, true);
-    });
-
-    const newRequest = `channels/${predicateIds.uuid}/messages?page_size=${pageSize}` +
-      (this._nextServerFromId ? '&from_id=' + this._nextServerFromId : '');
-
-    // Don't query on unsaved channels, nor repeat still firing queries
-    if ((!channel || channel.isSaved()) && newRequest !== this._firingRequest) {
-      this.isFiring = true;
-      this._firingRequest = newRequest;
-      this.client.xhr({
-        url: newRequest,
-        method: 'GET',
-        sync: false,
-      }, results => this._processRunResults(results, newRequest, pageSize));
-    }
-  }
-
-  /**
-   * Get Announcements from the server.
-   *
-   * @method _runAnnouncement
-   * @private
-   * @param  {number} pageSize - Number of new results to request
-   */
-  _runAnnouncement(pageSize) {
-    // Retrieve data from db cache in parallel with loading data from server
-    this.client.dbManager.loadAnnouncements(this._nextDBFromId, pageSize, (messages) => {
-      if (messages.length) this._appendResults({ data: messages }, true);
-    });
-
-    const newRequest = `announcements?page_size=${pageSize}` +
-      (this._nextServerFromId ? '&from_id=' + this._nextServerFromId : '');
-
-    // Don't repeat still firing queries
-    if (newRequest !== this._firingRequest) {
-      this.isFiring = true;
-      this._firingRequest = newRequest;
-      this.client.xhr({
-        url: newRequest,
-        method: 'GET',
-        sync: false,
-      }, results => this._processRunResults(results, newRequest, pageSize));
-    }
+    // Noop
   }
 
   /**
@@ -724,21 +495,8 @@ class Query extends Root {
 
     // Insert the results... if the results are a match
     newResults.forEach((itemIn) => {
-      let index;
       const item = this.client._getObject(itemIn.id);
-      switch (this.model) {
-        case MESSAGE:
-        case ANNOUNCEMENT:
-          index = this._getInsertMessageIndex(item, data);
-          break;
-        case CHANNEL:
-          index = 0;
-          break;
-        default:
-          this._appendResultsSplice(item);
-          return;
-      }
-      data.splice(index, 0, this._getData(item));
+      this._appendResultsSplice(item);
     });
 
 
@@ -795,24 +553,8 @@ class Query extends Root {
    * @return {Object} Conversation, Message, etc... object or instance
    */
   _getItem(id) {
-    switch (Util.typeFromID(id)) {
-      case 'messages':
-        if (this.model === MESSAGE) {
-          const index = this._getIndex(id);
-          return index === -1 ? null : this.data[index];
-        } else if (this.model === Query.Conversation) {
-          for (let index = 0; index < this.data.length; index++) {
-            const conversation = this.data[index];
-            if (conversation.lastMessage && conversation.lastMessage.id === id) return conversation.lastMessage;
-          }
-          return null;
-        }
-        break;
-      default: {
-        const index = this._getIndex(id);
-        return index === -1 ? null : this.data[index];
-      }
-    }
+    const index = this._getIndex(id);
+    return index === -1 ? null : this.data[index];
   }
 
   /**
@@ -845,220 +587,7 @@ class Query extends Root {
    * @param {layer.LayerEvent} evt
    */
   _handleEvents(eventName, evt) {
-    switch (this.model) {
-      case MESSAGE:
-      case ANNOUNCEMENT:
-        this._handleMessageEvents(evt);
-        break;
-    }
-  }
-
-  _getInsertMessageIndex(message, data) {
-    let index;
-    for (index = 0; index < data.length; index++) {
-      if (message.position > data[index].position) {
-        break;
-      }
-    }
-    return index;
-  }
-
-  _handleMessageEvents(evt) {
-    switch (evt.eventName) {
-
-      // If a Conversation's ID has changed, check our predicate, and update it automatically if needed.
-      case 'conversations:change':
-      case 'channels:change':
-        if (this.model === MESSAGE) this._handleMessageConvIdChangeEvent(evt);
-        break;
-
-      // If a Message has changed and its in our result set, replace
-      // it with a new immutable object
-      case 'messages:change':
-      case 'messages:read':
-        this._handleMessageChangeEvent(evt);
-        break;
-
-      // If Messages are added, and they aren't already in our result set
-      // add them.
-      case 'messages:add':
-        this._handleMessageAddEvent(evt);
-        break;
-
-      // If a Message is deleted and its in our result set, remove it
-      // and trigger an event
-      case 'messages:remove':
-        this._handleMessageRemoveEvent(evt);
-        break;
-    }
-  }
-
-  /**
-   * A Conversation or Channel ID changes if a matching Distinct Conversation or named Channel was found on the server.
-   *
-   * If this Query's Conversation's ID has changed, update the predicate.
-   *
-   * @method _handleMessageConvIdChangeEvent
-   * @param {layer.LayerEvent} evt - A Message Change Event
-   * @private
-   */
-  _handleMessageConvIdChangeEvent(evt) {
-    const cidChanges = evt.getChangesFor('id');
-    if (cidChanges.length) {
-      if (this._predicate === cidChanges[0].oldValue) {
-        this._predicate = cidChanges[0].newValue;
-        this.predicate = "conversation.id = '" + this._predicate + "'";
-        this._run();
-      }
-    }
-  }
-
-  /**
-   * If the ID of the message has changed, then the position property has likely changed as well.
-   *
-   * This method tests to see if changes to the position property have impacted the message's position in the
-   * data array... and updates the array if it has.
-   *
-   * @method _handleMessagePositionChange
-   * @private
-   * @param {layer.LayerEvent} evt  A Message Change event
-   * @param {number} index  Index of the message in the current data array
-   * @return {boolean} True if a data was changed and a change event was emitted
-   */
-  _handleMessagePositionChange(evt, index) {
-    // If the message is not in the current data, then there is no change to our query results.
-    if (index === -1) return false;
-
-    // Create an array without our data item and then find out where the data item Should be inserted.
-    // Note: we could just lookup the position in our current data array, but its too easy to introduce
-    // errors where comparing this message to itself may yield index or index + 1.
-    const newData = [
-      ...this.data.slice(0, index),
-      ...this.data.slice(index + 1),
-    ];
-    const newIndex = this._getInsertMessageIndex(evt.target, newData);
-
-    // If the data item goes in the same index as before, then there is no change to be handled here;
-    // else insert the item at the right index, update this.data and fire a change event
-    if (newIndex !== index) {
-      newData.splice(newIndex, 0, this._getData(evt.target));
-      this.data = newData;
-      this._triggerChange({
-        type: 'property',
-        target: this._getData(evt.target),
-        query: this,
-        isChange: true,
-        changes: evt.changes,
-      });
-      return true;
-    }
-    return false;
-  }
-
-  _handleMessageChangeEvent(evt) {
-    let index = this._getIndex(evt.target.id);
-    const positionChanges = evt.getChangesFor('position');
-
-    // If there are position changes, handle them.  If all the changes are position changes,
-    // exit when done.
-    if (positionChanges.length) {
-      if (this._handleMessagePositionChange(evt, index)) {
-        if (positionChanges.length === evt.changes.length) return;
-        index = this._getIndex(evt.target.id); // Get the updated position
-      }
-    }
-
-    if (index !== -1) {
-      if (this.dataType === Query.ObjectDataType) {
-        this.data = [
-          ...this.data.slice(0, index),
-          evt.target.toObject(),
-          ...this.data.slice(index + 1),
-        ];
-      }
-      this._triggerChange({
-        type: 'property',
-        target: this._getData(evt.target),
-        query: this,
-        isChange: true,
-        changes: evt.changes,
-      });
-    }
-  }
-
-  _handleMessageAddEvent(evt) {
-    // Only use added messages that are part of this Conversation
-    // and not already in our result set
-    const list = evt.messages
-      // Filter so that we only see Messages if doing a Messages query or Announcements if doing an Announcements Query.
-      .filter(message => {
-        const type = Util.typeFromID(message.id);
-        return type === 'messages' && this.model === MESSAGE ||
-                type === 'announcements' && this.model === ANNOUNCEMENT;
-      })
-      // Filter out Messages that aren't part of this Conversation
-      .filter(message => {
-        const type = Util.typeFromID(message.id);
-        return type === 'announcements' || message.parentId === this._predicate;
-      })
-      // Filter out Messages that are already in our data set
-      .filter(message => this._getIndex(message.id) === -1)
-      .map(message => this._getData(message));
-
-    // Add them to our result set and trigger an event for each one
-    if (list.length) {
-      const data = this.data = this.dataType === Query.ObjectDataType ? [].concat(this.data) : this.data;
-      list.forEach((item) => {
-        const index = this._getInsertMessageIndex(item, data);
-        data.splice(index, 0, item);
-      });
-
-      this.totalSize += list.length;
-
-      // Index calculated above may shift after additional insertions.  This has
-      // to be done after the above insertions have completed.
-      list.forEach((item) => {
-        this._triggerChange({
-          type: 'insert',
-          index: this.data.indexOf(item),
-          target: item,
-          query: this,
-        });
-      });
-    }
-  }
-
-  _handleMessageRemoveEvent(evt) {
-    const removed = [];
-    evt.messages.forEach((message) => {
-      const index = this._getIndex(message.id);
-      if (index !== -1) {
-        if (message.id === this._nextDBFromId) this._nextDBFromId = this._updateNextFromId(index);
-        if (message.id === this._nextServerFromId) this._nextServerFromId = this._updateNextFromId(index);
-        removed.push({
-          data: message,
-          index,
-        });
-        if (this.dataType === Query.ObjectDataType) {
-          this.data = [
-            ...this.data.slice(0, index),
-            ...this.data.slice(index + 1),
-          ];
-        } else {
-          this.data.splice(index, 1);
-        }
-      }
-    });
-
-    this.totalSize -= removed.length;
-    removed.forEach((removedObj) => {
-      this._triggerChange({
-        type: 'remove',
-        target: this._getData(removedObj.data),
-        index: removedObj.index,
-        query: this,
-      });
-    });
+    // Noop
   }
 
   /**
@@ -1112,7 +641,7 @@ Query.Conversation = 'Conversation';
  * @type {string}
  * @static
  */
-Query.Channel = CHANNEL;
+Query.Channel = 'Channel';
 
 /**
  * Query for Messages.
@@ -1121,7 +650,7 @@ Query.Channel = CHANNEL;
  * @type {string}
  * @static
  */
-Query.Message = MESSAGE;
+Query.Message = 'Message';
 
 /**
  * Query for Announcements.
@@ -1130,7 +659,7 @@ Query.Message = MESSAGE;
  * @type {string}
  * @static
  */
-Query.Announcement = ANNOUNCEMENT;
+Query.Announcement = 'Announcement';
 
 /**
  * Query for Identities.
