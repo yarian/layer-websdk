@@ -118,13 +118,13 @@
  */
 
 const Root = require('../root');
-const Syncable = require('../syncable');
+const Syncable = require('./syncable');
 const MessagePart = require('./message-part');
 const LayerError = require('../layer-error');
 const Constants = require('../const');
 const Util = require('../client-utils');
 const ClientRegistry = require('../client-registry');
-const Identity = require('../identity');
+const Identity = require('./identity');
 
 class Message extends Syncable {
   /**

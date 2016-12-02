@@ -7,7 +7,7 @@
  * @author  Michael Kantor
  */
 
-const Syncable = require('../syncable');
+const Syncable = require('./syncable');
 const Message = require('./message');
 const LayerError = require('../layer-error');
 const Util = require('../client-utils');

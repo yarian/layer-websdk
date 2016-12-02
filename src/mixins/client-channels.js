@@ -4,7 +4,7 @@
  * @class layer.mixins.ClientChannels
  */
 
-const Channel = require('../messaging/channel');
+const Channel = require('../models/channel');
 const ErrorDictionary = require('../layer-error').dictionary;
 
 module.exports = {

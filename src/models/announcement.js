@@ -13,7 +13,7 @@
  */
 
 const Message = require('./message');
-const Syncable = require('../syncable');
+const Syncable = require('./syncable');
 const Root = require('../root');
 const LayerError = require('../layer-error');
 

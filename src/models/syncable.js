@@ -14,11 +14,11 @@
  * @abstract
  */
 
-const Root = require('./root');
-const { SYNC_STATE } = require('./const');
-const LayerError = require('./layer-error');
-const ClientRegistry = require('./client-registry');
-const Constants = require('./const');
+const Root = require('../root');
+const { SYNC_STATE } = require('../const');
+const LayerError = require('../layer-error');
+const ClientRegistry = require('../client-registry');
+const Constants = require('../const');
 
 class Syncable extends Root {
   constructor(options = {}) {

@@ -82,12 +82,12 @@
  */
 
 const ClientAuth = require('./client-authenticator');
-const Conversation = require('./messaging/conversation');
-const Channel = require('./messaging/channel');
+const Conversation = require('./models/conversation');
+const Channel = require('./models/channel');
 const ErrorDictionary = require('./layer-error').dictionary;
-const Message = require('./messaging/message');
-const Announcement = require('./messaging/announcement');
-const Identity = require('./identity');
+const Message = require('./models/message');
+const Announcement = require('./models/announcement');
+const Identity = require('./models/identity');
 const TypingIndicatorListener = require('./typing-indicators/typing-indicator-listener');
 const Util = require('./client-utils');
 const Root = require('./root');

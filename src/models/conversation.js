@@ -51,7 +51,7 @@
  */
 
 const Root = require('../root');
-const Syncable = require('../syncable');
+const Syncable = require('./syncable');
 const Container = require('./container');
 const LayerError = require('../layer-error');
 const Util = require('../client-utils');

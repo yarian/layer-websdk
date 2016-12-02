@@ -4,7 +4,7 @@
  * @class layer.mixins.ClientConversations
  */
 
-const Conversation = require('../messaging/conversation');
+const Conversation = require('../models/conversation');
 const ErrorDictionary = require('../layer-error').dictionary;
 
 module.exports = {

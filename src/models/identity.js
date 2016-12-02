@@ -24,9 +24,9 @@
  */
 
 const Syncable = require('./syncable');
-const Root = require('./root');
-const Constants = require('./const');
-const LayerError = require('./layer-error');
+const Root = require('../root');
+const Constants = require('../const');
+const LayerError = require('../layer-error');
 
 class Identity extends Syncable {
   constructor(options = {}) {

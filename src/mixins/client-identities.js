@@ -4,7 +4,7 @@
  * @class layer.mixins.ClientIdentities
  */
 
-const Identity = require('../identity');
+const Identity = require('../models/identity');
 const ErrorDictionary = require('../layer-error').dictionary;
 
 module.exports = {

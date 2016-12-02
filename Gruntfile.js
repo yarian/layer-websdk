@@ -117,15 +117,15 @@ module.exports = function (grunt) {
           "lib/mixins/client-channels.js": "src/mixins/client-channels.js",
           "lib/mixins/client-messages.js": "src/mixins/client-messages.js",
           "lib/mixins/client-queries.js": "src/mixins/client-queries.js",
-          "lib/syncable.js": "src/syncable.js",
-          "lib/messaging/container.js": "src/messaging/container.js",
-          "lib/messaging/conversation.js": "src/messaging/conversation.js",
-          "lib/messaging/channel.js": "src/messaging/channel.js",
-          "lib/messaging/message-part.js": "src/messaging/message-part.js",
-          "lib/messaging/message.js": "src/messaging/message.js",
-          "lib/messaging/announcement.js": "src/messaging/announcement.js",
-          "lib/messaging/content.js": "src/messaging/content.js",
-          "lib/identity.js": "src/identity.js",
+          "lib/models/syncable.js": "src/models/syncable.js",
+          "lib/models/container.js": "src/models/container.js",
+          "lib/models/conversation.js": "src/models/conversation.js",
+          "lib/models/channel.js": "src/models/channel.js",
+          "lib/models/message-part.js": "src/models/message-part.js",
+          "lib/models/message.js": "src/models/message.js",
+          "lib/models/announcement.js": "src/models/announcement.js",
+          "lib/models/content.js": "src/models/content.js",
+          "lib/models/identity.js": "src/models/identity.js",
           "lib/queries/query.js": "src/queries/query.js",
           "lib/queries/identities-query.js": "src/queries/identities-query.js",
           "lib/queries/conversations-query.js": "src/queries/conversations-query.js",
@@ -276,7 +276,7 @@ module.exports = function (grunt) {
     // Documentation
     jsduck: {
       build: {
-        src: ["lib/**.js", "lib/messaging/**.js", "lib/typing-indicators/**.js", "lib/websockets/**.js", "lib/mixins/**.js"],
+        src: ["lib/**.js", "lib/models/**.js", "lib/typing-indicators/**.js", "lib/websockets/**.js", "lib/mixins/**.js"],
         dest: 'docs',
         options: {
           'builtin-classes': false,
