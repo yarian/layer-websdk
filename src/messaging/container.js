@@ -209,6 +209,30 @@ class Container extends Syncable {
   }
 
   /**
+   * __ Methods are automatically called by property setters.
+   *
+   * Any change in the metadata property will call this method and fire a
+   * change event.  Changes to the metadata object that don't replace the object
+   * with a new object will require directly calling this method.
+   *
+   * @method __updateMetadata
+   * @private
+   * @param  {Object} newValue
+   * @param  {Object} oldValue
+   */
+  __updateMetadata(newValue, oldValue, paths) {
+    if (this._inLayerParser) return;
+    if (JSON.stringify(newValue) !== JSON.stringify(oldValue)) {
+      this._triggerAsync('conversations:change', {
+        property: 'metadata',
+        newValue,
+        oldValue,
+        paths,
+      });
+    }
+  }
+
+  /**
    * Identifies whether a Conversation receiving the specified patch data should be loaded from the server.
    *
    * Any change to a Conversation indicates that the Conversation is active and of potential interest; go ahead and load that
@@ -230,6 +254,15 @@ class Container extends Syncable {
  * @type {Date}
  */
 Container.prototype.createdAt = null;
+
+/**
+ * Metadata for the conversation.
+ *
+ * Metadata values can be plain objects and strings, but
+ * no arrays, numbers, booleans or dates.
+ * @type {Object}
+ */
+Container.prototype.metadata = null;
 
 
 /**

@@ -52,6 +52,7 @@ describe("The ChannelsQuery Class", function() {
           model: layer.Query.Channel
         });
         channel = client._createObject(responses.channel1);
+        channel2 = client._createObject(responses.channel2);
         message = channel.createMessage("Hey").send();
 
         jasmine.clock().tick(1);
@@ -120,12 +121,12 @@ describe("The ChannelsQuery Class", function() {
 
           // Test 1
           query._fetchData(17);
-          expect(client.dbManager.loadChannels).toHaveBeenCalledWith('created_at', '', 17, jasmine.any(Function));
+          expect(client.dbManager.loadChannels).toHaveBeenCalledWith('', 17, jasmine.any(Function));
 
           // Test 2
           query._nextDBFromId = 'howdy';
           query._fetchData(17);
-          expect(client.dbManager.loadChannels).toHaveBeenCalledWith('created_at', 'howdy', 17, jasmine.any(Function));
+          expect(client.dbManager.loadChannels).toHaveBeenCalledWith('howdy', 17, jasmine.any(Function));
         });
 
         it("Should refuse to call if already firing with same url", function() {
@@ -152,7 +153,7 @@ describe("The ChannelsQuery Class", function() {
     describe("The _getSortField() method", function() {
       it("Should return created_at even though sentAt was requested", function() {
         query.update({sortBy: [{'lastMessage.sentAt': 'desc'}]});
-        expect(query._getSortField()).toEqual('last_message');
+        expect(query._getSortField()).toEqual('created_at');
       });
 
       it("Should return created_at", function() {
@@ -165,109 +166,48 @@ describe("The ChannelsQuery Class", function() {
     describe("The _getInsertIndex() method", function() {
         var query;
         beforeEach(function() {
-            conversation.createdAt = 5;
-            conversation2.createdAt = 10;
-            conversation2.lastMessage.sentAt = 8;
-            conversation.lastMessage.sentAt = 12;
+            channel.createdAt = 5;
+            channel2.createdAt = 10;
             query = client.createQuery({
                 client: client,
                 model: layer.Query.Channel,
                 paginationWindow: 15,
-                dataType: "object",
-                sortBy: [{"createdAt": "desc"}]
+                dataType: "object"
             });
         });
 
-        it("Should insert as first element if sort by createdAt", function() {
-            var c = client.createConversation({participants: ["a"]});
+        it("Should insert as first element", function() {
+            var c = client.createChannel({name: "a"});
             c.syncState = layer.Constants.SYNCED;
             c.createdAt = 15;
-            expect(query._getInsertIndex(c, [conversation2, conversation])).toEqual(0);
+            expect(query._getInsertIndex(c, [channel2, channel])).toEqual(0);
         });
 
-        it("Should insert as second element if sort by createdAt", function() {
-            var c = client.createConversation({participants: ["a"]});
+        it("Should insert as second element", function() {
+            var c = client.createChannel({name: "a"});
             c.syncState = layer.Constants.SYNCED;
             c.createdAt = 8;
-            expect(query._getInsertIndex(c, [conversation2, conversation])).toEqual(1);
+            expect(query._getInsertIndex(c, [channel2, channel])).toEqual(1);
         });
 
-        it("Should insert as last element if sort by createdAt", function() {
-            var c = client.createConversation({participants: ["a"]});
+        it("Should insert as last element", function() {
+            var c = client.createChannel({name: "a"});
             c.syncState = layer.Constants.SYNCED;
             c.createdAt = 3;
-            expect(query._getInsertIndex(c, [conversation2, conversation])).toEqual(2);
+            expect(query._getInsertIndex(c, [channel2, channel])).toEqual(2);
         });
 
-        it("Should insert as first element if sort by lastMessage", function() {
-            query.sortBy = [{"lastMessage.sentAt": "desc"}];
-            var c = client.createConversation({participants: ["a"]});
+        it("Should insert NEW items at top", function() {
+            var c = client.createChannel({name: "a"});
             c.syncState = layer.Constants.SYNCED;
-            c.createdAt = 15;
-            expect(query._getInsertIndex(c, [conversation, conversation2])).toEqual(0);
-        });
-
-        it("Should insert as second element if sort by lastMessage", function() {
-            query.sortBy = [{"lastMessage.sentAt": "desc"}];
-            var c = client.createConversation({participants: ["a"]});
-            c.syncState = layer.Constants.SYNCED;
-            c.createdAt = 11;
-            expect(query._getInsertIndex(c, [conversation, conversation2])).toEqual(1);
-        });
-
-        it("Should insert as last element if sort by lastMessage", function() {
-            query.sortBy = [{"lastMessage.sentAt": "desc"}];
-            var c = client.createConversation({participants: ["a"]});
-            c.syncState = layer.Constants.SYNCED;
-            c.createdAt = 3;
-            expect(query._getInsertIndex(c, [conversation, conversation2])).toEqual(2);
-        });
-
-        it("Should use createdAt field in sort by lastMessage test 1", function() {
-            query.sortBy = [{"lastMessage.sentAt": "desc"}];
-            var c = client.createConversation({participants: ["a"]});
-            c.syncState = layer.Constants.SYNCED;
-            c.createdAt = 11;
-            expect(query._getInsertIndex(c, [conversation, conversation2])).toEqual(1);
-        });
-
-        it("Should use createdAt field in sort by lastMessage test 2", function() {
-            query.sortBy = [{"lastMessage.sentAt": "desc"}];
-            var c = client.createConversation({participants: ["a"]});
-            c.syncState = layer.Constants.SYNCED;
-            c.createdAt = 11;
-            data = [conversation, conversation2];
-            data[0].createdAt = data[0].lastMessage.sentAt;
-            delete data[0].lastMessage;
-            expect(query._getInsertIndex(c, data)).toEqual(1);
-        });
-
-        it("Should insert NEW items at top for sort by lastMessage", function() {
-            query.sortBy = [{"lastMessage.sentAt": "desc"}];
-            var c = client.createConversation({participants: ["layer:///identities/doh"]});
-            data = [conversation, conversation2];
+            data = [channel, channel2];
             expect(query._getInsertIndex(c, data)).toEqual(0);
-        });
-
-        it("Should insert NEW items at top for sort by createdAt", function() {
-            query.sortBy = [{"createdAt": "desc"}];
-            var c = client.createConversation({participants: ["layer:///identities/doh"]});
-            data = [conversation, conversation2];
-            expect(query._getInsertIndex(c, data)).toEqual(0);
-        });
-
-        it("Should insert added items after NEW items for sort by lastMessage", function() {
-            query.sortBy = [{"lastMessage.sentAt": "desc"}];
-            var c = client.createConversation({participants: ["layer:///identities/doh"]});
-            data = [c, conversation2];
-            expect(query._getInsertIndex(conversation, data)).toEqual(1);
         });
 
         it("Should insert added items after NEW items for sort by createdAt", function() {
-            query.sortBy = [{"createdAt": "desc"}];
-            var c = client.createConversation({participants: ["layer:///identities/doh"]});
-            data = [c, conversation2];
-            expect(query._getInsertIndex(conversation, data)).toEqual(2);
+            var c = client.createChannel({name: "a"});
+            data = [c, channel2];
+            expect(query._getInsertIndex(channel, data)).toEqual(2);
         });
     });
 
@@ -275,11 +215,10 @@ describe("The ChannelsQuery Class", function() {
         var query;
         beforeEach(function() {
             query = client.createQuery({
-                client: client,
                 model: layer.Query.Channel,
                 paginationWindow: 15
             });
-            query.data = [conversation];
+            query.data = [channel];
             spyOn(query, "_handleChangeEvent");
             spyOn(query, "_handleAddEvent");
             spyOn(query, "_handleRemoveEvent");
@@ -290,24 +229,24 @@ describe("The ChannelsQuery Class", function() {
         });
 
         it("Should call _handleChangeEvent", function() {
-            query._handleEvents("conversations:change", {a: "b", eventName: "conversations:change"})
-            expect(query._handleChangeEvent).toHaveBeenCalledWith({a: "b", eventName: "conversations:change"});
+            query._handleEvents("channels:change", {a: "b", eventName: "channels:change"})
+            expect(query._handleChangeEvent).toHaveBeenCalledWith({a: "b", eventName: "channels:change"});
             expect(query._handleAddEvent).not.toHaveBeenCalled();
             expect(query._handleRemoveEvent).not.toHaveBeenCalled();
         });
 
         it("Should call _handleAddEvent", function() {
-            query._handleEvents("conversations:add", {a: "b", eventName: "conversations:add"})
+            query._handleEvents("channels:add", {a: "b", eventName: "channels:add"})
             expect(query._handleChangeEvent).not.toHaveBeenCalled();
-            expect(query._handleAddEvent).toHaveBeenCalledWith({a: "b", eventName: "conversations:add"});
+            expect(query._handleAddEvent).toHaveBeenCalledWith({a: "b", eventName: "channels:add"});
             expect(query._handleRemoveEvent).not.toHaveBeenCalled();
         });
 
         it("Should call _handleRemoveEvent", function() {
-            query._handleEvents("conversations:remove", {a: "b", eventName: "conversations:remove"})
+            query._handleEvents("channels:remove", {a: "b", eventName: "channels:remove"})
             expect(query._handleChangeEvent).not.toHaveBeenCalled();
             expect(query._handleAddEvent).not.toHaveBeenCalled();
-            expect(query._handleRemoveEvent).toHaveBeenCalledWith({a: "b", eventName: "conversations:remove"});
+            expect(query._handleRemoveEvent).toHaveBeenCalledWith({a: "b", eventName: "channels:remove"});
         });
     });
 
@@ -316,33 +255,32 @@ describe("The ChannelsQuery Class", function() {
             var query;
             beforeEach(function() {
                 query = client.createQuery({
-                    client: client,
                     model: layer.Query.Channel,
                     paginationWindow: 15,
                     dataType: "object",
                     sortBy: [{'createdAt': 'desc'}]
                 });
-                query.data = [conversation2.toObject(), conversation.toObject()];
+                query.data = [channel2.toObject(), channel.toObject()];
             });
 
             afterEach(function() {
                 query.destroy();
             });
 
-            it("Should find the Conversation and apply Conversation ID changes without reordering and using a new data array", function() {
+            it("Should find the channel and apply channel ID changes without reordering and using a new data array", function() {
                 // Setup
-                var id = conversation.id;
+                var id = channel.id;
                 var tempId = layer.Util.generateUUID();
                 query.data[1].id = tempId;
                 var data = query.data;
-                conversation._clearObject();
-                conversation.id = id;
+                channel._clearObject();
+                channel.id = id;
                 var evt = new layer.LayerEvent({
                     property: "id",
                     oldValue: tempId,
                     newValue: id,
-                    target: conversation
-                }, "conversations:change");
+                    target: channel
+                }, "channels:change");
 
                 // Run
                 query._handleChangeEvent(evt);
@@ -353,18 +291,18 @@ describe("The ChannelsQuery Class", function() {
                 expect(data[1].id).toEqual(tempId);
             });
 
-            it("Should update the array object and the conversation object for unreadCount change", function() {
+            it("Should update the array object and the channel object for unreadCount change", function() {
                 // Setup
                 var data = query.data;
                 var originalObject = data[1];
                 originalObject.unreadCount = 1;
-                conversation._clearObject();
+                channel._clearObject();
                 var evt = new layer.LayerEvent({
                     property: "unreadCount",
                     oldValue: 1,
                     newValue: 2,
-                    target: conversation
-                }, "conversations:change");
+                    target: channel
+                }, "channels:change");
 
                 // Run
                 query._handleChangeEvent(evt);
@@ -374,16 +312,16 @@ describe("The ChannelsQuery Class", function() {
                 expect(query.data[1]).not.toEqual(originalObject);
             });
 
-            it("Should update the array object but not reorder for lastMessage events", function() {
+            it("Should update the array object but not reorder for name events", function() {
                 // Setup
                 var data = query.data;
-                conversation._clearObject();
+                channel._clearObject();
                 var evt = new layer.LayerEvent({
-                    property: "lastMessage",
-                    oldValue: null,
-                    newValue: message,
-                    target: conversation
-                }, "conversations:change");
+                    property: "name",
+                    oldValue: 'a',
+                    newValue: 'b',
+                    target: channel
+                }, "channels:change");
 
                 // Run
                 query._handleChangeEvent(evt);
@@ -394,13 +332,13 @@ describe("The ChannelsQuery Class", function() {
             });
 
             it("Should not touch data array if dataType is object but item not in the data", function() {
-                var conversation = client.createConversation({ participants: ["abc"] });
+                var channel = client.createChannel({ members: ["abc"] });
                 var evt = new layer.LayerEvent({
                     property: "participants",
                     oldValue: ["abc"],
                     newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
+                    target: channel
+                }, "channels:change");
                 var data = query.data;
                 data[0].id += "1";
 
@@ -411,13 +349,13 @@ describe("The ChannelsQuery Class", function() {
                 expect(query.data).toBe(data);
             });
 
-            it("Should trigger change event if the Conversation is in the data", function() {
+            it("Should trigger change event if the Channel is in the data", function() {
                 var evt = new layer.LayerEvent({
                     property: "participants",
                     oldValue: ["a"],
                     newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
+                    target: channel
+                }, "channels:change");
                 spyOn(query, "_triggerChange");
 
                 // Run
@@ -426,7 +364,7 @@ describe("The ChannelsQuery Class", function() {
                 // Posttest
                 expect(query._triggerChange).toHaveBeenCalledWith({
                     type: "property",
-                    target: conversation.toObject(),
+                    target: channel.toObject(),
                     query: query,
                     isChange: true,
                     changes: [{
@@ -437,14 +375,14 @@ describe("The ChannelsQuery Class", function() {
                 });
             });
 
-            it("Should not trigger change event if Conversation is NOT in the data", function() {
+            it("Should not trigger change event if channel is NOT in the data", function() {
                 var data = query.data;
                 var evt = new layer.LayerEvent({
                     property: "participants",
                     oldValue: ["a"],
                     newValue: ["a", "b"],
-                    target: {id: conversation.id + "1"}
-                }, "conversations:change");
+                    target: {id: channel.id + "1"}
+                }, "channels:change");
                 spyOn(query, "trigger");
 
                 // Run
@@ -455,14 +393,14 @@ describe("The ChannelsQuery Class", function() {
             });
 
 
-            it("Should not trigger a move event if the Conversation sorting has not changed", function() {
-                expect(query.data.indexOf(conversation.toObject())).toEqual(1);
+            it("Should not trigger a move event if the channel sorting has not changed", function() {
+                expect(query.data.indexOf(channel.toObject())).toEqual(1);
                 var evt = new layer.LayerEvent({
                     property: "participants",
                     oldValue: ["a"],
                     newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
+                    target: channel
+                }, "channels:change");
                 spyOn(query, "_triggerChange");
 
                 // Run
@@ -473,10 +411,10 @@ describe("The ChannelsQuery Class", function() {
                 expect(query._triggerChange).not.toHaveBeenCalledWith(jasmine.objectContaining({
                     type: 'move'
                 }));
-                expect(query.data.indexOf(conversation.toObject())).toEqual(1);
+                expect(query.data.indexOf(channel.toObject())).toEqual(1);
             });
-
-            describe("Sort by createdAt, dataType is instance", function() {
+        });
+        describe("Sort by createdAt, dataType is instance", function() {
             var query;
             beforeEach(function() {
                 query = client.createQuery({
@@ -486,7 +424,7 @@ describe("The ChannelsQuery Class", function() {
                     dataType: "instance",
                     sortBy: [{'createdAt': 'desc'}]
                 });
-                query.data = [conversation2, conversation];
+                query.data = [channel2, channel];
             });
 
             afterEach(function() {
@@ -498,15 +436,15 @@ describe("The ChannelsQuery Class", function() {
                     property: "participants",
                     oldValue: ["abc"],
                     newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
+                    target: channel
+                }, "channels:change");
                 var data = query.data;
 
                 // Run
                 query._handleChangeEvent(evt);
 
                 // Posttest
-                expect(query.data).toEqual([conversation2, conversation]);
+                expect(query.data).toEqual([channel2, channel]);
                 expect(query.data).toBe(data);
             });
 
@@ -518,8 +456,8 @@ describe("The ChannelsQuery Class", function() {
                     property: "lastMessage",
                     oldValue: null,
                     newValue: message,
-                    target: conversation
-                }, "conversations:change");
+                    target: channel
+                }, "channels:change");
 
                 // Run
                 query._handleChangeEvent(evt);
@@ -529,13 +467,13 @@ describe("The ChannelsQuery Class", function() {
                 expect(query.data).toEqual(dataCopy);
             });
 
-            it("Should trigger change event if the Conversation is in the data", function() {
+            it("Should trigger change event if the channel is in the data", function() {
                 var evt = new layer.LayerEvent({
                     property: "participants",
                     oldValue: ["a"],
                     newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
+                    target: channel
+                }, "channels:change");
                 spyOn(query, "_triggerChange");
 
                 // Run
@@ -544,7 +482,7 @@ describe("The ChannelsQuery Class", function() {
                 // Posttest
                 expect(query._triggerChange).toHaveBeenCalledWith({
                     type: "property",
-                    target: conversation,
+                    target: channel,
                     query: query,
                     isChange: true,
                     changes: [{
@@ -555,14 +493,14 @@ describe("The ChannelsQuery Class", function() {
                 });
             });
 
-            it("Should not trigger change event if Conversation is NOT in the data", function() {
+            it("Should not trigger change event if channel is NOT in the data", function() {
                 var data = query.data;
                 var evt = new layer.LayerEvent({
                     property: "participants",
                     oldValue: ["a"],
                     newValue: ["a", "b"],
-                    target: {id: conversation.id + "1"}
-                }, "conversations:change");
+                    target: {id: channel.id + "1"}
+                }, "channels:change");
                 spyOn(query, "trigger");
 
                 // Run
@@ -572,14 +510,14 @@ describe("The ChannelsQuery Class", function() {
                 expect(query.trigger).not.toHaveBeenCalled();
             });
 
-            it("Should not trigger a move event if the Conversation sorting has not changed", function() {
-                expect(query.data.indexOf(conversation)).toEqual(1);
+            it("Should not trigger a move event if the channel sorting has not changed", function() {
+                expect(query.data.indexOf(channel)).toEqual(1);
                 var evt = new layer.LayerEvent({
                     property: "participants",
                     oldValue: ["a"],
                     newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
+                    target: channel
+                }, "channels:change");
                 spyOn(query, "_triggerChange");
 
                 // Run
@@ -590,320 +528,9 @@ describe("The ChannelsQuery Class", function() {
                 expect(query._triggerChange).not.toHaveBeenCalledWith(jasmine.objectContaining({
                     type: 'move'
                 }));
-                expect(query.data.indexOf(conversation)).toEqual(1);
+                expect(query.data.indexOf(channel)).toEqual(1);
             });
         });
-
-        describe("Sort by lastMessage.sentAt, dataType is object", function() {
-            var query;
-            beforeEach(function() {
-                query = client.createQuery({
-                    client: client,
-                    model: layer.Query.Channel,
-                    paginationWindow: 15,
-                    dataType: "object",
-                    sortBy: [{'lastMessage.sentAt': 'desc'}]
-                });
-                query.data = [conversation2.toObject(), conversation.toObject()];
-            });
-
-            afterEach(function() {
-                query.destroy();
-            });
-
-            it("Should find the Conversation and apply Conversation ID changes but not reorder", function() {
-                // Setup
-                var id = conversation.id;
-                var tempId = layer.Util.generateUUID();
-                query.data[1].id = tempId;
-                var data = query.data = [conversation2.toObject(), conversation.toObject()];
-                conversation._clearObject();
-                conversation.id = id;
-                var evt = new layer.LayerEvent({
-                    property: "id",
-                    oldValue: tempId,
-                    newValue: id,
-                    target: conversation
-                }, "conversations:change");
-
-                // Run
-                query._handleChangeEvent(evt);
-
-                // Posttest
-                expect(query.data).not.toBe(data);
-                expect(query.data[1].id).toEqual(id);
-                expect(data[1].id).toEqual(tempId);
-                expect(query.data).toEqual([conversation2.toObject(), conversation.toObject()]);
-            });
-
-            it("Should update the array object and reorder for lastMessage events", function() {
-                // Setup
-                var data = query.data;
-                conversation._clearObject();
-                var evt = new layer.LayerEvent({
-                    property: "lastMessage",
-                    oldValue: null,
-                    newValue: message,
-                    target: conversation
-                }, "conversations:change");
-
-                // Run
-                query._handleChangeEvent(evt);
-
-                // Posttest
-                expect(query.data).not.toBe(data);
-                expect(query.data).toEqual([conversation.toObject(), conversation2.toObject()]);
-            });
-
-            it("Should not touch data array if dataType is object but item not in the data", function() {
-                var conversation = client.createConversation({ participants: ["abc"] });
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["abc"],
-                    newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
-                var data = query.data;
-                data[0].id += "1";
-
-                // Run
-                query._handleChangeEvent(evt);
-
-                // Posttest
-                expect(query.data).toBe(data);
-            });
-
-            it("Should trigger change event if the Conversation is in the data", function() {
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["a"],
-                    newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
-                spyOn(query, "_triggerChange");
-
-                // Run
-                query._handleChangeEvent(evt);
-
-                // Posttest
-                expect(query._triggerChange).toHaveBeenCalledWith({
-                    type: "property",
-                    target: conversation.toObject(),
-                    query: query,
-                    isChange: true,
-                    changes: [{
-                        property: "participants",
-                        oldValue: ["a"],
-                        newValue: ["a", "b"]
-                    }]
-                });
-            });
-
-            it("Should not trigger change event if Conversation is NOT in the data", function() {
-                var data = query.data;
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["a"],
-                    newValue: ["a", "b"],
-                    target: {id: conversation.id + "1"}
-                }, "conversations:change");
-                spyOn(query, "trigger");
-
-                // Run
-                query._handleChangeEvent(evt);
-
-                // Posttest
-                expect(query.trigger).not.toHaveBeenCalled();
-            });
-
-            it("Should trigger a move event if the Conversation sorting has changed", function() {
-                expect(query.data.indexOf(conversation.toObject())).toEqual(1);
-                spyOn(query, "_handleChangeEvent").and.callThrough();
-                spyOn(query, "_triggerChange");
-
-                // Run
-                // This will trigger a conversations:change event with lastMessage changing, that should call _handleChangeEvent
-                conversation.createMessage('hey').send();
-                jasmine.clock().tick(1);
-                expect(query._handleChangeEvent).toHaveBeenCalled();
-
-
-                // Posttest
-                expect(query._triggerChange).toHaveBeenCalledWith({
-                    type: 'move',
-                    target: conversation.toObject(),
-                    query: query,
-                    isChange: false,
-                    fromIndex: 1,
-                    toIndex: 0
-                });
-                expect(query.data.indexOf(conversation.toObject())).toEqual(0);
-            });
-
-            it("Should not trigger a move event if the Conversation sorting has not changed", function() {
-                expect(query.data.indexOf(conversation.toObject())).toEqual(1);
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["a"],
-                    newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
-                spyOn(query, "_triggerChange");
-
-                // Run
-                query._handleChangeEvent(evt);
-
-
-                // Posttest
-                expect(query._triggerChange).not.toHaveBeenCalledWith(jasmine.objectContaining({
-                    type: 'move'
-                }));
-                expect(query.data.indexOf(conversation.toObject())).toEqual(1);
-            });
-        });
-
-        describe("Sort by lastMessage.sentAt, dataType is instance", function() {
-            var query;
-            beforeEach(function() {
-                query = client.createQuery({
-                    client: client,
-                    model: layer.Query.Channel,
-                    paginationWindow: 15,
-                    dataType: "instance",
-                    sortBy: [{'lastMessage.sentAt': 'desc'}]
-                });
-                query.data = [conversation2, conversation];
-            });
-
-            afterEach(function() {
-                query.destroy();
-            });
-
-            it("Should not touch data array for a participant change event", function() {
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["abc"],
-                    newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
-                var data = query.data;
-
-                // Run
-                query._handleChangeEvent(evt);
-
-                // Posttest
-                expect(query.data).toEqual([conversation2, conversation]);
-                expect(query.data).toBe(data);
-            });
-
-            it("Should reorder the array for a lastMessage event", function() {
-                // Setup
-                var data = query.data;
-                var dataCopy = [].concat(query.data);
-                var evt = new layer.LayerEvent({
-                    property: "lastMessage",
-                    oldValue: null,
-                    newValue: message,
-                    target: conversation
-                }, "conversations:change");
-
-                // Run
-                query._handleChangeEvent(evt);
-
-                // Posttest
-                expect(query.data).toBe(data);
-                expect(query.data).toEqual([conversation, conversation2]);
-            });
-
-            it("Should trigger change event if the Conversation is in the data", function() {
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["a"],
-                    newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
-                spyOn(query, "_triggerChange");
-
-                // Run
-                query._handleChangeEvent(evt);
-
-                // Posttest
-                expect(query._triggerChange).toHaveBeenCalledWith({
-                    type: "property",
-                    target: conversation,
-                    query: query,
-                    isChange: true,
-                    changes: [{
-                        property: "participants",
-                        oldValue: ["a"],
-                        newValue: ["a", "b"]
-                    }]
-                });
-            });
-
-            it("Should not trigger change event if Conversation is NOT in the data", function() {
-                var data = query.data;
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["a"],
-                    newValue: ["a", "b"],
-                    target: {id: conversation.id + "1"}
-                }, "conversations:change");
-                spyOn(query, "trigger");
-
-                // Run
-                query._handleChangeEvent(evt);
-
-                // Posttest
-                expect(query.trigger).not.toHaveBeenCalled();
-            });
-
-            it("Should trigger a move event if the Conversation sorting has changed", function() {
-                expect(query.data.indexOf(conversation)).toEqual(1);
-                spyOn(query, "_handleChangeEvent").and.callThrough();
-                spyOn(query, "_triggerChange");
-
-                // Run
-                // This will trigger a conversations:change event with lastMessage changing, that should call _handleChangeEvent
-                conversation.createMessage('hey').send();
-                jasmine.clock().tick(1);
-                expect(query._handleChangeEvent).toHaveBeenCalled();
-
-
-                // Posttest
-                expect(query._triggerChange).toHaveBeenCalledWith({
-                    type: 'move',
-                    target: conversation,
-                    query: query,
-                    isChange: false,
-                    fromIndex: 1,
-                    toIndex: 0
-                });
-                expect(query.data.indexOf(conversation)).toEqual(0);
-            });
-
-            it("Should not trigger a move event if the Conversation sorting has not changed", function() {
-                expect(query.data.indexOf(conversation)).toEqual(1);
-                var evt = new layer.LayerEvent({
-                    property: "participants",
-                    oldValue: ["a"],
-                    newValue: ["a", "b"],
-                    target: conversation
-                }, "conversations:change");
-                spyOn(query, "_triggerChange");
-
-                // Run
-                query._handleChangeEvent(evt);
-
-
-                // Posttest
-                expect(query._triggerChange).not.toHaveBeenCalledWith(jasmine.objectContaining({
-                    type: 'move'
-                }));
-                expect(query.data.indexOf(conversation)).toEqual(1);
-            });
-        });
-    });
   });
 
   describe("The _handleAddEvent() method", function() {
@@ -915,7 +542,7 @@ describe("The ChannelsQuery Class", function() {
                 paginationWindow: 15,
                 dataType: "object"
             });
-            query.data = [conversation];
+            query.data = [channel];
             spyOn(query, "_getInsertIndex").and.returnValue(0);
         });
 
@@ -924,69 +551,69 @@ describe("The ChannelsQuery Class", function() {
         });
 
         it("Should replace data with a new array containing new results if dataType is object", function() {
-            var conversation2 = client.createConversation({ participants: ["aza"] });
+            var channel2 = client.createChannel({ members: ["aza"] });
             var data = query.data = [];
 
             // Run
             query._handleAddEvent({
-                conversations: [conversation, conversation2]
+                channels: [channel, channel2]
             });
 
             // Posttest
             expect(query.data).not.toBe(data);
-            expect(query.data).toEqual([conversation2.toObject(), conversation.toObject()]);
+            expect(query.data).toEqual([channel2.toObject(), channel.toObject()]);
         });
 
         it("Should insert new data into results if dataType is instance", function() {
-            var conversation2 = client.createConversation({ participants: ["aza"] });
+            var channel2 = client.createChannel({ members: ["aza"] });
             query.dataType = "instance";
             var data = query.data = [];
 
             // Run
             query._handleAddEvent({
-                conversations: [conversation, conversation2]
+                channels: [channel, channel2]
             });
 
             // Posttest
             expect(query.data).toBe(data);
-            expect(query.data).toEqual([conversation2, conversation]);
+            expect(query.data).toEqual([channel2, channel]);
         });
 
         it("Should only operate on new values", function() {
-            var conversation2 = client.createConversation({ participants: ["aza"] });
-            var data = query.data = [conversation.toObject()];
+            var channel2 = client.createChannel({ members: ["aza"] });
+            var data = query.data = [channel.toObject()];
 
             // Run
             query._handleAddEvent({
-                conversations: [conversation, conversation2]
+                channels: [channel, channel2]
             });
 
             // Posttest
-            expect(query.data).toEqual([conversation2.toObject(), conversation.toObject()]);
+            expect(query.data).toEqual([channel2.toObject(), channel.toObject()]);
 
         });
 
         it("Should trigger change event if new values", function() {
-            var conversation2 = client.createConversation({ participants: ["aza"] });
+            var channel2 = client.createChannel({ participants: ["aza"] });
             var data = query.data = [];
             spyOn(query, "trigger");
 
             // Run
             query._handleAddEvent({
-                conversations: [conversation, conversation2]
+                channels: [channel, channel2]
             });
 
             // Posttest
             expect(query.trigger).toHaveBeenCalledWith("change", {
                 type: 'insert',
                 index: 1,
-                target: conversation.toObject(),
+                target: channel.toObject(),
                 query: query
             });
             expect(query.trigger).toHaveBeenCalledWith("change", {
                 type: 'insert',
                 index: 0,
-                target: conversation2.toObject(),
+                target: channel2.toObject(),
                 query: query
             });
         });
@@ -996,7 +623,7 @@ describe("The ChannelsQuery Class", function() {
 
             // Run
             query._handleAddEvent({
-                conversations: [conversation]
+                channels: [channel]
             });
 
             // Posttest
@@ -1004,13 +631,13 @@ describe("The ChannelsQuery Class", function() {
         });
 
         it("Should increase the totalSize property", function() {
-            var conversation2 = client.createConversation({ participants: ["aza"] });
+            var channel2 = client.createChannel({ participants: ["aza"] });
             var data = query.data = [];
             expect(query.totalSize).toEqual(0);
 
             // Run
             query._handleAddEvent({
-                conversations: [conversation, conversation2]
+                channels: [channel, channel2]
             });
 
             // Posttest
@@ -1019,7 +646,7 @@ describe("The ChannelsQuery Class", function() {
     });
 
     describe("The _handleRemoveEvent() method", function() {
-        var query, conversation2;
+        var query, channel2;
         beforeEach(function() {
             query = client.createQuery({
                 client: client,
@@ -1027,8 +654,8 @@ describe("The ChannelsQuery Class", function() {
                 paginationWindow: 15,
                 dataType: "object"
             });
-            conversation2 = client.createConversation({ participants: ["cdc"] });
-            query.data = [conversation.toObject(), conversation2.toObject()];
+            channel2 = client.createChannel({ participants: ["cdc"] });
+            query.data = [channel.toObject(), channel2.toObject()];
 
         });
 
@@ -1038,12 +665,12 @@ describe("The ChannelsQuery Class", function() {
 
         it("Should call _updateNextFromId for db and server indexes", function() {
             spyOn(query, "_updateNextFromId").and.returnValue("heyho");
-            query._nextDBFromId = conversation.id;
-            query._nextServerFromId = conversation2.id;
+            query._nextDBFromId = channel.id;
+            query._nextServerFromId = channel2.id;
 
             // Run
             query._handleRemoveEvent({
-                conversations: [conversation, conversation2]
+                channels: [channel, channel2]
             });
 
             // Posttest
@@ -1051,13 +678,13 @@ describe("The ChannelsQuery Class", function() {
             expect(query._nextServerFromId).toEqual('heyho');
         });
 
-        it("Should replace data with a new array removes conversations if dataType is object", function() {
+        it("Should replace data with a new array removes channels if dataType is object", function() {
 
             var data = query.data;
 
             // Run
             query._handleRemoveEvent({
-                conversations: [conversation, conversation2]
+                channels: [channel, channel2]
             });
 
             // Posttest
@@ -1071,7 +698,7 @@ describe("The ChannelsQuery Class", function() {
 
             // Run
             query._handleRemoveEvent({
-                conversations: [conversation, conversation2]
+                channels: [channel, channel2]
             });
 
             // Posttest
@@ -1080,15 +707,15 @@ describe("The ChannelsQuery Class", function() {
         });
 
         it("Should only operate on existing values", function() {
-            var conversation3 = client.createConversation({ participants: ["zbd"] });
+            var channel3 = client.createChannel({ participants: ["zbd"] });
 
             // Run
             query._handleRemoveEvent({
-                conversations: [conversation, conversation3]
+                channels: [channel, channel3]
             });
 
             // Posttest
-            expect(query.data).toEqual([conversation2.toObject()]);
+            expect(query.data).toEqual([channel2.toObject()]);
 
         });
 
@@ -1097,31 +724,31 @@ describe("The ChannelsQuery Class", function() {
 
             // Run
             query._handleRemoveEvent({
-                conversations: [conversation, conversation2]
+                channels: [channel, channel2]
             });
 
             // Posttest
             expect(query._triggerChange).toHaveBeenCalledWith({
                 type: 'remove',
                 index: 0,
-                target: conversation.toObject(),
+                target: channel.toObject(),
                 query: query
             });
             expect(query._triggerChange).toHaveBeenCalledWith({
                 type: 'remove',
                 index: 0,
-                target: conversation2.toObject(),
+                target: channel2.toObject(),
                 query: query
             });
         });
 
         it("Should not trigger change event if no values affected", function() {
             spyOn(query, "trigger");
-            query.data = [conversation2.toObject()];
+            query.data = [channel2.toObject()];
 
             // Run
             query._handleRemoveEvent({
-                conversations: [conversation]
+                channels: [channel]
             });
 
             // Posttest
@@ -1129,14 +756,14 @@ describe("The ChannelsQuery Class", function() {
         });
 
         it("Should increase the totalSize property", function() {
-            var conversation2 = client.createConversation({ participants: ["aza"] });
-            var conversation3 = client.createConversation({ participants: ["azab"] });
-            var data = query.data = [conversation, conversation2, conversation3];
+            var channel2 = client.createChannel({ participants: ["aza"] });
+            var channel3 = client.createChannel({ participants: ["azab"] });
+            var data = query.data = [channel, channel2, channel3];
             query.totalSize = 3;
 
             // Run
             query._handleRemoveEvent({
-                conversations: [conversation, conversation2]
+                channels: [channel, channel2]
             });
 
             // Posttest

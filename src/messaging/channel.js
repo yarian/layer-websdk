@@ -237,7 +237,7 @@ class Channel extends Container {
     const newOptions = {
       name: options.name,
       private: options.private,
-      members: options.client._fixIdentities(options.members),
+      members: options.members ? options.client._fixIdentities(options.members) : [],
       metadata: options.metadata,
       client: options.client,
     };

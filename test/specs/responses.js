@@ -106,6 +106,22 @@ responses = {
         "metadata": {
             "favorite": "true",
             "background_color": "#3c3c3c"
+        },
+        "membership": {
+            "is_member": true
+        }
+    },
+    channel2: {
+        "id": "layer:///channels/f3cc7b32-3c92-11e4-baad-164230d1df33",
+        "url": "https://doh.com/channels/f3cc7b32-3c92-11e4-baad-164230d1df33",
+        "created_at": "2014-09-15T04:44:47+00:00",
+        "name": "another a channel",
+        "metadata": {
+            "favorite": "false",
+            "background_color": "#3c3c3c"
+        },
+        "membership": {
+            "is_member": true
         }
     },
     message1: sampleMessage2,

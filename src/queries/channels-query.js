@@ -40,7 +40,7 @@ class ChannelsQuery extends ConversationsQuery {
   _handleChangeEvent(evt) {
     let index = this._getIndex(evt.target.id);
 
-    // If its an ID change (matching Distinct Conversation returned by server) make sure to update our data.
+    // If its an ID change (matching named channel returned by server) make sure to update our data.
     // If dataType is an instance, its been updated for us.
     if (this.dataType === Query.ObjectDataType) {
       const idChanges = evt.getChangesFor('id');
@@ -52,7 +52,7 @@ class ChannelsQuery extends ConversationsQuery {
     // If dataType is "object" then update the object and our array;
     // else the object is already updated.
     // Ignore results that aren't already in our data; Results are added via
-    // conversations:add events.  Websocket Manager automatically loads anything that receives an event
+    // channels:add events.  Websocket Manager automatically loads anything that receives an event
     // for which we have no object, so we'll get the add event at that time.
     if (index !== -1) {
       const sortField = this._getSortField();
@@ -61,7 +61,7 @@ class ChannelsQuery extends ConversationsQuery {
 
       if (this.dataType === Query.ObjectDataType) {
         if (!reorder) {
-          // Replace the changed Conversation with a new immutable object
+          // Replace the changed Channel with a new immutable object
           this.data = [
             ...this.data.slice(0, index),
             evt.target.toObject(),
@@ -106,23 +106,23 @@ class ChannelsQuery extends ConversationsQuery {
     }
   }
 
-  _getInsertIndex(conversation, data) {
-    if (!conversation.isSaved()) return 0;
+  _getInsertIndex(channel, data) {
+    if (!channel.isSaved()) return 0;
     const sortField = this._getSortField();
     let index;
     if (sortField === 'created_at') {
       for (index = 0; index < data.length; index++) {
         const item = data[index];
         if (item.syncState === SYNC_STATE.NEW || item.syncState === SYNC_STATE.SAVING) continue;
-        if (conversation.createdAt >= item.createdAt) break;
+        if (channel.createdAt >= item.createdAt) break;
       }
       return index;
     } else {
       let oldIndex = -1;
-      const d1 = conversation.lastMessage ? conversation.lastMessage.sentAt : conversation.createdAt;
+      const d1 = channel.lastMessage ? channel.lastMessage.sentAt : channel.createdAt;
       for (index = 0; index < data.length; index++) {
         const item = data[index];
-        if (item.id === conversation.id) {
+        if (item.id === channel.id) {
           oldIndex = index;
           continue;
         }
@@ -135,15 +135,15 @@ class ChannelsQuery extends ConversationsQuery {
   }
 
   _handleAddEvent(evt) {
-    // Filter out any Conversations already in our data
-    const list = evt.conversations
-                  .filter(conversation => this._getIndex(conversation.id) === -1);
+    // Filter out any Channels already in our data
+    const list = evt.channels
+                  .filter(channel => this._getIndex(channel.id) === -1);
 
     if (list.length) {
       const data = this.data;
-      list.forEach((conversation) => {
-        const newIndex = this._getInsertIndex(conversation, data);
-        data.splice(newIndex, 0, this._getData(conversation));
+      list.forEach((channel) => {
+        const newIndex = this._getInsertIndex(channel, data);
+        data.splice(newIndex, 0, this._getData(channel));
       });
 
       // Whether sorting by last_message or created_at, new results go at the top of the list
@@ -154,8 +154,8 @@ class ChannelsQuery extends ConversationsQuery {
 
       // Trigger an 'insert' event for each item added;
       // typically bulk inserts happen via _appendResults().
-      list.forEach((conversation) => {
-        const item = this._getData(conversation);
+      list.forEach((channel) => {
+        const item = this._getData(channel);
         this._triggerChange({
           type: 'insert',
           index: this.data.indexOf(item),
@@ -169,13 +169,13 @@ class ChannelsQuery extends ConversationsQuery {
 
   _handleRemoveEvent(evt) {
     const removed = [];
-    evt.conversations.forEach((conversation) => {
-      const index = this._getIndex(conversation.id);
+    evt.channels.forEach((channel) => {
+      const index = this._getIndex(channel.id);
       if (index !== -1) {
-        if (conversation.id === this._nextDBFromId) this._nextDBFromId = this._updateNextFromId(index);
-        if (conversation.id === this._nextServerFromId) this._nextServerFromId = this._updateNextFromId(index);
+        if (channel.id === this._nextDBFromId) this._nextDBFromId = this._updateNextFromId(index);
+        if (channel.id === this._nextServerFromId) this._nextServerFromId = this._updateNextFromId(index);
         removed.push({
-          data: conversation,
+          data: channel,
           index,
         });
         if (this.dataType === Query.ObjectDataType) {
@@ -205,7 +205,7 @@ ChannelsQuery._supportedEvents = [
 
 ChannelsQuery.MaxPageSize = 100;
 
-ChannelsQuery.prototype.model = Query.Conversation;
+ChannelsQuery.prototype.model = Query.Channel;
 
 Root.initClass.apply(ChannelsQuery, [ChannelsQuery, 'ChannelsQuery']);
 

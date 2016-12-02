@@ -1148,6 +1148,7 @@ describe("The Client Authenticator Class", function() {
                 expect(client.dbManager._permission_syncQueue).toBe(false);
                 expect(client.persistenceFeatures).toEqual({
                     conversations: false,
+                    channels: false,
                     messages: false,
                     syncQueue: false,
                     sessionToken: true

@@ -18,7 +18,7 @@ const SyncEvent = require('./sync-event');
 const Constants = require('./const');
 const Util = require('./client-utils');
 
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const MAX_SAFE_INTEGER = 9007199254740991;
 const SYNC_NEW = Constants.SYNC_STATE.NEW;
 
@@ -89,10 +89,10 @@ class DbManager extends Root {
       // If Client is a layer.ClientAuthenticator, it won't support these events; this affects Unit Tests
       if (enabled && this.client.constructor._supportedEvents.indexOf('conversations:add') !== -1) {
         this.client.on('conversations:add', evt => this.writeConversations(evt.conversations));
-
         this.client.on('conversations:change', evt => this._updateConversation(evt.target, evt.changes));
         this.client.on('conversations:delete conversations:sent-error', evt => this.deleteObjects('conversations', [evt.target]));
 
+        this.client.on('channels:add', evt => this.writeChannels(evt.channels));
         this.client.on('channels:change', evt => this._updateChannel(evt.target, evt.changes));
         this.client.on('channels:delete channels:sent-error', evt => this.deleteObjects('channels', [evt.target]));
 
@@ -145,7 +145,6 @@ class DbManager extends Root {
     }
 
     // Open the database
-    const client = this.client;
     const request = window.indexedDB.open(this._getDbName(), DB_VERSION);
 
     try {
@@ -163,7 +162,7 @@ class DbManager extends Root {
         }
       };
 
-      request.onupgradeneeded = (evt) => this._onUpgradeNeeded(evt);
+      request.onupgradeneeded = evt => this._onUpgradeNeeded(evt);
       request.onsuccess = (evt) => {
         this.db = evt.target.result;
         this.isOpen = true;
@@ -179,7 +178,7 @@ class DbManager extends Root {
     }
 
     /* istanbul ignore next */
-    catch(err) {
+    catch (err) {
       // Safari Private Browsing window will fail on request.onerror
       this._isOpenError = true;
       logger.error('Database Unable to Open: ', err);
@@ -212,10 +211,10 @@ class DbManager extends Root {
   /* istanbul ignore next */
   _onUpgradeNeeded(event) {
     const db = event.target.result;
-    let isComplete = false;
+    const isComplete = false;
 
     // This appears to only get called once; its presumed this is because we're creating but not using a lot of transactions.
-    var onComplete = (evt) => {
+    const onComplete = (evt) => {
       if (!isComplete) {
         this.db = db;
         this.isComplete = true;
@@ -256,7 +255,7 @@ class DbManager extends Root {
    * @return {Object[]} conversations
    */
   _getConversationData(conversations) {
-    return conversations.filter(conversation => {
+    return conversations.filter((conversation) => {
       if (conversation._fromDB) {
         conversation._fromDB = false;
         return false;
@@ -265,7 +264,7 @@ class DbManager extends Root {
       } else {
         return true;
       }
-    }).map(conversation => {
+    }).map((conversation) => {
       const item = {
         id: conversation.id,
         url: conversation.url,
@@ -283,9 +282,9 @@ class DbManager extends Root {
   }
 
   _updateConversation(conversation, changes) {
-    var idChanges = changes.filter(item => item.property === 'id');
+    const idChanges = changes.filter(item => item.property === 'id');
     if (idChanges.length) {
-      this.deleteObjects('conversations', [{id: idChanges[0].oldValue}], () => {
+      this.deleteObjects('conversations', [{ id: idChanges[0].oldValue }], () => {
         this.writeConversations([conversation]);
       });
     } else {
@@ -333,6 +332,11 @@ class DbManager extends Root {
         url: channel.url,
         created_at: getDate(channel.createdAt),
         sync_state: channel.syncState,
+        membership: {
+          is_member: channel.membership.isMember,
+        },
+        name: channel.name,
+        metadata: channel.metadata,
       };
       return item;
     });
@@ -372,7 +376,7 @@ class DbManager extends Root {
    */
   _getIdentityData(identities, writeBasicIdentity) {
     return identities.filter((identity) => {
-      if (identity.isDestroyed || !identity.isFullIdentity && !writeBasicIdentity) return false;
+      if (identity.isDestroyed || (!identity.isFullIdentity && !writeBasicIdentity)) return false;
 
       if (identity._fromDB) {
         identity._fromDB = false;
@@ -661,6 +665,52 @@ class DbManager extends Root {
     // Instantiate and Register each Conversation; will find any lastMessage that was registered.
     const newData = conversations
       .map(conversation => this._createConversation(conversation) || this.client.getConversation(conversation.id))
+      .filter(conversation => conversation);
+
+    // Return the data
+    if (callback) callback(newData);
+  }
+
+  /**
+   * Load all channels from the database.
+   *
+   * @method loadChannels
+   * @param {string} sortBy       - One of 'last_message' or 'created_at'; always sorts in DESC order
+   * @param {string} [fromId=]    - For pagination, provide the channelId to get Channel after
+   * @param {number} [pageSize=]  - To limit the number of results, provide a number for how many results to return.
+   * @param {Function} [callback]  - Callback for getting results
+   * @param {layer.Channel[]} callback.result
+   */
+  loadChannels(fromId, pageSize, callback) {
+    try {
+      const sortIndex = 'created_at';
+      let range = null;
+      const fromChannel = fromId ? this.client.getChannel(fromId) : null;
+      if (fromChannel) {
+        range = window.IDBKeyRange.upperBound([getDate(fromChannel.createdAt)]);
+      }
+
+      this._loadByIndex('channels', sortIndex, range, Boolean(fromId), pageSize, (data) => {
+        this._loadChannelsResult(data, callback);
+      });
+    } catch (e) {
+      // Noop -- handle browsers like IE that don't like these IDBKeyRanges
+    }
+  }
+
+  /**
+   * Assemble all LastMessages and Conversation POJOs into layer.Message and layer.Conversation instances.
+   *
+   * @method _loadChannelsResult
+   * @private
+   * @param {Object[]} channels
+   * @param {Function} callback
+   * @param {layer.Channel[]} callback.result
+   */
+  _loadChannelsResult(channels, callback) {
+    // Instantiate and Register each Conversation; will find any lastMessage that was registered.
+    const newData = channels
+      .map(channel => this._createChannel(channel) || this.client.getChannel(channel.id))
       .filter(conversation => conversation);
 
     // Return the data

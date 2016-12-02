@@ -230,7 +230,7 @@ describe("The QueryBuilder Classes", function() {
         });
     });
 
-    describe("The ConversationsQuery Class", function() {
+    describe("The ConversationsQueryBuilder Class", function() {
         describe("The constructor() method", function() {
             it("Should not require parameters", function() {
                 var builder = layer.QueryBuilder.conversations();

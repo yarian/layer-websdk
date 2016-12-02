@@ -867,30 +867,6 @@ class Conversation extends Container {
   }
 
   /**
-   * __ Methods are automatically called by property setters.
-   *
-   * Any change in the metadata property will call this method and fire a
-   * change event.  Changes to the metadata object that don't replace the object
-   * with a new object will require directly calling this method.
-   *
-   * @method __updateMetadata
-   * @private
-   * @param  {Object} newValue
-   * @param  {Object} oldValue
-   */
-  __updateMetadata(newValue, oldValue, paths) {
-    if (this._inLayerParser) return;
-    if (JSON.stringify(newValue) !== JSON.stringify(oldValue)) {
-      this._triggerAsync('conversations:change', {
-        property: 'metadata',
-        newValue,
-        oldValue,
-        paths,
-      });
-    }
-  }
-
-  /**
    * Returns a plain object.
    *
    * Object will have all the same public properties as this
@@ -1049,16 +1025,6 @@ Conversation.prototype.unreadCount = 0;
  * @type {boolean}
  */
 Conversation.prototype.distinct = true;
-
-/**
- * Metadata for the conversation.
- *
- * Metadata values can be plain objects and strings, but
- * no arrays, numbers, booleans or dates.
- * @type {Object}
- */
-Conversation.prototype.metadata = null;
-
 
 /**
  * The last layer.Message to be sent/received for this Conversation.

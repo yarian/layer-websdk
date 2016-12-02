@@ -1,5 +1,5 @@
 /*eslint-disable */
-describe("The ConversationsQuery Class", function() {
+describe("The AnnouncementsQuery Class", function() {
     var appId = "Fred's App";
 
     var conversation,

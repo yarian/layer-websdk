@@ -83,9 +83,8 @@
 
 const ClientAuth = require('./client-authenticator');
 const Conversation = require('./messaging/conversation');
-const Query = require('./queries/query');
+const Channel = require('./messaging/channel');
 const ErrorDictionary = require('./layer-error').dictionary;
-const Syncable = require('./syncable');
 const Message = require('./messaging/message');
 const Announcement = require('./messaging/announcement');
 const Identity = require('./identity');
@@ -217,6 +216,8 @@ class Client extends ClientAuth {
         return this.getMessage(id);
       case 'conversations':
         return this.getConversation(id);
+      case 'channels':
+        return this.getChannel(id);
       case 'queries':
         return this.getQuery(id);
       case 'identities':
@@ -247,6 +248,8 @@ class Client extends ClientAuth {
           return Announcement._createFromServer(obj, this);
         case 'conversations':
           return Conversation._createFromServer(obj, this);
+        case 'channels':
+          return Channel._createFromServer(obj, this);
         case 'identities':
           return Identity._createFromServer(obj, this);
       }
