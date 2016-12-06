@@ -4,6 +4,8 @@ describe("The IdentitiesQuery Class", function() {
 
     var conversation, conversationUUID,
         identity,
+        membership,
+        channel,
         client,
         query,
         requests;
@@ -45,10 +47,12 @@ describe("The IdentitiesQuery Class", function() {
         });
         client._clientReady();
         client.onlineManager.isOnline = true;
-
+        channel = client._createObject(responses.channel1);
         identity = client._createObject(responses.useridentity);
+        membership = client._createObject(responses.membership1);
         query = client.createQuery({
-          model: layer.Query.Identity
+          model: layer.Query.Membership,
+          predicate: 'channel.id= "' + channel.id + '"'
         });
 
         jasmine.clock().tick(1);
@@ -66,8 +70,8 @@ describe("The IdentitiesQuery Class", function() {
         layer.Client.destroyAllClients();
     });
 
-    it("Should be an IdentitiesQuery", function() {
-      expect(query.constructor.prototype.model).toEqual(layer.Query.Identity);
+    it("Should be an MembershipQuery", function() {
+      expect(query.constructor.prototype.model).toEqual(layer.Query.Membership);
     });
 
 
@@ -77,8 +81,9 @@ describe("The IdentitiesQuery Class", function() {
             var tmp = layer.Query.prototype._run;
             layer.Query.prototype._run = function() {}
             query = client.createQuery({
-                model: layer.Query.Identity,
-                paginationWindow: 15
+                model: layer.Query.Membership,
+                paginationWindow: 15,
+                predicate: 'channel.id= "' + channel.id + '"'
             });
             layer.Query.prototype._run = tmp;
         });
@@ -93,28 +98,15 @@ describe("The IdentitiesQuery Class", function() {
             expect(query.isFiring).toBe(true);
         });
 
-        it("Should call database unless there is a _nextDBFromId", function() {
-          spyOn(client.dbManager, "loadIdentities");
-
-          // Test 1
-          query._fetchData(140);
-          expect(client.dbManager.loadIdentities).toHaveBeenCalledWith(jasmine.any(Function));
-
-          // Test 2
-          query._nextDBFromId = 'howdy';
-          query._fetchData(141);
-          expect(client.dbManager.loadIdentities.calls.count()).toEqual(1);
-        });
-
         it("Should call server with _nextServerFromId", function() {
             // Test 1
             query._fetchData(141);
-            expect(requests.mostRecent().url).toEqual(client.url + "/identities?page_size=141");
+            expect(requests.mostRecent().url).toEqual(channel.url + "/members?page_size=141");
 
             // Test 2
             query._nextServerFromId = 'howdy';
             query._fetchData(140);
-            expect(requests.mostRecent().url).toEqual(client.url + "/identities?page_size=140&from_id=howdy");
+            expect(requests.mostRecent().url).toEqual(channel.url + "/members?page_size=140&from_id=howdy");
         });
 
         it("Should refuse to call if already firing with same url", function() {
@@ -135,7 +127,7 @@ describe("The IdentitiesQuery Class", function() {
             expect(query._processRunResults).toHaveBeenCalledWith(jasmine.objectContaining({
                 success: true,
                 data: [{id: "a"}, {id: "b"}]
-            }), "identities?page_size=47", 47);
+            }), channel.id.replace(/layer:\/\/\//, "") + "/members?page_size=47", 47);
         });
     });
 
@@ -143,8 +135,9 @@ describe("The IdentitiesQuery Class", function() {
         var query;
         beforeEach(function() {
             query = client.createQuery({
-                model: layer.Query.Identity,
-                paginationWindow: 15
+                model: layer.Query.Membership,
+                paginationWindow: 15,
+                predicate: 'channel.id= "' + channel.id + '"'
             });
         });
 
@@ -153,29 +146,42 @@ describe("The IdentitiesQuery Class", function() {
         });
 
         it("Should use last index to position result", function() {
-          var i1 = client._createObject({
-            id: "layer:///identities/1",
-            user_id: "1",
-            display_name: "1"
+          var m1 = client._createObject({
+            id: "layer:///members/1",
+            identity: {
+                id: "layer:///identities/1",
+                display_name: "Frodo the Frog"
+            },
+            role: "admin",
+                channel: channel
           });
-          var i2 = client._createObject({
-            id: "layer:///identities/2",
-            user_id: "2",
-            display_name: "2"
+          var m2 = client._createObject({
+            id: "layer:///members/2",
+            identity: {
+                id: "layer:///identities/2",
+                display_name: "Frodo the Frog"
+            },
+            role: "admin",
+                channel: channel
           });
-          var i3 = client._createObject({
-            id: "layer:///identities/3",
-            user_id: "3",
-            display_name: "3"
-          });
+          var m3Obj = {
+            id: "layer:///members/3",
+            identity: {
+                id: "layer:///identities/3",
+                display_name: "Frodo the Frog"
+            },
+            role: "admin",
+                channel: channel
+          };
+          var m3 = client._createObject(m3Obj);
 
-          query.data = [i1.toObject(), i2.toObject()];
+          query.data = [m1.toObject(), m2.toObject()];
           query.dataType = "object";
-          query.model = layer.Query.Identity;
+          query.model = layer.Query.Membership;
 
           // Run
           query._appendResults({
-              data: [i3],
+              data: [m3Obj],
               xhr: {
                     getResponseHeader: function(name) {
                         if (name == 'Layout-Count') return 6;
@@ -185,7 +191,7 @@ describe("The IdentitiesQuery Class", function() {
           });
 
           // Posttest
-          expect(query.data).toEqual([i1.toObject(), i2.toObject(), i3.toObject()]);
+          expect(query.data).toEqual([m1.toObject(), m2.toObject(), m3.toObject()]);
         });
     });
 
@@ -193,10 +199,11 @@ describe("The IdentitiesQuery Class", function() {
         var query;
         beforeEach(function() {
             query = client.createQuery({
-                model: layer.Query.Identity,
-                paginationWindow: 15
+                model: layer.Query.Membership,
+                paginationWindow: 15,
+                predicate: 'channel.id= "' + channel.id + '"'
             });
-            query.data = [identity];
+            query.data = [membership];
             spyOn(query, "_handleChangeEvent");
             spyOn(query, "_handleAddEvent");
             spyOn(query, "_handleRemoveEvent");
@@ -207,38 +214,38 @@ describe("The IdentitiesQuery Class", function() {
         });
 
         it("Should call _handleChangeEvent", function() {
-            query._handleEvents("identities:change", ({a: "b", eventName: "identities:change"}));
-            expect(query._handleChangeEvent).toHaveBeenCalledWith('identities', {a: "b", eventName: "identities:change"});
+            query._handleEvents("members:change", ({a: "b", eventName: "members:change"}));
+            expect(query._handleChangeEvent).toHaveBeenCalledWith('members', {a: "b", eventName: "members:change"});
             expect(query._handleAddEvent).not.toHaveBeenCalled();
             expect(query._handleRemoveEvent).not.toHaveBeenCalled();
         });
 
         it("Should call _handleAddEvent", function() {
-            query._handleEvents("identities:add", {a: "b", eventName: "identities:add"})
+            query._handleEvents("members:add", {a: "b", eventName: "members:add"})
             expect(query._handleChangeEvent).not.toHaveBeenCalled();
-            expect(query._handleAddEvent).toHaveBeenCalledWith('identities', {a: "b", eventName: "identities:add"});
+            expect(query._handleAddEvent).toHaveBeenCalledWith('members', {a: "b", eventName: "members:add"});
             expect(query._handleRemoveEvent).not.toHaveBeenCalled();
         });
 
         it("Should call _handleRemoveEvent", function() {
-            query._handleEvents("identities:remove", {a: "b", eventName: "identities:remove"})
+            query._handleEvents("members:remove", {a: "b", eventName: "members:remove"})
             expect(query._handleChangeEvent).not.toHaveBeenCalled();
             expect(query._handleAddEvent).not.toHaveBeenCalled();
-            expect(query._handleRemoveEvent).toHaveBeenCalledWith('identities', {a: "b", eventName: "identities:remove"});
+            expect(query._handleRemoveEvent).toHaveBeenCalledWith('members', {a: "b", eventName: "members:remove"});
         });
     });
 
 
     describe("The _handleChangeEvent() method", function() {
-        var query, identity2;
+        var query, membership2;
         beforeEach(function() {
             query = client.createQuery({
-                model: layer.Query.Identity,
+                model: layer.Query.Membership,
                 paginationWindow: 15,
                 dataType: "object"
             });
-            identity2 = client._createObject(responses.useridentity);
-            query.data = [identity];
+            membership2 = client._createObject(responses.membership1);
+            query.data = [membership];
         });
 
         afterEach(function() {
@@ -247,16 +254,16 @@ describe("The IdentitiesQuery Class", function() {
 
         it("Should not touch data array if dataType is object but item not in the data", function() {
             var evt = new layer.LayerEvent({
-                property: "displayName",
-                oldValue: 'Frodo',
-                newValue: 'FrodoTheDodo',
-                target: identity
-            }, "identities:change");
-            var data = query.data = [identity.toObject()];
+                property: "role",
+                oldValue: 'admin',
+                newValue: 'user',
+                target: membership
+            }, "members:change");
+            var data = query.data = [membership.toObject()];
             data[0].id += "1"; // prevent data from being found
 
             // Run
-            query._handleChangeEvent('identities', evt);
+            query._handleChangeEvent('members', evt);
 
             // Posttest
             expect(query.data).toBe(data);
@@ -265,16 +272,16 @@ describe("The IdentitiesQuery Class", function() {
         it("Should not change the data array if dataType is instance", function() {
             // Setup
             query.dataType = "instance";
-            var data = query.data = [identity];
+            var data = query.data = [membership];
             var evt = new layer.LayerEvent({
-                property: "displayName",
-                oldValue: 'Frodo',
-                newValue: 'FrodoTheDodo',
-                target: identity
-            }, "identities:change");
+                property: "role",
+                oldValue: 'admin',
+                newValue: 'user',
+                target: membership
+            }, "members:change");
 
             // Run
-            query._handleChangeEvent('identities', evt);
+            query._handleChangeEvent('members', evt);
 
             // Posttest
             expect(query.data).toBe(data);
@@ -282,59 +289,59 @@ describe("The IdentitiesQuery Class", function() {
 
         it("Should change data array if dataType is object and item is in the data", function() {
             var evt = new layer.LayerEvent({
-                property: "displayName",
-                oldValue: 'Frodo',
-                newValue: 'FrodoTheDodo',
-                target: identity
-            }, "identities:change");
-            var data = query.data = [identity.toObject()];
+                property: "role",
+                oldValue: 'admin',
+                newValue: 'user',
+                target: membership
+            }, "members:change");
+            var data = query.data = [membership.toObject()];
 
             // Run
-            query._handleChangeEvent('identities', evt);
+            query._handleChangeEvent('members', evt);
 
             // Posttest
             expect(query.data).not.toBe(data);
         });
 
-        it("Should trigger change event if the Identity is in the data", function() {
-            var data = query.data = [identity.toObject()];
+        it("Should trigger change event if the Member is in the data", function() {
+            var data = query.data = [membership.toObject()];
             var evt = new layer.LayerEvent({
-                property: "displayName",
-                oldValue: 'Frodo',
-                newValue: 'FrodoTheDodo',
-                target: identity
-            }, "identities:change");
+                property: "role",
+                oldValue: 'admin',
+                newValue: 'user',
+                target: membership
+            }, "members:change");
             spyOn(query, "_triggerChange");
 
             // Run
-            query._handleChangeEvent('identities', evt);
+            query._handleChangeEvent('members', evt);
 
             // Posttest
             expect(query._triggerChange).toHaveBeenCalledWith({
                 type: "property",
-                target: identity.toObject(),
+                target: membership.toObject(),
                 query: query,
                 isChange: true,
                 changes: [{
-                    property: "displayName",
-                    oldValue: 'Frodo',
-                    newValue: 'FrodoTheDodo',
+                    property: "role",
+                    oldValue: 'admin',
+                    newValue: 'user',
                 }]
             });
         });
 
-        it("Should not trigger change event if Identity is NOT in the data", function() {
-            var data = query.data = [identity.toObject()];
+        it("Should not trigger change event if Member is NOT in the data", function() {
+            var data = query.data = [membership.toObject()];
             var evt = new layer.LayerEvent({
-                property: "displayName",
-                    oldValue: 'Frodo',
-                    newValue: 'FrodoTheDodo',
-                target: {id: identity.id + "1"}
-            }, "identities:change");
+                property: "role",
+                oldValue: 'admin',
+                newValue: 'user',
+                target: {id: membership.id + "1"}
+            }, "members:change");
             spyOn(query, "trigger");
 
             // Run
-            query._handleChangeEvent('identities', evt);
+            query._handleChangeEvent('members', evt);
 
             // Posttest
             expect(query.trigger).not.toHaveBeenCalled();
@@ -343,15 +350,16 @@ describe("The IdentitiesQuery Class", function() {
 
 
     describe("The _handleAddEvent() method", function() {
-        var query, identity2;
+        var query, membership2;
         beforeEach(function() {
-            identity2 = client._createObject({
-                id: "layer:///identities/2",
-                user_id: "2",
-                display_name: "2"
+            membership2 = client._createObject({
+                id: "layer:///members/2",
+                identity: responses.useridentity,
+                role: "user",
+                channel: channel
             });
             query = client.createQuery({
-                model: layer.Query.Identity,
+                model: layer.Query.Membership,
                 paginationWindow: 15,
                 dataType: "object",
             });
@@ -366,13 +374,13 @@ describe("The IdentitiesQuery Class", function() {
             var data = query.data = [];
 
             // Run
-            query._handleAddEvent('identities', {
-                identities: [identity, identity2]
+            query._handleAddEvent('members', {
+                members: [membership, membership2]
             });
 
             // Posttest
             expect(query.data).not.toBe(data);
-            expect(query.data).toEqual([identity.toObject(), identity2.toObject()]);
+            expect(query.data).toEqual([membership.toObject(), membership2.toObject()]);
         });
 
         it("Should insert new data into results if dataType is instance", function() {
@@ -380,25 +388,25 @@ describe("The IdentitiesQuery Class", function() {
             var data = query.data = [];
 
             // Run
-            query._handleAddEvent('identities', {
-                identities: [identity, identity2]
+            query._handleAddEvent('members', {
+                members: [membership, membership2]
             });
 
             // Posttest
             expect(query.data).toBe(data);
-            expect(query.data).toEqual([identity, identity2]);
+            expect(query.data).toEqual([membership, membership2]);
         });
 
         it("Should only operate on new values", function() {
-            var data = query.data = [identity.toObject()];
+            var data = query.data = [membership.toObject()];
 
             // Run
-            query._handleAddEvent('identities', {
-                identities: [identity, identity2]
+            query._handleAddEvent('members', {
+                members: [membership, membership2]
             });
 
             // Posttest
-            expect(query.data).toEqual([identity.toObject(), identity2.toObject()]);
+            expect(query.data).toEqual([membership.toObject(), membership2.toObject()]);
 
         });
 
@@ -408,32 +416,32 @@ describe("The IdentitiesQuery Class", function() {
             spyOn(query, "_triggerChange");
 
             // Run
-            query._handleAddEvent('identities', {
-                identities: [identity, identity2]
+            query._handleAddEvent('members', {
+                members: [membership, membership2]
             });
 
             // Posttest
             expect(query._triggerChange).toHaveBeenCalledWith({
                 type: 'insert',
                 index: 0,
-                target: identity.toObject(),
+                target: membership.toObject(),
                 query: query
             });
             expect(query._triggerChange).toHaveBeenCalledWith({
                 type: 'insert',
                 index: 1,
-                target: identity2.toObject(),
+                target: membership2.toObject(),
                 query: query
             });
         });
 
         it("Should not trigger change event if no new values", function() {
             spyOn(query, "trigger");
-            query.data = [identity, identity2];
+            query.data = [membership, membership2];
 
             // Run
-            query._handleAddEvent('identities', {
-                identities: [identity, identity2]
+            query._handleAddEvent('members', {
+                members: [membership, membership2]
             });
 
             // Posttest
@@ -444,8 +452,8 @@ describe("The IdentitiesQuery Class", function() {
           expect(query.totalSize).toEqual(0);
 
           // Run
-          query._handleAddEvent('identities', {
-              identities: [identity, identity2]
+          query._handleAddEvent('members', {
+              members: [membership, membership2]
           });
 
           // Posttest
@@ -455,31 +463,32 @@ describe("The IdentitiesQuery Class", function() {
 
 
     describe("The _handleRemoveEvent() method", function() {
-        var query, identity2;
+        var query, membership2;
         beforeEach(function() {
-            identity2 = client._createObject({
-                id: "layer:///identities/2",
-                user_id: "2",
-                display_name: "2"
+            membership2 = client._createObject({
+                id: "layer:///members/2",
+                identity: responses.useridentity,
+                role: "user",
+                channel: channel
             });
             query = client.createQuery({
-                model: layer.Query.Identity,
+                model: layer.Query.Membership,
                 paginationWindow: 15,
                 dataType: "object",
             });
-            query.data = [identity.toObject(), identity2.toObject()];
+            query.data = [membership.toObject(), membership2.toObject()];
         });
 
         afterEach(function() {
             query.destroy();
         });
 
-        it("Should replace data with a new array without Identity if dataType is object", function() {
+        it("Should replace data with a new array without Member if dataType is object", function() {
             var data = query.data;
 
             // Run
-            query._handleRemoveEvent('identities', {
-                identities: [identity, identity2]
+            query._handleRemoveEvent('members', {
+                members: [membership, membership2]
             });
 
             // Posttest
@@ -489,11 +498,11 @@ describe("The IdentitiesQuery Class", function() {
 
         it("Should call _updateNextFromId for server indexes", function() {
             spyOn(query, "_updateNextFromId").and.returnValue("heyho");
-            query._nextServerFromId = identity2.id;
+            query._nextServerFromId = membership2.id;
 
             // Run
-            query._handleRemoveEvent('identities', {
-                identities: [identity, identity2]
+            query._handleRemoveEvent('members', {
+                members: [membership, membership2]
             });
 
             // Posttest
@@ -506,8 +515,8 @@ describe("The IdentitiesQuery Class", function() {
             var data = query.data;
 
             // Run
-            query._handleRemoveEvent('identities', {
-                identities: [identity, identity2]
+            query._handleRemoveEvent('members', {
+                members: [membership, membership2]
             });
 
             // Posttest
@@ -516,16 +525,16 @@ describe("The IdentitiesQuery Class", function() {
         });
 
         it("Should only operate on existing values", function() {
-            var identity3 = client._createObject(responses.useridentity);
-            query.data = [identity2.toObject()];
+            var membership3 = client._createObject(responses.membership2);
+            query.data = [membership2.toObject()];
 
             // Run
-            query._handleRemoveEvent('identities', {
-                identities: [identity, identity3]
+            query._handleRemoveEvent('members', {
+                members: [membership, membership3]
             });
 
             // Posttest
-            expect(query.data).toEqual([identity2.toObject()]);
+            expect(query.data).toEqual([membership2.toObject()]);
 
         });
 
@@ -533,32 +542,32 @@ describe("The IdentitiesQuery Class", function() {
             spyOn(query, "_triggerChange");
 
             // Run
-            query._handleRemoveEvent('identities', {
-                identities: [identity, identity2]
+            query._handleRemoveEvent('members', {
+                members: [membership, membership2]
             });
 
             // Posttest
             expect(query._triggerChange).toHaveBeenCalledWith({
                 type: 'remove',
                 index: 0,
-                target: identity.toObject(),
+                target: membership.toObject(),
                 query: query
             });
             expect(query._triggerChange).toHaveBeenCalledWith({
                 type: 'remove',
                 index: 0,
-                target: identity2.toObject(),
+                target: membership2.toObject(),
                 query: query
             });
         });
 
         it("Should not trigger change event if no values affected", function() {
             spyOn(query, "trigger");
-            query.data = [identity2.toObject()];
+            query.data = [membership2.toObject()];
 
             // Run
-            query._handleRemoveEvent('identities', {
-                identities: [identity]
+            query._handleRemoveEvent('members', {
+                members: [membership]
             });
 
             // Posttest
@@ -566,12 +575,12 @@ describe("The IdentitiesQuery Class", function() {
         });
 
         it("Should decrease the totalCount property", function() {
-          query.data = [identity, identity2];
+          query.data = [membership, membership2];
           query.totalSize = 2;
 
           // Run
-          query._handleRemoveEvent('identities', {
-              identities: [identity]
+          query._handleRemoveEvent('members', {
+              members: [membership]
           });
 
           // Posttest

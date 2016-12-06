@@ -196,7 +196,7 @@ module.exports = {
   },
   methods: {
     /**
-     * Retrieve the message or announcement id.
+     * Retrieve the message or announcement by ID.
      *
      * Useful for finding a message when you have only the ID.
      *

@@ -39,7 +39,7 @@ exports.generateUUID = uuid.v4;
  * @return {string}
  */
 exports.typeFromID = (id) => {
-  const matches = id.match(/layer:\/\/\/(.*?)\//);
+  const matches = id.match(/([^/]*)(\/[^/]*)$/);
   return matches ? matches[1] : '';
 };
 

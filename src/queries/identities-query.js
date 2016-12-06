@@ -42,105 +42,21 @@ class IdentitiesQuery extends Query {
       // If a Identity has changed and its in our result set, replace
       // it with a new immutable object
       case 'identities:change':
-        this._handleChangeEvent(evt);
+        this._handleChangeEvent('identities', evt);
         break;
 
       // If Identities are added, and they aren't already in our result set
       // add them.
       case 'identities:add':
-        this._handleAddEvent(evt);
+        this._handleAddEvent('identities', evt);
         break;
 
       // If a Identity is deleted and its in our result set, remove it
       // and trigger an event
       case 'identities:remove':
-        this._handleRemoveEvent(evt);
+        this._handleRemoveEvent('identities', evt);
         break;
     }
-  }
-
-  // Review to see if identical to parent
-  _handleChangeEvent(evt) {
-    const index = this._getIndex(evt.target.id);
-
-    if (index !== -1) {
-      if (this.dataType === Query.ObjectDataType) {
-        this.data = [
-          ...this.data.slice(0, index),
-          evt.target.toObject(),
-          ...this.data.slice(index + 1),
-        ];
-      }
-      this._triggerChange({
-        type: 'property',
-        target: this._getData(evt.target),
-        query: this,
-        isChange: true,
-        changes: evt.changes,
-      });
-    }
-  }
-
-  // Review to see if identical to parent
-  _handleAddEvent(evt) {
-    const list = evt.identities
-      .filter(identity => this._getIndex(identity.id) === -1)
-      .map(identity => this._getData(identity));
-
-    // Add them to our result set and trigger an event for each one
-    if (list.length) {
-      const data = this.data = this.dataType === Query.ObjectDataType ? [].concat(this.data) : this.data;
-      list.forEach(item => data.push(item));
-
-      this.totalSize += list.length;
-
-      // Index calculated above may shift after additional insertions.  This has
-      // to be done after the above insertions have completed.
-      list.forEach((item) => {
-        this._triggerChange({
-          type: 'insert',
-          index: this.data.indexOf(item),
-          target: item,
-          query: this,
-        });
-      });
-    }
-  }
-
-  // Review to see if identical to parent
-  _handleRemoveEvent(evt) {
-    const removed = [];
-    evt.identities.forEach((identity) => {
-      const index = this._getIndex(identity.id);
-
-      if (index !== -1) {
-        if (identity.id === this._nextDBFromId) this._nextDBFromId = this._updateNextFromId(index);
-        if (identity.id === this._nextServerFromId) this._nextServerFromId = this._updateNextFromId(index);
-        removed.push({
-          data: identity,
-          index,
-        });
-        if (this.dataType === Query.ObjectDataType) {
-          this.data = [
-            ...this.data.slice(0, index),
-            ...this.data.slice(index + 1),
-          ];
-        } else {
-          this.data.splice(index, 1);
-        }
-      }
-    });
-
-    this.totalSize -= removed.length;
-    removed.forEach((removedObj) => {
-      this._triggerChange({
-        type: 'remove',
-          // Review to see if identical to parent
-        target: this._getData(removedObj.data),
-        index: removedObj.index,
-        query: this,
-      });
-    });
   }
 }
 

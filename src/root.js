@@ -589,6 +589,13 @@ class Root extends EventClass {
   }
 
 
+  _runMixins(mixinName, argArray) {
+    this.constructor.mixins.forEach((mixin) => {
+      if (mixin.lifecycle[mixinName]) mixin.lifecycle[mixinName].apply(this, argArray);
+    });
+  }
+
+
 
   /**
    * Returns a string representation of the class that is nicer than `[Object]`.

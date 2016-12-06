@@ -1040,6 +1040,7 @@ class DbManager extends Root {
     this.onOpen(() => {
       const data = [];
       this.db.transaction([tableName], 'readonly').objectStore(tableName).openCursor().onsuccess = (evt) => {
+        if (this.isDestroyed) return;
         const cursor = evt.target.result;
         if (cursor) {
           data.push(cursor.value);
@@ -1076,6 +1077,7 @@ class DbManager extends Root {
           .index(indexName)
           .openCursor(range, 'prev')
           .onsuccess = (evt) => {
+            if (this.isDestroyed) return;
             const cursor = evt.target.result;
             if (cursor) {
               if (shouldSkipNext) {
@@ -1088,7 +1090,7 @@ class DbManager extends Root {
               } else {
                 cursor.continue();
               }
-            } else if (!this.isDestroyed) {
+            } else {
               callback(data);
             }
           };
@@ -1145,6 +1147,7 @@ class DbManager extends Root {
       this.db.transaction([tableName], 'readonly')
         .objectStore(tableName)
         .openCursor().onsuccess = (evt) => {
+          if (this.isDestroyed) return;
           const cursor = evt.target.result;
           if (!cursor) {
             callback(data);

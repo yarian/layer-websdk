@@ -11,10 +11,22 @@ const findChannelIdRegex = new RegExp(
 
 
 class MembersQuery extends Query {
+  _fixPredicate(inValue) {
+    if (inValue === '') return '';
+    if (inValue.indexOf('channel.id') !== -1) {
+      let channelId = inValue.match(findChannelIdRegex) ? inValue.replace(findChannelIdRegex, '$1') : null;
+      if (!channelId) throw new Error(LayerError.dictionary.invalidPredicate);
+      if (channelId.indexOf('layer:///channels/') !== 0) channelId = 'layer:///channels/' + channelId;
+      return `channel.id = '${channelId}'`;
+    } else {
+      throw new Error(LayerError.dictionary.invalidPredicate);
+    }
+  }
+
    /**
-   * Get the Conversation UUID from the predicate property.
+   * Get the Channel UUID from the predicate property.
    *
-   * Extract the Conversation's UUID from the predicate... or returned the cached value.
+   * Extract the Channel's UUID from the predicate... or returned the cached value.
    *
    * @method _getChannelPredicateIds
    * @private
@@ -38,7 +50,7 @@ class MembersQuery extends Query {
 
 
   _fetchData(pageSize) {
-    const predicateIds = this._getConversationPredicateIds();
+    const predicateIds = this._getChannelPredicateIds();
 
     // Do nothing if we don't have a conversation to query on
     if (!predicateIds) {
@@ -75,108 +87,24 @@ class MembersQuery extends Query {
   _handleEvents(eventName, evt) {
     switch (eventName) {
 
-      // If a Identity has changed and its in our result set, replace
+      // If a member has changed and its in our result set, replace
       // it with a new immutable object
-      case 'identities:change':
-        this._handleChangeEvent(evt);
+      case 'members:change':
+        this._handleChangeEvent('members', evt);
         break;
 
-      // If Identities are added, and they aren't already in our result set
+      // If members are added, and they aren't already in our result set
       // add them.
-      case 'identities:add':
-        this._handleAddEvent(evt);
+      case 'members:add':
+        this._handleAddEvent('members', evt);
         break;
 
       // If a Identity is deleted and its in our result set, remove it
       // and trigger an event
-      case 'identities:remove':
-        this._handleRemoveEvent(evt);
+      case 'members:remove':
+        this._handleRemoveEvent('members', evt);
         break;
     }
-  }
-
-  // Review to see if identical to parent
-  _handleChangeEvent(evt) {
-    const index = this._getIndex(evt.target.id);
-
-    if (index !== -1) {
-      if (this.dataType === Query.ObjectDataType) {
-        this.data = [
-          ...this.data.slice(0, index),
-          evt.target.toObject(),
-          ...this.data.slice(index + 1),
-        ];
-      }
-      this._triggerChange({
-        type: 'property',
-        target: this._getData(evt.target),
-        query: this,
-        isChange: true,
-        changes: evt.changes,
-      });
-    }
-  }
-
-  // Review to see if identical to parent
-  _handleAddEvent(evt) {
-    const list = evt.identities
-      .filter(identity => this._getIndex(identity.id) === -1)
-      .map(identity => this._getData(identity));
-
-    // Add them to our result set and trigger an event for each one
-    if (list.length) {
-      const data = this.data = this.dataType === Query.ObjectDataType ? [].concat(this.data) : this.data;
-      list.forEach(item => data.push(item));
-
-      this.totalSize += list.length;
-
-      // Index calculated above may shift after additional insertions.  This has
-      // to be done after the above insertions have completed.
-      list.forEach((item) => {
-        this._triggerChange({
-          type: 'insert',
-          index: this.data.indexOf(item),
-          target: item,
-          query: this,
-        });
-      });
-    }
-  }
-
-  // Review to see if identical to parent
-  _handleRemoveEvent(evt) {
-    const removed = [];
-    evt.identities.forEach((identity) => {
-      const index = this._getIndex(identity.id);
-
-      if (index !== -1) {
-        if (identity.id === this._nextDBFromId) this._nextDBFromId = this._updateNextFromId(index);
-        if (identity.id === this._nextServerFromId) this._nextServerFromId = this._updateNextFromId(index);
-        removed.push({
-          data: identity,
-          index,
-        });
-        if (this.dataType === Query.ObjectDataType) {
-          this.data = [
-            ...this.data.slice(0, index),
-            ...this.data.slice(index + 1),
-          ];
-        } else {
-          this.data.splice(index, 1);
-        }
-      }
-    });
-
-    this.totalSize -= removed.length;
-    removed.forEach((removedObj) => {
-      this._triggerChange({
-        type: 'remove',
-          // Review to see if identical to parent
-        target: this._getData(removedObj.data),
-        index: removedObj.index,
-        query: this,
-      });
-    });
   }
 }
 
@@ -187,7 +115,7 @@ MembersQuery._supportedEvents = [
 
 MembersQuery.MaxPageSize = 500;
 
-MembersQuery.prototype.model = Query.Identity;
+MembersQuery.prototype.model = Query.Membership;
 
 Root.initClass.apply(MembersQuery, [MembersQuery, 'MembersQuery']);
 

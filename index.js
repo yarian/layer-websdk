@@ -19,6 +19,7 @@ layer.Query = require('./lib/queries/query');
 layer.QueryBuilder = require('./lib/queries/query-builder');
 layer.xhr = require('./lib/xhr');
 layer.Identity = require('./lib/models/identity');
+layer.Membership = require('./lib/models/membership');
 layer.LayerError = require('./lib/layer-error');
 layer.LayerEvent = require('./lib/layer-event');
 layer.SyncManager = require('./lib/sync-manager');

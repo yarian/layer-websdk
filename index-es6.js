@@ -1,3 +1,4 @@
+/* eslint-disable global-require */
 module.exports = {
   Root: require('./src/root'),
   Client: require('./src/client'),
@@ -13,6 +14,7 @@ module.exports = {
   QueryBuilder: require('./src/queries/query-builder'),
   xhr: require('./src/xhr'),
   Identity: require('./src/models/identity'),
+  Membership: require('./src/models/membership'),
   LayerError: require('./src/layer-error'),
   LayerEvent: require('./src/layer-event'),
   SyncManager: require('./src/sync-manager'),

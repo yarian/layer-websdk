@@ -20,7 +20,7 @@ class MessagesQuery extends Query {
       if (conversationId.indexOf('layer:///conversations/') !== 0) conversationId = 'layer:///conversations/' + conversationId;
       return `conversation.id = '${conversationId}'`;
     } else if (inValue.indexOf('channel.id') !== -1) {
-      let channelId = inValue.match(findConvIdRegex) ? inValue.replace(findConvIdRegex, '$1') : null;
+      let channelId = inValue.match(findChannelIdRegex) ? inValue.replace(findChannelIdRegex, '$1') : null;
       if (!channelId) throw new Error(LayerError.dictionary.invalidPredicate);
       if (channelId.indexOf('layer:///channels/') !== 0) channelId = 'layer:///channels/' + channelId;
       return `channel.id = '${channelId}'`;

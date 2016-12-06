@@ -491,12 +491,11 @@ class Query extends Root {
     if (this.dataType === Query.ObjectDataType) {
       this.data = [].concat(this.data);
     }
-    const data = this.data;
 
     // Insert the results... if the results are a match
     newResults.forEach((itemIn) => {
       const item = this.client._getObject(itemIn.id);
-      this._appendResultsSplice(item);
+      if (item) this._appendResultsSplice(item);
     });
 
 
@@ -591,6 +590,93 @@ class Query extends Root {
   }
 
   /**
+   * Handle a change event... for models that don't require custom handling
+   *
+   * @method _handleChangeEvent
+   * @param {layer.LayerEvent} evt
+   * @private
+   */
+  _handleChangeEvent(name, evt) {
+    const index = this._getIndex(evt.target.id);
+
+    if (index !== -1) {
+      if (this.dataType === Query.ObjectDataType) {
+        this.data = [
+          ...this.data.slice(0, index),
+          evt.target.toObject(),
+          ...this.data.slice(index + 1),
+        ];
+      }
+      this._triggerChange({
+        type: 'property',
+        target: this._getData(evt.target),
+        query: this,
+        isChange: true,
+        changes: evt.changes,
+      });
+    }
+  }
+
+  _handleAddEvent(name, evt) {
+    const list = evt[name]
+      .filter(obj => this._getIndex(obj.id) === -1)
+      .map(obj => this._getData(obj));
+
+    // Add them to our result set and trigger an event for each one
+    if (list.length) {
+      const data = this.data = this.dataType === Query.ObjectDataType ? [].concat(this.data) : this.data;
+      list.forEach(item => data.push(item));
+
+      this.totalSize += list.length;
+
+      // Index calculated above may shift after additional insertions.  This has
+      // to be done after the above insertions have completed.
+      list.forEach((item) => {
+        this._triggerChange({
+          type: 'insert',
+          index: this.data.indexOf(item),
+          target: item,
+          query: this,
+        });
+      });
+    }
+  }
+
+  _handleRemoveEvent(name, evt) {
+    const removed = [];
+    evt[name].forEach((obj) => {
+      const index = this._getIndex(obj.id);
+
+      if (index !== -1) {
+        if (obj.id === this._nextDBFromId) this._nextDBFromId = this._updateNextFromId(index);
+        if (obj.id === this._nextServerFromId) this._nextServerFromId = this._updateNextFromId(index);
+        removed.push({
+          data: obj,
+          index,
+        });
+        if (this.dataType === Query.ObjectDataType) {
+          this.data = [
+            ...this.data.slice(0, index),
+            ...this.data.slice(index + 1),
+          ];
+        } else {
+          this.data.splice(index, 1);
+        }
+      }
+    });
+
+    this.totalSize -= removed.length;
+    removed.forEach((removedObj) => {
+      this._triggerChange({
+        type: 'remove',
+        target: this._getData(removedObj.data),
+        index: removedObj.index,
+        query: this,
+      });
+    });
+  }
+
+  /**
    * If the current next-id is removed from the list, get a new nextId.
    *
    * If the index is greater than 0, whatever is after that index may have come from
@@ -669,6 +755,15 @@ Query.Announcement = 'Announcement';
  * @static
  */
 Query.Identity = 'Identity';
+
+/**
+ * Query for Members of a Channel.
+ *
+ * Use this value in the layer.Query.model property.
+ * @type {string}
+ * @static
+ */
+Query.Membership = 'Membership';
 
 /**
  * Get data as POJOs/immutable objects.

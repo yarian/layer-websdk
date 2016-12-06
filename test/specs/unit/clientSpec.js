@@ -10,7 +10,7 @@ describe("The Client class", function() {
         url1 = "https://huh.com/conversations/test1",
         url2 = "https://huh.com/conversations/test2",
         url3 = "https://huh.com/conversations/test3";
-    var client, requests, userIdentity, userIdentity2;
+    var client, requests, userIdentity, userIdentity2, membership1, membership2;
 
     beforeEach(function() {
         jasmine.clock().install();
@@ -37,6 +37,7 @@ describe("The Client class", function() {
             displayName: "UserIdentity",
             userId: '1'
         });
+        membership = client._createObject(responses.membership1);
         client.isReady = true;
     });
 
@@ -282,6 +283,7 @@ describe("The Client class", function() {
                 identHash[responses.useridentity.id] = client.getIdentity(responses.useridentity.id);
                 identHash[userIdentity2.id] = userIdentity2;
                 identHash[serviceIdentity.id] = serviceIdentity;
+                identHash[membership.identity.id] = membership.identity;
 
                 expect(client._conversationsHash).toEqual(cHash);
                 expect(client._messagesHash).toEqual(mHash);
@@ -344,19 +346,19 @@ describe("The Client class", function() {
 
         describe("The _createObject() method", function() {
             it("Should call _populateFromServer if found", function() {
-            // Setup
-            var m = client.createConversation({ participants: ["a"]}).createMessage("a").send({ });
-            spyOn(m, "_populateFromServer");
+                // Setup
+                var m = client.createConversation({ participants: ["a"]}).createMessage("a").send({ });
+                spyOn(m, "_populateFromServer");
 
-            // Pretest
-            expect(client.getMessage(m.id)).toBe(m);
+                // Pretest
+                expect(client.getMessage(m.id)).toBe(m);
 
-            // Run
-            var result = client._createObject(m.toObject());
+                // Run
+                var result = client._createObject(m.toObject());
 
-            // Posttest
-            expect(result).toBe(m);
-            expect(m._populateFromServer).toHaveBeenCalledWith(m.toObject());
+                // Posttest
+                expect(result).toBe(m);
+                expect(m._populateFromServer).toHaveBeenCalledWith(m.toObject());
             });
 
             it("Should call Message._createFromServer", function() {
@@ -463,6 +465,32 @@ describe("The Client class", function() {
 
                 // Restore
                 layer.Identity._createFromServer = tmp;
+            });
+
+            it("Should call Membership._createFromServer", function() {
+                // Setup
+                var tmp = layer.Membership._createFromServer;
+                var membershipObj = JSON.parse(JSON.stringify(responses.membership1));
+
+                var membership = new layer.Membership({
+                    id: responses.membership1.id,
+                    role: responses.membership1.role,
+                    identity: userIdentity,
+                    clientId: client.appId
+                });
+                client._membersHash = {};
+
+                spyOn(layer.Membership, "_createFromServer").and.returnValue(membership);
+
+                // Run
+                var membership2 = client._createObject(membershipObj);
+
+                // Posttest
+                expect(membership2).toBe(membership);
+                expect(layer.Membership._createFromServer).toHaveBeenCalledWith(membershipObj, client);
+
+                // Restore
+                layer.Membership._createFromServer = tmp;
             });
         });
 

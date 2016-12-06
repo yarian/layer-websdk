@@ -23,7 +23,7 @@ module.exports = {
      *
      * @event
      * @param {layer.LayerEvent} evt
-     * @param {layer.Message} evt.target
+     * @param {layer.Identity} evt.target
      */
     'identities:loaded',
 
@@ -41,7 +41,7 @@ module.exports = {
      *
      * @event
      * @param {layer.LayerEvent} evt
-     * @param {layer.Message} evt.target
+     * @param {layer.Identity} evt.target
      * @param {Object[]} evt.changes
      * @param {Mixed} evt.changes.newValue
      * @param {Mixed} evt.changes.oldValue

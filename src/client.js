@@ -75,6 +75,7 @@
  * @class  layer.Client
  * @extends layer.ClientAuthenticator
  * @mixin layer.mixins.ClientIdentities
+ * @mixin layer.mixins.ClientMembership
  * @mixin layer.mixins.ClientConversations
  * @mixin layer.mixins.ClientChannels
  * @mixin layer.mixins.ClientMessages
@@ -88,6 +89,7 @@ const ErrorDictionary = require('./layer-error').dictionary;
 const Message = require('./models/message');
 const Announcement = require('./models/announcement');
 const Identity = require('./models/identity');
+const Membership = require('./models/membership');
 const TypingIndicatorListener = require('./typing-indicators/typing-indicator-listener');
 const Util = require('./client-utils');
 const Root = require('./root');
@@ -104,7 +106,7 @@ class Client extends ClientAuth {
   constructor(options) {
     super(options);
     ClientRegistry.register(this);
-    Client.mixins.forEach(mixin => mixin.lifecycle.constructor.apply(this, [options]));
+    this._runMixins('constructor', [options]);
 
     // Initialize Properties
     this._scheduleCheckAndPurgeCacheItems = [];
@@ -140,7 +142,11 @@ class Client extends ClientAuth {
     if (this.isDestroyed) return;
     this._inCleanup = true;
 
-    Client.mixins.forEach(mixin => mixin.lifecycle.cleanup.apply(this));
+    try {
+      this._runMixins('cleanup', []);
+    } catch (e) {
+      logger.error(e);
+    }
 
     if (this.socketManager) this.socketManager.close();
   }
@@ -222,6 +228,8 @@ class Client extends ClientAuth {
         return this.getQuery(id);
       case 'identities':
         return this.getIdentity(id);
+      case 'members':
+        return this.getMember(id);
     }
     return null;
   }
@@ -252,6 +260,8 @@ class Client extends ClientAuth {
           return Channel._createFromServer(obj, this);
         case 'identities':
           return Identity._createFromServer(obj, this);
+        case 'members':
+          return Membership._createFromServer(obj, this);
       }
     }
     return null;
@@ -347,7 +357,7 @@ class Client extends ClientAuth {
    */
   _resetSession() {
     this._cleanup();
-    Client.mixins.forEach(mixin => mixin.lifecycle.reset.apply(this));
+    this._runMixins('reset', []);
     return super._resetSession();
   }
 
@@ -656,6 +666,7 @@ Client.plugins = {};
 Client.mixins = [
   require('./mixins/client-queries'),
   require('./mixins/client-identities'),
+  require('./mixins/client-members'),
   require('./mixins/client-conversations'),
   require('./mixins/client-channels'),
   require('./mixins/client-messages'),

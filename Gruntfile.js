@@ -126,6 +126,7 @@ module.exports = function (grunt) {
           "lib/models/announcement.js": "src/models/announcement.js",
           "lib/models/content.js": "src/models/content.js",
           "lib/models/identity.js": "src/models/identity.js",
+          "lib/models/membership.js": "src/models/membership.js",
           "lib/queries/query.js": "src/queries/query.js",
           "lib/queries/identities-query.js": "src/queries/identities-query.js",
           "lib/queries/conversations-query.js": "src/queries/conversations-query.js",
