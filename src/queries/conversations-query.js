@@ -62,21 +62,18 @@ class ConversationsQuery extends Query {
       // If a Conversation's property has changed, and the Conversation is in this
       // Query's data, then update it.
       case 'conversations:change':
-      case 'channels:change':
         this._handleChangeEvent(evt);
         break;
 
       // If a Conversation is added, and it isn't already in the Query,
       // add it and trigger an event
       case 'conversations:add':
-      case 'channels:add':
         this._handleAddEvent(evt);
         break;
 
       // If a Conversation is deleted, and its still in our data,
       // remove it and trigger an event.
       case 'conversations:remove':
-      case 'channels:remove':
         this._handleRemoveEvent(evt);
         break;
     }

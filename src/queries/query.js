@@ -494,7 +494,7 @@ class Query extends Root {
 
     // Insert the results... if the results are a match
     newResults.forEach((itemIn) => {
-      const item = this.client._getObject(itemIn.id);
+      const item = this.client.getObject(itemIn.id);
       if (item) this._appendResultsSplice(item);
     });
 
@@ -502,7 +502,7 @@ class Query extends Root {
     // Trigger the change event
     this._triggerChange({
       type: 'data',
-      data: newResults.map(item => this._getData(this.client._getObject(item.id))),
+      data: newResults.map(item => this._getData(this.client.getObject(item.id))),
       query: this,
       target: this.client,
     });
@@ -538,7 +538,7 @@ class Query extends Root {
    */
   _getInstance(item) {
     if (item instanceof Root) return item;
-    return this.client._getObject(item.id);
+    return this.client.getObject(item.id);
   }
 
   /**

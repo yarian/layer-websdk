@@ -49,6 +49,7 @@ const LayerError = require('../layer-error');
 const LayerEvent = require('../layer-event');
 const Util = require('../client-utils');
 const Constants = require('../const');
+const Logger = require('../logger');
 
 class Channel extends Container {
   constructor(options = {}) {
@@ -76,26 +77,57 @@ class Channel extends Container {
    * Create this Conversation on the server.
    *
    * Called my layer.Message.send to insure its Conversation exists
-   * on the server.  Return `this` until we support client side creation.
+   * on the server.
    *
    * @method send
    * @param {layer.Message} [message] Tells the Conversation what its last_message will be
    * @return {layer.Conversation} this
    */
   send(message) {
-    return this;
+    // Conversations can just check the lastMessage position and increment it.
+    // Channels must do a hackier calculation that sets the next position to a number larger than the server
+    // could ever deliver, and then increment that floating point position by a large enough increment
+    // that we need not worry about Floating point rounding errors.  Lots of guesswork here.
+    message.position = Channel.nextPosition;
+    Channel.nextPosition += 8192;
+
+    const client = this.getClient();
+    if (!client) throw new Error(LayerError.dictionary.clientMissing);
+    return super.send(message);
+  }
+
+  /**
+   * Gets the data for a Create request.
+   *
+   * The layer.SyncManager needs a callback to create the Conversation as it
+   * looks NOW, not back when `send()` was called.  This method is called
+   * by the layer.SyncManager to populate the POST data of the call.
+   *
+   * @method _getSendData
+   * @private
+   * @return {Object} Websocket data for the request
+   */
+  _getSendData(data) {
+    const isMetadataEmpty = Util.isEmpty(this.metadata);
+    return {
+      method: 'Channel.create',
+      data: {
+        name: this.name,
+        metadata: isMetadataEmpty ? null : this.metadata,
+        id: this.id,
+      },
+    };
   }
 
   _populateFromServer(channel) {
     // Disable events if creating a new Conversation
     // We still want property change events for anything that DOES change
     this._disableEvents = (this.syncState === Constants.SYNC_STATE.NEW);
+    this.name = channel.name;
 
-    this.isCurrentParticipant = channel.membership.is_member;
-    this.membership = {
-      isMember: channel.is_member,
-      role: channel.role,
-    };
+    this.isCurrentParticipant = Boolean(channel.membership);
+    // this.membership = !channel.membership ? null : this.getClient._createObject(channel.membership);
+
     super._populateFromServer(channel);
     this._register();
 
@@ -103,15 +135,50 @@ class Channel extends Container {
   }
 
   /**
+   * __ Methods are automatically called by property setters.
+   *
+   * Any change in the name property will call this method and fire a
+   * change event.
+   *
+   * @method __updateName
+   * @private
+   * @param  {string} newValue
+   * @param  {string} oldValue
+   */
+  __updateName(newValue, oldValue) {
+    if (this._inLayerParser) return;
+    this._triggerAsync('channels:change', {
+      property: 'name',
+      oldValue,
+      newValue,
+    });
+  }
+
+  /**
    * Add the following members to the Channel.
    *
-   * Not yet supported.
+   * Unlike Conversations, Channels do not maintain state information about their members.
+   * As such, if the operation fails there is no actual state change
+   * for the channel.  Currently the only errors exposed are from the layer.Client.SyncManager.
    *
    * @method addMembers
    * @param {String[]} members   Identity IDs of users to add to this Channel
+   * @return {layer.Channel} this
    */
   addMembers(members) {
+    members = this.getClient().fixParticipants(members);
+    if (members.length > 1 || members[0] !== this.getClient().user.id) {
+      throw new Error("TODO: add other members");
+    }
 
+    // TODO: Should use the bulk operation when it becomes available.
+    members.forEach((identityId) => {
+      this._xhr({
+        url: '/members/' + identityId.replace(/^layer:\/\/\/identities\//, ''),
+        method: 'PUT',
+      });
+    });
+    return this;
   }
 
   /**
@@ -121,27 +188,74 @@ class Channel extends Container {
    *
    * @method removeMembers
    * @param {String[]} members   Identity IDs of users to remove from this Channel
+   * @return {layer.Channel} this
    */
   removeMembers(members) {
+    members = this.getClient().fixParticipants(members);
+    if (members.length > 1 || members[0] !== this.getClient().user.id) {
+      throw new Error("TODO: remove other members");
+    }
 
+    // TODO: Should use the bulk operation when it becomes available.
+    members.forEach((identityId) => {
+      this._xhr({
+        url: '/members/' + identityId.replace(/^layer:\/\/\/identities\//, ''),
+        method: 'DELETE',
+      });
+    });
+    return this;
   }
 
   /**
    * Add the current user to this channel.
    *
    * @method join
+   * @return {layer.Channel} this
    */
   join() {
-    this.addMembers([this.getClient().user.id]);
+    return this.addMembers([this.getClient().user.id]);
   }
 
   /**
    * remove the current user from this channel.
    *
    * @method leave
+   * @return {layer.Channel} this
    */
   leave() {
-    this.removeMembers([this.getClient().user.id]);
+    return this.removeMembers([this.getClient().user.id]);
+  }
+
+  /**
+   * Return a Membership object for the specified Identity ID.
+   *
+   * If `members:loaded` is triggered, then your membership object
+   * has been populated with data.
+   *
+   * If `members:loaded-error` is triggered, then your membership object
+   * could not be loaded, either you have a connection error, or the user is not a member.
+   *
+   * ```
+   * var membership = channel.getMember('FrodoTheDodo');
+   * membership.on('membership:loaded', function(evt) {
+   *    alert('He IS a member, quick, kick him out!');
+   * });
+   * membership.on('membership:loaded-error', function(evt) {
+   *    if (evt.error.id === 'not_found') {
+   *      alert('Sauruman, he is with the Elves!');
+   *    } else {
+   *      alert('Sauruman, would you please pick up your Palantir already? I can't connect!');
+   *    }
+   * });
+   * ```
+   * @method
+   * @param {String} identityId
+   * @returns {layer.Membership}
+   */
+  getMember(identityId) {
+    identityId = this.getClient().fixIdentities([identityId])[0];
+    const membershipId = this.id + '/membership/' + identityId.replace(/layer:\/\/\/identities\//, '');
+    return this.getClient().getMember(membershipId, true);
   }
 
   /**
@@ -150,7 +264,8 @@ class Channel extends Container {
    * @method delete
    */
   delete() {
-    throw new Error('Deletion is not yet supported');
+    Logger.error('Deletion is not yet supported');
+    this._delete('');
   }
 
   /**
@@ -285,6 +400,10 @@ Channel.prototype.name = '';
 Channel.prototype.membership = null;
 
 Channel.eventPrefix = 'channels';
+
+// Math.pow(2, 64); a number larger than Number.MAX_SAFE_INTEGER, and larger than Java's Max Unsigned Long. And an easy to work with
+// factor of 2
+Channel.nextPosition = 18446744073709552000;
 
 /**
  * Prefix to use when generating an ID for instances of this class

@@ -139,7 +139,7 @@ module.exports = {
         delete this._queriesHash[query.id];
         if (!this._inCleanup) {
           const data = query.data
-            .map(obj => this._getObject(obj.id))
+            .map(obj => this.getObject(obj.id))
             .filter(obj => obj);
           this._checkAndPurgeCache(data);
         }

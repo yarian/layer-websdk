@@ -639,7 +639,7 @@ class Message extends Syncable {
         parts: new Array(this.parts.length),
         id: this.id,
       };
-      if (notification) data.notification = notification;
+      if (notification && this.conversationId) data.notification = notification;
 
       this._preparePartsForSending(data);
     });

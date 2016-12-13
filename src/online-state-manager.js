@@ -97,7 +97,7 @@ class OnlineStateManager extends Root {
    * @method _scheduleNextOnlineCheck
    * @private
    */
-  _scheduleNextOnlineCheck() {
+  _scheduleNextOnlineCheck(connectionFailure, callback) {
     logger.debug('OnlineStateManager: skip schedule');
     if (this.isDestroyed || !this.isClientReady) return;
 
@@ -106,7 +106,7 @@ class OnlineStateManager extends Root {
 
     // If this is called while we are online, then we are using this to detect when we've gone without data for more than pingFrequency.
     // Call this._onlineExpired after pingFrequency of no server responses.
-    if (this.isOnline) {
+    if (!connectionFailure) {
       logger.debug('OnlineStateManager: Scheduled onlineExpired');
       this.onlineCheckId = setTimeout(this._onlineExpired.bind(this), this.pingFrequency);
     }
@@ -115,7 +115,7 @@ class OnlineStateManager extends Root {
     else {
       logger.info('OnlineStateManager: Scheduled checkOnlineStatus');
       const duration = Utils.getExponentialBackoffSeconds(this.maxOfflineWait, Math.min(10, this.offlineCounter++));
-      this.onlineCheckId = setTimeout(this.checkOnlineStatus.bind(this), Math.floor(duration * 1000));
+      this.onlineCheckId = setTimeout(this.checkOnlineStatus.bind(this, callback), Math.floor(duration * 1000));
     }
   }
 
@@ -187,14 +187,14 @@ class OnlineStateManager extends Root {
     this._lastCheckOnlineStatus = new Date();
     // Ping the server and see if we're connected.
     xhr({
-      url: this.testUrl,
-      method: 'POST',
+      url: this.socketManager.client.url + '/?action=validateIsOnline&client=' + this.socketManager.client.constructor.version,
+      method: 'GET',
       headers: {
         accept: ACCEPT,
       },
-    }, () => {
+    }, ({ status }) => {
       // this.isOnline will be updated via _connectionListener prior to this line executing
-      if (callback) callback(this.isOnline);
+      if (callback) callback(status !== 408);
     });
   }
 
@@ -224,7 +224,8 @@ class OnlineStateManager extends Root {
    */
   _connectionListener(evt) {
     // If event is a success, change us to online
-    if (evt.status === 'connection:success') {
+    const failed = evt.status !== 'connection:success';
+    if (!failed) {
       const lastTime = this.lastMessageTime;
       this.lastMessageTime = new Date();
       if (!this.isOnline) {
@@ -237,12 +238,9 @@ class OnlineStateManager extends Root {
       }
     }
 
-    // If event is NOT success, change us to offline.
-    else {
-      this._changeToOffline();
-    }
-
-    this._scheduleNextOnlineCheck();
+    this._scheduleNextOnlineCheck(failed, (result) => {
+      if (!result) this._changeToOffline();
+    });
   }
 
   /**

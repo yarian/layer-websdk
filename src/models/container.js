@@ -51,6 +51,8 @@ class Container extends Syncable {
       this._populateFromServer(options.fromServer);
     }
 
+    if (!this.metadata) this.metadata = {};
+
     if (!this.createdAt) {
       this.createdAt = new Date();
     }
@@ -58,7 +60,24 @@ class Container extends Syncable {
   }
 
 
+  send(message) {
+    if (this.isNew()) {
+      this.createdAt = new Date();
 
+      // Update the syncState
+      this._setSyncing();
+
+      this.getClient().sendSocketRequest({
+        method: 'POST',
+        body: {}, // see _getSendData
+        sync: {
+          depends: this.id,
+          target: this.id,
+        },
+      }, result => this._createResult(result));
+    }
+    return this;
+  }
 
 
   /**
@@ -72,7 +91,6 @@ class Container extends Syncable {
    */
   _populateFromServer(container) {
     const client = this.getClient();
-
 
     this._setSynced();
 
@@ -91,6 +109,7 @@ class Container extends Syncable {
 
     this.url = container.url;
     this.createdAt = new Date(container.created_at);
+    this.metadata = container.metadata;
   }
 
 
@@ -223,13 +242,31 @@ class Container extends Syncable {
   __updateMetadata(newValue, oldValue, paths) {
     if (this._inLayerParser) return;
     if (JSON.stringify(newValue) !== JSON.stringify(oldValue)) {
-      this._triggerAsync('conversations:change', {
+      this._triggerAsync(`${this.constructor.eventPrefix}:change`, {
         property: 'metadata',
         newValue,
         oldValue,
         paths,
       });
     }
+  }
+
+  /**
+   * Returns a plain object.
+   *
+   * Object will have all the same public properties as this
+   * Conversation instance.  New object is returned any time
+   * any of this object's properties change.
+   *
+   * @method toObject
+   * @return {Object} POJO version of this.
+   */
+  toObject() {
+    if (!this._toObject) {
+      this._toObject = super.toObject();
+      this._toObject.metadata = Util.clone(this.metadata);
+    }
+    return this._toObject;
   }
 
   /**

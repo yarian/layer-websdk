@@ -55,13 +55,16 @@ class MessagesQuery {
   }
 
   /**
-   * Query for messages in this Conversation.
+   * Query for messages in this Conversation or Channel.
    *
    * @method forConversation
    * @param  {String} conversationId
    */
   forConversation(conversationId) {
-    if (conversationId) {
+    if (conversationId.indexOf('layer:///channels/') === 0) {
+      this._query.predicate = `channel.id = '${conversationId}'`;
+      this._conversationIdSet = true;
+    } else if (conversationId.indexOf('layer:///conversations/') === 0) {
       this._query.predicate = `conversation.id = '${conversationId}'`;
       this._conversationIdSet = true;
     } else {
@@ -254,7 +257,7 @@ class ChannelsQuery {
       };
     } else {
       this._query = {
-        model: Query.Conversation,
+        model: Query.Channel,
         returnType: 'object',
         dataType: 'object',
         paginationWindow: Query.prototype.paginationWindow,

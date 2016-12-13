@@ -555,7 +555,7 @@ class SocketManager extends Root {
     if (this.isDestroyed || !this.client.isOnline) return;
 
     this.client.xhr({
-      url: '/',
+      url: '/?action=validateConnectionForWebsocket&client=' + this.client.constructor.version,
       method: 'GET',
       sync: false,
     }, (result) => {

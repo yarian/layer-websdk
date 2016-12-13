@@ -184,20 +184,7 @@ class Conversation extends Container {
       throw new Error(LayerError.dictionary.moreParticipantsRequired);
     }
 
-    this.createdAt = new Date();
-
-    // Update the syncState
-    this._setSyncing();
-
-    client.sendSocketRequest({
-      method: 'POST',
-      body: {}, // see _getSendData
-      sync: {
-        depends: this.id,
-        target: this.id,
-      },
-    }, result => this._createResult(result));
-    return this;
+    return super.send(message);
   }
 
   /**
@@ -318,7 +305,6 @@ class Conversation extends Container {
 
     this.participants = client._fixIdentities(conversation.participants);
     this.distinct = conversation.distinct;
-    this.metadata = conversation.metadata;
     this.unreadCount = conversation.unread_message_count;
     this.isCurrentParticipant = this.participants.indexOf(client.user) !== -1;
     super._populateFromServer(conversation);
@@ -866,23 +852,6 @@ class Conversation extends Container {
     }
   }
 
-  /**
-   * Returns a plain object.
-   *
-   * Object will have all the same public properties as this
-   * Conversation instance.  New object is returned any time
-   * any of this object's properties change.
-   *
-   * @method toObject
-   * @return {Object} POJO version of this.
-   */
-  toObject() {
-    if (!this._toObject) {
-      this._toObject = super.toObject();
-      this._toObject.metadata = Util.clone(this.metadata);
-    }
-    return this._toObject;
-  }
 
   /**
    * Create a conversation instance from a server representation of the conversation.

@@ -56,7 +56,7 @@ class SyncEvent {
    */
   _updateData(client) {
     if (!this.target) return;
-    const target = client._getObject(this.target);
+    const target = client.getObject(this.target);
     if (target && this.operation === 'POST' && target._getSendData) {
       this.data = target._getSendData(this.data);
     }
@@ -242,7 +242,7 @@ class XHRSyncEvent extends SyncEvent {
    */
   _updateUrl(client) {
     if (!this.target) return;
-    const target = client._getObject(this.target);
+    const target = client.getObject(this.target);
     if (target && !this.url.match(/^http(s)\:\/\//)) {
       this.url = target._getUrl(this.url);
     }

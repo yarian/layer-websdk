@@ -300,7 +300,7 @@ function createParser(request) {
 
   parser = new LayerParser({
     camelCase: true,
-    getObjectCallback: (id) => request.client._getObject(id),
+    getObjectCallback: (id) => request.client.getObject(id),
     createObjectCallback: (id, obj) => request.client._createObject(obj),
     propertyNameMap: {
       Conversation: {

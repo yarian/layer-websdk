@@ -9,6 +9,7 @@ const Utils = require('../client-utils');
 const logger = require('../logger');
 const Message = require('../models/message');
 const Conversation = require('../models/conversation');
+const Channel = require('../models/channel');
 
 
 class WebsocketChangeManager {
@@ -83,7 +84,7 @@ class WebsocketChangeManager {
    * @param  {Object} msg
    */
   _handleDelete(msg) {
-    const entity = this._getObject(msg);
+    const entity = this.getObject(msg);
     if (entity) {
       entity._handleWebsocketDelete(msg.data);
     }
@@ -99,7 +100,7 @@ class WebsocketChangeManager {
    */
   _handlePatch(msg) {
     // Can only patch a cached object
-    const entity = this._getObject(msg);
+    const entity = this.getObject(msg);
     if (entity) {
       try {
         entity._inLayerParser = true;
@@ -115,8 +116,11 @@ class WebsocketChangeManager {
       }
     } else {
       switch (Utils.typeFromID(msg.object.id)) {
+        case 'channels':
+          if (Channel._loadResourceForPatch(msg.data)) this.client.getObject(msg.object.id, true);
+          break;
         case 'conversations':
-          if (Conversation._loadResourceForPatch(msg.data)) this.client.getConversation(msg.object.id, true);
+          if (Conversation._loadResourceForPatch(msg.data)) this.client.getObject(msg.object.id, true);
           break;
         case 'messages':
           if (Message._loadResourceForPatch(msg.data)) this.client.getMessage(msg.object.id, true);
@@ -130,13 +134,13 @@ class WebsocketChangeManager {
   /**
    * Get the object specified by the `object` property of the websocket packet.
    *
-   * @method _getObject
+   * @method getObject
    * @private
    * @param  {Object} msg
    * @return {layer.Root}
    */
-  _getObject(msg) {
-    return this.client._getObject(msg.object.id);
+  getObject(msg) {
+    return this.client.getObject(msg.object.id);
   }
 
   /**

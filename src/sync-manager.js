@@ -66,6 +66,8 @@ class SyncManager extends Root {
     this.queue = [];
     this.receiptQueue = [];
 
+    // Rather than listen for onlineManager 'connected', let the socketManager listen for that, connect, and the syncManager
+    // waits until its actually connected
     this.onlineManager.on('disconnected', this._onlineStateChange, this);
     this.socketManager.on('connected disconnected', this._onlineStateChange, this);
   }
@@ -221,16 +223,7 @@ class SyncManager extends Root {
           firingReceipts++;
         } else if (firingReceipts < MAX_RECEIPT_CONNECTIONS) {
           firingReceipts++;
-          receiptEvt._isValidating = true;
-          this._validateRequest(receiptEvt, (isValid) => {
-            receiptEvt._isValidating = false;
-            if (!isValid) {
-              const index = this.receiptQueue.indexOf(receiptEvt);
-              if (index !== -1) this.receiptQueue.splice(index, 1);
-            } else {
-              this._fireRequest(receiptEvt);
-            }
-          });
+          this._fireRequest(receiptEvt);
         }
       }
     });
@@ -262,10 +255,11 @@ class SyncManager extends Root {
    * @param {layer.SyncEvent.XHRSyncEvent} requestEvt
    */
   _fireRequestXHR(requestEvt) {
+    console.log("HEY: firing " + requestEvt.url + "; " + new Date().toISOString());
     requestEvt.isFiring = true;
     if (!requestEvt.headers) requestEvt.headers = {};
     requestEvt.headers.authorization = 'Layer session-token="' + this.client.sessionToken + '"';
-    logger.debug(`Sync Manager XHR Request Firing ${requestEvt.operation} ${requestEvt.target}`,
+    logger.info(`Sync Manager XHR Request Firing ${requestEvt.operation} ${requestEvt.target} at ${new Date().toISOString()}`,
       requestEvt.toObject());
     xhr(requestEvt._getRequestData(this.client), result => this._xhrResult(result, requestEvt));
   }
@@ -422,7 +416,8 @@ class SyncManager extends Root {
       case 'validateOnlineAndRetry':
         // Server appears to be hung but will eventually recover.
         // Retry a few times and then error out.
-        this._xhrValidateIsOnline(requestEvt);
+        //this._xhrValidateIsOnline(requestEvt);
+        this._xhrHandleServerUnavailableError(requestEvt);
         break;
       case 'serverUnavailable':
         // Server is in a bad state but will eventually recover;

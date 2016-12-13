@@ -990,7 +990,7 @@ class DbManager extends Root {
     // do NOT attempt to instantiate this event... unless its a DELETE operation.
     const newData = syncEvents
     .filter((syncEvent) => {
-      const hasTarget = Boolean(syncEvent.target && this.client._getObject(syncEvent.target));
+      const hasTarget = Boolean(syncEvent.target && this.client.getObject(syncEvent.target));
       return syncEvent.operation === 'DELETE' || hasTarget;
     })
     .map((syncEvent) => {

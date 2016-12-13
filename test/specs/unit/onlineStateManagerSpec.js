@@ -230,13 +230,13 @@ describe("The OnlineStateManager Class", function() {
             expect(manager._clearCheck).toHaveBeenCalledWith();
         });
 
-        it("Should schedule _onlineExpired to be called based on pingFrequency if online", function() {
+        it("Should schedule _onlineExpired to be called based on pingFrequency if no errors", function() {
             var frequency = manager.pingFrequency;
             manager.isOnline = true;
             spyOn(manager, "_onlineExpired");
 
             // Run
-            manager._scheduleNextOnlineCheck();
+            manager._scheduleNextOnlineCheck(false, null);
             jasmine.clock().tick(frequency-1);
             expect(manager._onlineExpired).not.toHaveBeenCalled();
 
@@ -245,15 +245,14 @@ describe("The OnlineStateManager Class", function() {
             expect(manager._onlineExpired).toHaveBeenCalled();
         });
 
-        it("Should schedule checkOnlineStatus to be called based on getExponentialBackoffSeconds if offline", function() {
-            manager.isOnline = false;
+        it("Should schedule checkOnlineStatus to be called based on getExponentialBackoffSeconds if errors", function() {
             spyOn(manager, "checkOnlineStatus");
             var tmp = layer.Util.getExponentialBackoffSeconds;
             spyOn(layer.Util, "getExponentialBackoffSeconds").and.returnValue(50);
 
             // Run
-            manager._scheduleNextOnlineCheck();
-            jasmine.clock().tick(50000 - 1);
+            manager._scheduleNextOnlineCheck(true, null);
+            jasmine.clock().tick(50 * 1000 - 1);
             expect(manager.checkOnlineStatus).not.toHaveBeenCalled();
 
             // Posttest
@@ -267,7 +266,11 @@ describe("The OnlineStateManager Class", function() {
 
         it("Should set onlineCheckId", function() {
             manager.onlineCheckId = 0;
-            manager._scheduleNextOnlineCheck();
+            manager._scheduleNextOnlineCheck(true);
+            expect(manager.onlineCheckId > 0).toBe(true);
+
+            manager.onlineCheckId = 0;
+            manager._scheduleNextOnlineCheck(false);
             expect(manager.onlineCheckId > 0).toBe(true);
         });
     });
@@ -345,7 +348,8 @@ describe("The OnlineStateManager Class", function() {
 
         it("Should ping the testUrl", function() {
             manager.checkOnlineStatus();
-            expect(requests.mostRecent().url).toEqual(manager.testUrl);
+            var url = requests.mostRecent().url;
+            expect(url.indexOf(client.url + '/?action=validateIsOnline&client=')).toEqual(0);
         });
 
         // Integration test which depends upon _connectionListener updating
@@ -445,21 +449,21 @@ describe("The OnlineStateManager Class", function() {
             expect(manager.trigger).not.toHaveBeenCalled();
         });
 
-        it("Should call _changeToOffline if unsuccess event and was online", function() {
+        it("Should call _scheduleNextOnlineCheck(true) if unsuccess event and was online", function() {
             manager.isOnline = true;
-            spyOn(manager, "_changeToOffline");
+            spyOn(manager, "_scheduleNextOnlineCheck");
 
             // Run
             manager._connectionListener({status: "connection:error"});
 
             // Posttest
-            expect(manager._changeToOffline).toHaveBeenCalledWith();
+            expect(manager._scheduleNextOnlineCheck).toHaveBeenCalledWith(true, jasmine.any(Function));
         });
 
-        it("Should call _scheduleNextOnlineCheck", function() {
+        it("Should call _scheduleNextOnlineCheck(false)", function() {
             spyOn(manager, "_scheduleNextOnlineCheck");
-            manager._connectionListener({status: ""});
-            expect(manager._scheduleNextOnlineCheck).toHaveBeenCalledWith();
+            manager._connectionListener({status: "connection:success"});
+            expect(manager._scheduleNextOnlineCheck).toHaveBeenCalledWith(false, jasmine.any(Function));
         });
     });
 });

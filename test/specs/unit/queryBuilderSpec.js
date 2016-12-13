@@ -32,8 +32,9 @@ describe("The QueryBuilder Classes", function() {
                 client: client,
                 model: "Message"
             });
-            expect(layer.QueryBuilder.fromQueryObject(q).forConversation({id: "fred"}).build()).toEqual(jasmine.objectContaining({
-                model: "Message"
+            expect(layer.QueryBuilder.fromQueryObject(q).forConversation(responses.conversation1.id).build()).toEqual(jasmine.objectContaining({
+                model: "Message",
+                predicate: "conversation.id = '" + responses.conversation1.id + "'"
             }));
         });
 
@@ -93,12 +94,12 @@ describe("The QueryBuilder Classes", function() {
 
         describe("The forConversation() method", function() {
             it("Should update the predicate if it has a value", function() {
-                var builder = layer.QueryBuilder.messages().forConversation("hey");
+                var builder = layer.QueryBuilder.messages().forConversation(responses.conversation1.id);
                 expect(builder.build()).toEqual({
                     model: 'Message',
                     returnType: 'object',
                     dataType: 'object',
-                    predicate: "conversation.id = 'hey'",
+                    predicate: "conversation.id = '" + responses.conversation1.id + "'",
                     paginationWindow: layer.Query.prototype.paginationWindow
                 });
             });

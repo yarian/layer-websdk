@@ -683,7 +683,7 @@ describe("The Query Class", function() {
 
         it("Should register new results", function() {
             spyOn(client, "_createObject");
-            spyOn(client, "_getObject").and.returnValue(conversation);
+            spyOn(client, "getObject").and.returnValue(conversation);
             query._appendResults({
                 data: [JSON.parse(JSON.stringify(responses.conversation2))],
                 xhr: {

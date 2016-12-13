@@ -963,7 +963,7 @@ describe("The Websocket Socket Manager Class", function() {
           spyOn(client, "xhr");
           websocketManager._validateSessionBeforeReconnect();
           expect(client.xhr).toHaveBeenCalledWith({
-              url: "/",
+              url: "/?action=validateConnectionForWebsocket&client=" + client.constructor.version,
               sync: false,
               method: "GET"
             }, jasmine.any(Function));

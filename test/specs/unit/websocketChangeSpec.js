@@ -85,10 +85,10 @@ describe("The Websocket Change Manager Class", function() {
         });
     });
 
-    describe("The _getObject() method", function() {
-        it("Should call client._getObject", function() {
-            spyOn(client, "_getObject").and.returnValue("fred");
-            expect(changeManager._getObject({object: {id: "jane"}})).toEqual("fred");
+    describe("The getObject() method", function() {
+        it("Should call client.getObject", function() {
+            spyOn(client, "getObject").and.returnValue("fred");
+            expect(changeManager.getObject({object: {id: "jane"}})).toEqual("fred");
         });
     });
 
@@ -207,7 +207,7 @@ describe("The Websocket Change Manager Class", function() {
     describe("The _handleDelete() method", function() {
         it("Should call object._handleWebsocketDelete if found", function() {
             var m = conversation.createMessage("hey").send();
-            spyOn(changeManager, "_getObject").and.returnValue(m);
+            spyOn(changeManager, "getObject").and.returnValue(m);
             spyOn(m, "_handleWebsocketDelete");
 
             // Run
@@ -228,7 +228,7 @@ describe("The Websocket Change Manager Class", function() {
 
         it("Should do nothing if the object is not found", function() {
             var m = conversation.createMessage("hey").send();
-            spyOn(changeManager, "_getObject").and.returnValue(null);
+            spyOn(changeManager, "getObject").and.returnValue(null);
             spyOn(m, "_handleWebsocketDelete");
 
             // Run
@@ -251,7 +251,7 @@ describe("The Websocket Change Manager Class", function() {
             var tmp = layer.Util.layerParse;
             spyOn(layer.Util, "layerParse");
             var m = conversation.createMessage("hey");
-            spyOn(changeManager, "_getObject").and.returnValue(m);
+            spyOn(changeManager, "getObject").and.returnValue(m);
 
             // Run
             changeManager._handlePatch({
@@ -283,7 +283,7 @@ describe("The Websocket Change Manager Class", function() {
             spyOn(layer.Conversation, "_loadResourceForPatch").and.returnValue(true);
 
             var m = conversation.createMessage("hey");
-            spyOn(changeManager, "_getObject").and.returnValue(null);
+            spyOn(changeManager, "getObject").and.returnValue(null);
 
             // Run
             changeManager._handlePatch({
@@ -312,7 +312,7 @@ describe("The Websocket Change Manager Class", function() {
             spyOn(layer.Conversation, "_loadResourceForPatch").and.returnValue(false);
 
             var m = conversation.createMessage("hey");
-            spyOn(changeManager, "_getObject").and.returnValue(null);
+            spyOn(changeManager, "getObject").and.returnValue(null);
 
             // Run
             changeManager._handlePatch({
@@ -340,7 +340,7 @@ describe("The Websocket Change Manager Class", function() {
             spyOn(layer.Message, "_loadResourceForPatch").and.returnValue(true);
 
             var m = conversation.createMessage("hey");
-            spyOn(changeManager, "_getObject").and.returnValue(null);
+            spyOn(changeManager, "getObject").and.returnValue(null);
 
             // Run
             changeManager._handlePatch({
@@ -369,7 +369,7 @@ describe("The Websocket Change Manager Class", function() {
             spyOn(layer.Message, "_loadResourceForPatch").and.returnValue(false);
 
             var m = conversation.createMessage("hey");
-            spyOn(changeManager, "_getObject").and.returnValue(null);
+            spyOn(changeManager, "getObject").and.returnValue(null);
 
             // Run
             changeManager._handlePatch({

@@ -200,36 +200,36 @@ class Client extends ClientAuth {
   }
 
 
-
   /**
    * Takes as input an object id, and either calls getConversation() or getMessage() as needed.
    *
    * Will only get cached objects, will not get objects from the server.
    *
    * This is not a public method mostly so there's no ambiguity over using getXXX
-   * or _getObject.  getXXX typically has an option to load the resource, which this
+   * or getObject.  getXXX typically has an option to load the resource, which this
    * does not.
    *
-   * @method _getObject
-   * @protected
+   * @method getObject
    * @param  {string} id - Message, Conversation or Query id
+   * @param  {boolean} [canLoad=false] - Pass true to allow loading a object from
+   *                                     the server if not found (not supported for all objects)
    * @return {layer.Message|layer.Conversation|layer.Query}
    */
-  _getObject(id) {
+  getObject(id, canLoad = false) {
     switch (Util.typeFromID(id)) {
       case 'messages':
       case 'announcements':
-        return this.getMessage(id);
+        return this.getMessage(id, canLoad);
       case 'conversations':
-        return this.getConversation(id);
+        return this.getConversation(id, canLoad);
       case 'channels':
-        return this.getChannel(id);
+        return this.getChannel(id, canLoad);
       case 'queries':
         return this.getQuery(id);
       case 'identities':
-        return this.getIdentity(id);
+        return this.getIdentity(id, canLoad);
       case 'members':
-        return this.getMember(id);
+        return this.getMember(id, canLoad);
     }
     return null;
   }
@@ -244,7 +244,7 @@ class Client extends ClientAuth {
    * @param  {Object} obj - Plain javascript object representing a Message or Conversation
    */
   _createObject(obj) {
-    const item = this._getObject(obj.id);
+    const item = this.getObject(obj.id);
     if (item) {
       item._populateFromServer(obj);
       return item;
@@ -372,9 +372,9 @@ class Client extends ClientAuth {
    * @param  {layer.Root[]} objects - Array of Messages or Conversations
    */
   _checkAndPurgeCache(objects) {
-    objects.forEach(obj => {
+    objects.forEach((obj) => {
       if (!obj.isDestroyed && !this._isCachedObject(obj)) {
-        if (obj instanceof Root === false) obj = this._getObject(obj.id);
+        if (obj instanceof Root === false) obj = this.getObject(obj.id);
         if (obj) obj.destroy();
       }
     });

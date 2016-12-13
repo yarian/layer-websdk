@@ -244,7 +244,7 @@ describe("The Client class", function() {
             });
         });
 
-        describe("The _getObject() method", function() {
+        describe("The getObject() method", function() {
             var message, announcement, conversation, query, userIdentity, serviceIdentity;
             beforeEach(function() {
                 client._clientReady();
@@ -292,55 +292,55 @@ describe("The Client class", function() {
             });
 
             it("Should get a Conversation", function() {
-                expect(client._getObject(conversation.id)).toBe(conversation);
+                expect(client.getObject(conversation.id)).toBe(conversation);
             });
 
             it("Should not get a Conversation", function() {
-                expect(client._getObject(conversation.id + "a")).toBe(null);
+                expect(client.getObject(conversation.id + "a")).toBe(null);
             });
 
             it("Should get a Message", function() {
-                expect(client._getObject(message.id)).toBe(message);
+                expect(client.getObject(message.id)).toBe(message);
             });
 
             it("Should not get a Message", function() {
-                expect(client._getObject(message.id + "a")).toBe(null);
+                expect(client.getObject(message.id + "a")).toBe(null);
             });
 
             it("Should get an Announcement", function() {
-                expect(client._getObject(announcement.id)).toBe(announcement);
+                expect(client.getObject(announcement.id)).toBe(announcement);
             });
 
             it("Should not get an Announcement", function() {
-                expect(client._getObject(announcement.id + "a")).toBe(null);
+                expect(client.getObject(announcement.id + "a")).toBe(null);
             });
 
             it("Should get a Query", function() {
-                expect(client._getObject(query.id)).toBe(query);
+                expect(client.getObject(query.id)).toBe(query);
             });
 
             it("Should not get a Query", function() {
-                expect(client._getObject(query.id + "a")).toBe(null);
+                expect(client.getObject(query.id + "a")).toBe(null);
             });
 
             it("Should get a UserIdentity", function() {
-                expect(client._getObject(userIdentity.id)).toBe(userIdentity);
+                expect(client.getObject(userIdentity.id)).toBe(userIdentity);
             });
 
             it("Should not get a UserIdentity", function() {
-                expect(client._getObject(userIdentity.id + "a")).toBe(null);
+                expect(client.getObject(userIdentity.id + "a")).toBe(null);
             });
 
             it("Should get a ServiceIdentity", function() {
-                expect(client._getObject(serviceIdentity.id)).toBe(serviceIdentity);
+                expect(client.getObject(serviceIdentity.id)).toBe(serviceIdentity);
             });
 
             it("Should not get a ServiceIdentity", function() {
-                expect(client._getObject(serviceIdentity.id + "a")).toBe(null);
+                expect(client.getObject(serviceIdentity.id + "a")).toBe(null);
             });
 
             it("Should not get a non-layer-object", function() {
-                expect(client._getObject("Hey")).toBe(null);
+                expect(client.getObject("Hey")).toBe(null);
             });
         });
 

@@ -115,6 +115,7 @@ module.exports = function (grunt) {
           "lib/mixins/client-identities.js": "src/mixins/client-identities.js",
           "lib/mixins/client-conversations.js": "src/mixins/client-conversations.js",
           "lib/mixins/client-channels.js": "src/mixins/client-channels.js",
+          "lib/mixins/client-members.js": "src/mixins/client-members.js",
           "lib/mixins/client-messages.js": "src/mixins/client-messages.js",
           "lib/mixins/client-queries.js": "src/mixins/client-queries.js",
           "lib/models/syncable.js": "src/models/syncable.js",
@@ -131,6 +132,7 @@ module.exports = function (grunt) {
           "lib/queries/identities-query.js": "src/queries/identities-query.js",
           "lib/queries/conversations-query.js": "src/queries/conversations-query.js",
           "lib/queries/channels-query.js": "src/queries/channels-query.js",
+          "lib/queries/members-query.js": "src/queries/members-query.js",
           "lib/queries/messages-query.js": "src/queries/messages-query.js",
           "lib/queries/announcements-query.js": "src/queries/announcements-query.js",
           "lib/queries/query-builder.js": "src/queries/query-builder.js",
@@ -222,7 +224,7 @@ module.exports = function (grunt) {
     watch: {
       debug: {
         files: ['src/**', "Gruntfile.js"],
-        tasks: ['debug']
+        tasks: ['debug', 'prepublish']
       }
     },
 
@@ -339,8 +341,8 @@ module.exports = function (grunt) {
   grunt.loadNpmTasks('grunt-remove');
   grunt.registerTask('debug', ['browserify:debug', 'version']);
   grunt.registerTask('buildmin', ['version', 'browserify:build',  'uglify', 'remove:build']);
-  grunt.registerTask('build', ['debug', 'buildmin', 'babel:dist']);
-  grunt.registerTask('prepublish', ['version', 'babel:dist']);
+  grunt.registerTask('build', ['version', 'debug', 'buildmin', 'babel:dist']);
+  grunt.registerTask('prepublish', ['build']);
 
   // Documentation
   grunt.loadNpmTasks('grunt-jsduck');

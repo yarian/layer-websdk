@@ -32,6 +32,12 @@ class Announcement extends Message {
    */
   getConversation() {}
 
+  /**
+   * @method getChannel
+   * @ignore
+   */
+  getChannel() {}
+
   _loaded(data) {
     this.getClient()._addMessage(this);
   }
