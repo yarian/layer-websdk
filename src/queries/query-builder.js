@@ -294,6 +294,101 @@ class ChannelsQuery {
 
 
 /**
+ * Query builder class generating queries for getting members of a Channel.
+ *
+ * Used in Creating and Updating layer.Query instances.
+ *
+ * To get started:
+ *
+ *      var qBuilder = QueryBuilder
+ *       .members()
+ *       .forChannel(channelId)
+ *       .paginationWindow(100);
+ *      var query = client.createQuery(qBuilder);
+ *
+ * You can then create additional builders and update the query:
+ *
+ *      var qBuilder2 = QueryBuilder
+ *       .members()
+ *       .forChannel(channelId)
+ *       .paginationWindow(200);
+ *      query.update(qBuilder);
+ *
+ * @class layer.QueryBuilder.MembersQuery
+ */
+class MembersQuery {
+
+  /**
+   * Creates a new query builder for a set of conversations.
+   *
+   * Standard use is without any arguments.
+   *
+   * @method constructor
+   * @param  {Object} [query=null]
+   */
+  constructor(query) {
+    if (query) {
+      this._query = {
+        model: query.model,
+        returnType: query.returnType,
+        dataType: query.dataType,
+        paginationWindow: query.paginationWindow,
+        sortBy: null,
+      };
+    } else {
+      this._query = {
+        model: Query.Membership,
+        returnType: 'object',
+        dataType: 'object',
+        paginationWindow: Query.prototype.paginationWindow,
+        sortBy: null,
+      };
+    }
+  }
+
+  /**
+   * Sets the pagination window/number of messages to fetch from the local cache or server.
+   *
+   * Currently only positive integers are supported.
+   *
+   * @method paginationWindow
+   * @param  {number} win
+   * @return {layer.QueryBuilder} this
+   */
+  paginationWindow(win) {
+    this._query.paginationWindow = win;
+    return this;
+  }
+
+  /**
+   * Query for members in this Channel.
+   *
+   * @method forChannel
+   * @param  {String} channelId
+   */
+  forChannel(channelId) {
+    if (channelId.indexOf('layer:///channels/') === 0) {
+      this._query.predicate = `channel.id = '${channelId}'`;
+    } else {
+      this._query.predicate = '';
+    }
+    return this;
+  }
+
+  /**
+   * Returns the built query object to send to the server.
+   *
+   * Called by layer.QueryBuilder. You should not need to call this.
+   *
+   * @method build
+   */
+  build() {
+    return this._query;
+  }
+}
+
+
+/**
  * Query builder class generating queries for a set of Identities followed by this user.
  *
  * Used in Creating and Updating layer.Query instances.
@@ -419,6 +514,17 @@ const QueryBuilder = {
    */
   channels() {
     return new ChannelsQuery();
+  },
+
+  /**
+   * Create a new layer.MembersQuery instance.
+   *
+   * @method members
+   * @static
+   * @returns {layer.QueryBuilder.MembersQuery}
+   */
+  members() {
+    return new MembersQuery();
   },
 
   /**

@@ -25,7 +25,7 @@ class ConversationsQuery extends Query {
         url: this._firingRequest,
         method: 'GET',
         sync: false,
-      }, results => this._processRunResults(results, this._firingRequest, pageSize));
+      }, results => this._processRunResults(results, newRequest, pageSize));
     }
   }
 

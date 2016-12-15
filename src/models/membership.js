@@ -101,7 +101,7 @@ class Membership extends Syncable {
     this.userId = membership.identity ? membership.identity.user_id || '' : client.user.userId;
     this.channelId = membership.channel.id;
 
-    this._updateValue('role', membership.role);
+    // this.role = client._createObject(membership.role);
 
     this.identity = membership.identity ? client._createObject(membership.identity) : client.user;
 
@@ -173,9 +173,10 @@ Membership.prototype.channelId = '';
 /**
  * The user's role within the channel
  *
- * @type {string}
+ * @ignore
+ * @type {layer.Role}
  */
-Membership.prototype.role = '';
+Membership.prototype.role = null;
 
 /**
  * Identity associated with the membership

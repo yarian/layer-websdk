@@ -242,60 +242,6 @@ class Conversation extends Container {
     };
   }
 
-  /**
-   * Process result of send method.
-   *
-   * Note that we use _triggerAsync so that
-   * events reporting changes to the layer.Conversation.id can
-   * be applied before reporting on it being sent.
-   *
-   * Example: Query will now have the resolved Distinct IDs rather than the proposed ID
-   * when this event is triggered.
-   *
-   * @method _createResult
-   * @private
-   * @param  {Object} result
-   */
-  _createResult({ success, data }) {
-    if (this.isDestroyed) return;
-    if (success) {
-      this._createSuccess(data);
-    } else if (data.id === 'conflict') {
-      this._populateFromServer(data.data);
-      this._triggerAsync('conversations:sent', {
-        result: Conversation.FOUND_WITHOUT_REQUESTED_METADATA,
-      });
-    } else {
-      this.trigger('conversations:sent-error', { error: data });
-      this.destroy();
-    }
-  }
-
-  /**
-   * Process the successful result of a create call
-   *
-   * @method _createSuccess
-   * @private
-   * @param  {Object} data Server description of Conversation
-   */
-  _createSuccess(data) {
-    this._populateFromServer(data);
-    if (!this.distinct) {
-      this._triggerAsync('conversations:sent', {
-        result: Conversation.CREATED,
-      });
-    } else {
-      // Currently the websocket does not tell us if its
-      // returning an existing Conversation.  So guess...
-      // if there is no lastMessage, then most likely, there was
-      // no existing Conversation.  Sadly, API-834; last_message is currently
-      // always null.
-      this._triggerAsync('conversations:sent', {
-        result: !this.lastMessage ? Conversation.CREATED : Conversation.FOUND,
-      });
-    }
-  }
-
   _populateFromServer(conversation) {
     const client = this.getClient();
 
@@ -321,6 +267,12 @@ class Conversation extends Container {
     this._disableEvents = false;
   }
 
+  _createResultConflict(data) {
+    this._populateFromServer(data.data);
+    this._triggerAsync(this.constructor.eventPrefix + ':sent', {
+      result: Conversation.FOUND_WITHOUT_REQUESTED_METADATA,
+    });
+  }
 
   /**
    * Add an array of participant ids to the conversation.
@@ -1005,6 +957,19 @@ Conversation.prototype.lastMessage = null;
 
 
 Conversation.eventPrefix = 'conversations';
+
+/**
+ * The Conversation that was requested has been found, but there was a mismatch in metadata.
+ *
+ * If the createConversation request contained metadata and it did not match the Distinct Conversation
+ * that matched the requested participants, then this value is passed to notify your app that the Conversation
+ * was returned but does not exactly match your request.
+ *
+ * Used in `conversations:sent` events.
+ * @type {String}
+ * @static
+ */
+Conversation.FOUND_WITHOUT_REQUESTED_METADATA = 'FoundMismatch';
 
 
 /**

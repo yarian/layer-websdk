@@ -112,6 +112,47 @@ class Container extends Syncable {
     this.metadata = container.metadata;
   }
 
+  /**
+   * Process result of send method.
+   *
+   * Note that we use _triggerAsync so that
+   * events reporting changes to the layer.Conversation.id can
+   * be applied before reporting on it being sent.
+   *
+   * Example: Query will now have the resolved Distinct IDs rather than the proposed ID
+   * when this event is triggered.
+   *
+   * @method _createResult
+   * @private
+   * @param  {Object} result
+   */
+  _createResult({ success, data }) {
+    if (this.isDestroyed) return;
+    if (success) {
+      this._createSuccess(data);
+    } else if (data.id === 'conflict') {
+      this._createResultConflict(data);
+    } else {
+      this.trigger(this.constructor.eventPrefix + ':sent-error', { error: data });
+      this.destroy();
+    }
+  }
+
+
+  /**
+   * Process the successful result of a create call
+   *
+   * @method _createSuccess
+   * @private
+   * @param  {Object} data Server description of Conversation/Channel
+   */
+  _createSuccess(data) {
+    const id = this.id;
+    this._populateFromServer(data);
+    this._triggerAsync(this.constructor.eventPrefix + ':sent', {
+      result: id === this.id ? Container.CREATED : Container.FOUND,
+    });
+  }
 
   /**
    * Delete the Conversation from the server (internal version).
@@ -125,7 +166,6 @@ class Container extends Syncable {
    */
   _delete(queryStr) {
     const id = this.id;
-    const client = this.getClient();
     this._xhr({
       method: 'DELETE',
       url: '?' + queryStr,
@@ -337,7 +377,7 @@ Container.prototype._toObject = null;
 Container.bubbleEventParent = 'getClient';
 
 /**
- * The Conversation that was requested has been created.
+ * The Conversation/Channel that was requested has been created.
  *
  * Used in `conversations:sent` events.
  * @type {String}
@@ -346,7 +386,7 @@ Container.bubbleEventParent = 'getClient';
 Container.CREATED = 'Created';
 
 /**
- * The Conversation that was requested has been found.
+ * The Conversation/Channel that was requested has been found.
  *
  * This means that it did not need to be created.
  *
@@ -356,18 +396,7 @@ Container.CREATED = 'Created';
  */
 Container.FOUND = 'Found';
 
-/**
- * The Conversation that was requested has been found, but there was a mismatch in metadata.
- *
- * If the createConversation request contained metadata and it did not match the Distinct Conversation
- * that matched the requested participants, then this value is passed to notify your app that the Conversation
- * was returned but does not exactly match your request.
- *
- * Used in `conversations:sent` events.
- * @type {String}
- * @static
- */
-Container.FOUND_WITHOUT_REQUESTED_METADATA = 'FoundMismatch';
+
 
 Root.initClass.apply(Container, [Container, 'Container']);
 Syncable.subclasses.push(Container);

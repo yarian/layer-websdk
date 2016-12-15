@@ -280,10 +280,29 @@ class Query extends Root {
    *
    * * paginationWindow
    * * predicate
-   * * model
+   * * sortBy
    *
    * Any change to predicate or model results in clearing all data from the
    * query's results and triggering a change event with [] as the new data.
+   *
+   * ```
+   * query.update({
+   *    paginationWindow: 200
+   * });
+   * ```
+   *
+   * ```
+   * query.update({
+   *    paginationWindow: 100,
+   *    predicate: 'conversation.id = "layer:///conversations/UUID"'
+   * });
+   * ```
+   *
+   * ```
+   * query.update({
+   *    sortBy: [{"lastMessage.sentAt": "desc"}]
+   * });
+   * ```
    *
    * @method update
    * @param  {Object} options
@@ -911,8 +930,17 @@ Query.prototype.paginationWindow = 100;
  * Only supports an array of one field/element.
  * Only supports the following options:
  *
- *     [{'createdAt': 'desc'}]
- *     [{'lastMessage.sentAt': 'desc'}]
+ * ```
+ * query.update({sortBy: [{'createdAt': 'desc'}]})
+ * query.update({sortBy: [{'lastMessage.sentAt': 'desc'}]
+ *
+ * client.createQuery({
+ *   sortBy: [{'lastMessage.sentAt': 'desc'}]
+ * });
+ * client.createQuery({
+ *   sortBy: [{'lastMessage.sentAt': 'desc'}]
+ * });
+ * ```
  *
  * Why such limitations? Why this structure?  The server will be exposing a Query API at which point the
  * above sort options will make a lot more sense, and full sorting will be provided.

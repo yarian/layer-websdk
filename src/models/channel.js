@@ -9,7 +9,21 @@
  * A Channel object represents a dialog amongst a large set
  * of participants.
  *
- * Currently Channels must be created via Layer's Server API.
+ * ```
+ * var channel = client.createChannel({
+ *   name: "frodo-the-dodo",
+ *   members: ["layer:///identities/samwise", "layer:///identities/orc-army"],
+ *   metadata: {
+ *     subtopic: "Sauruman is the man.  And a Saurian",
+ *     tooMuchInfo: {
+ *       nose: "stuffed"
+ *     }
+ *   }
+ * });
+ *
+ * channel.createMessage("Please don't eat me").send();
+ * ```
+ * NOTE: Sending a Message creates the Channel; this avoids having lots of unused channels being created.
  *
  * Key methods, events and properties for getting started:
  *
@@ -56,6 +70,7 @@ class Channel extends Container {
     // Setup default values
     if (!options.membership) options.membership = {};
     super(options);
+    this._members = options.members || [];
     this._register();
   }
 
@@ -88,8 +103,10 @@ class Channel extends Container {
     // Channels must do a hackier calculation that sets the next position to a number larger than the server
     // could ever deliver, and then increment that floating point position by a large enough increment
     // that we need not worry about Floating point rounding errors.  Lots of guesswork here.
-    message.position = Channel.nextPosition;
-    Channel.nextPosition += 8192;
+    if (message) {
+      message.position = Channel.nextPosition;
+      Channel.nextPosition += 8192;
+    }
 
     const client = this.getClient();
     if (!client) throw new Error(LayerError.dictionary.clientMissing);
@@ -115,6 +132,7 @@ class Channel extends Container {
         name: this.name,
         metadata: isMetadataEmpty ? null : this.metadata,
         id: this.id,
+        members: this._members || [this.getClient().user.id],
       },
     };
   }
@@ -132,6 +150,10 @@ class Channel extends Container {
     this._register();
 
     this._disableEvents = false;
+  }
+
+  _createResultConflict(data) {
+    this._createSuccess(data);
   }
 
   /**
@@ -166,9 +188,10 @@ class Channel extends Container {
    * @return {layer.Channel} this
    */
   addMembers(members) {
-    members = this.getClient().fixParticipants(members);
-    if (members.length > 1 || members[0] !== this.getClient().user.id) {
-      throw new Error("TODO: add other members");
+    members = this.getClient()._fixIdentities(members).map(item => item.id);
+    if (this.syncState === Constants.SYNC_STATE.NEW) {
+      this._members = this._members.concat(members);
+      return this;
     }
 
     // TODO: Should use the bulk operation when it becomes available.
@@ -191,9 +214,14 @@ class Channel extends Container {
    * @return {layer.Channel} this
    */
   removeMembers(members) {
-    members = this.getClient().fixParticipants(members);
-    if (members.length > 1 || members[0] !== this.getClient().user.id) {
-      throw new Error("TODO: remove other members");
+    members = this.getClient()._fixIdentities(members).map(item => item.id);
+
+    if (this.syncState === Constants.SYNC_STATE.NEW) {
+      members.forEach((id) => {
+        const index = this._members.indexOf(id);
+        if (index !== -1) this._members.splice(index, 1);
+      });
+      return this;
     }
 
     // TODO: Should use the bulk operation when it becomes available.
@@ -253,7 +281,7 @@ class Channel extends Container {
    * @returns {layer.Membership}
    */
   getMember(identityId) {
-    identityId = this.getClient().fixIdentities([identityId])[0];
+    identityId = this.getClient().fixIdentities([identityId])[0].id;
     const membershipId = this.id + '/membership/' + identityId.replace(/layer:\/\/\/identities\//, '');
     return this.getClient().getMember(membershipId, true);
   }
@@ -266,6 +294,35 @@ class Channel extends Container {
   delete() {
     Logger.error('Deletion is not yet supported');
     this._delete('');
+  }
+
+  /**
+   * Process result of send method.
+   *
+   * Note that we use _triggerAsync so that
+   * events reporting changes to the layer.Channel.id can
+   * be applied before reporting on it being sent.
+   *
+   * Example: Query will now have the resolved pre-existing IDs rather than the proposed ID
+   * when this event is triggered.
+   *
+   * @method _createResult
+   * @private
+   * @param  {Object} result
+   */
+  _createResult({ success, data }) {
+    if (this.isDestroyed) return;
+    if (success) {
+      this._createSuccess(data);
+    } else if (data.id === 'conflict') {
+      this._populateFromServer(data.data);
+      this._triggerAsync('channels:sent', {
+        result: Channel.NAME_FOUND,
+      });
+    } else {
+      this.trigger('channels:sent-error', { error: data });
+      this.destroy();
+    }
   }
 
   /**
@@ -352,7 +409,7 @@ class Channel extends Container {
     const newOptions = {
       name: options.name,
       private: options.private,
-      members: options.members ? options.client._fixIdentities(options.members) : [],
+      members: options.members ? options.client._fixIdentities(options.members).map(item => item.id) : [],
       metadata: options.metadata,
       client: options.client,
     };
@@ -398,6 +455,8 @@ Channel.prototype.name = '';
  * @property {Object}
  */
 Channel.prototype.membership = null;
+
+Channel.prototype._members = null;
 
 Channel.eventPrefix = 'channels';
 

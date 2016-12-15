@@ -805,9 +805,12 @@ class Message extends Syncable {
    */
   delete(mode) {
     if (this.isDestroyed) throw new Error(LayerError.dictionary.isDestroyed);
-
+    if (this.channelId) mode = 'channel';
     let queryStr;
     switch (mode) {
+      case 'channel':
+        queryStr = '';
+        break;
       case Constants.DELETION_MODE.ALL:
       case true:
         queryStr = 'mode=all_participants';
