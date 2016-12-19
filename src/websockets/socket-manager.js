@@ -541,7 +541,12 @@ class SocketManager extends Root {
     const maxDelay = (this.client.onlineManager.pingFrequency - 1000) / 1000;
     const delay = Utils.getExponentialBackoffSeconds(maxDelay, Math.min(15, this._lostConnectionCount));
     logger.debug('Websocket Reconnect in ' + delay + ' seconds');
-    this._reconnectId = setTimeout(this._validateSessionBeforeReconnect.bind(this), delay * 1000);
+    if (!this._reconnectId) {
+      this._reconnectId = setTimeout(() => {
+        this._reconnectId = 0;
+        this._validateSessionBeforeReconnect();
+      }, delay * 1000);
+    }
   }
 
   /**
@@ -554,14 +559,27 @@ class SocketManager extends Root {
   _validateSessionBeforeReconnect() {
     if (this.isDestroyed || !this.client.isOnline) return;
 
-    this.client.xhr({
-      url: '/',
-      method: 'GET',
-      sync: false,
-    }, (result) => {
-      if (result.success) this.connect();
-      // if not successful, the this.client.xhr will handle reauthentication
-    });
+    const maxDelay = 30 * 1000; // maximum delay of 30 seconds per ping
+    const diff = Date.now() - this._lastValidateSessionRequest - maxDelay;
+    if (diff < 0) {
+      // This is identical to whats in _scheduleReconnect and could be cleaner
+      if (!this._reconnectId) {
+        this._reconnectId = setTimeout(() => {
+          this._reconnectId = 0;
+          this._validateSessionBeforeReconnect();
+        }, Math.abs(diff) + 1000);
+      }
+    } else {
+      this._lastValidateSessionRequest = Date.now();
+      this.client.xhr({
+        url: '/?client=websdk' + this.client.constructor.version,
+        method: 'GET',
+        sync: false,
+      }, (result) => {
+        if (result.success) this.connect();
+        // if not successful, the this.client.xhr will handle reauthentication
+      });
+    }
   }
 }
 
@@ -594,6 +612,12 @@ SocketManager.prototype._inReplay = false;
 SocketManager.prototype._needsReplayFrom = null;
 
 SocketManager.prototype._replayRetryCount = 0;
+
+/**
+ * Time in miliseconds since the last call to _validateSessionBeforeReconnect
+ * @type {Number}
+ */
+SocketManager.prototype._lastValidateSessionRequest = 0;
 
 /**
  * Frequency with which the websocket checks to see if any websocket notifications

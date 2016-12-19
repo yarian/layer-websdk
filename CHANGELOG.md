@@ -1,5 +1,11 @@
 # Web SDK Change Log
 
+## 3.0.1
+
+* Fixes to issue that caused fast infinite retry loop.
+* Fixes to Conversation Query that correctly ignores results
+  from out-of-date requests.
+
 ## 3.0.0
 
 ### Major new Feature

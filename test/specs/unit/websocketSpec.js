@@ -963,10 +963,26 @@ describe("The Websocket Socket Manager Class", function() {
           spyOn(client, "xhr");
           websocketManager._validateSessionBeforeReconnect();
           expect(client.xhr).toHaveBeenCalledWith({
-              url: "/",
+              url: "/?client=websdk" + layer.Client.version,
               sync: false,
               method: "GET"
             }, jasmine.any(Function));
+       });
+
+       it("Should only call once every 30 seconds and ignore extra calls", function() {
+            spyOn(client, "xhr");
+            websocketManager._validateSessionBeforeReconnect();
+            websocketManager._validateSessionBeforeReconnect();
+            websocketManager._validateSessionBeforeReconnect();
+            websocketManager._validateSessionBeforeReconnect();
+            websocketManager._validateSessionBeforeReconnect();
+            expect(client.xhr.calls.count()).toEqual(1);
+            websocketManager._lastValidateSessionRequest = Date.now() - 60 * 1000;
+            jasmine.clock().tick(60 * 1000);
+            expect(client.xhr.calls.count()).toEqual(2);
+            websocketManager._lastValidateSessionRequest = Date.now() - 600 * 1000;
+            jasmine.clock().tick(600 * 1000);
+            expect(client.xhr.calls.count()).toEqual(2);
        });
 
        it("Should call connect if successful", function() {
