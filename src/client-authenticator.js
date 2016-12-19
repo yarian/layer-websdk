@@ -543,6 +543,7 @@ class ClientAuthenticator extends Root {
         conversations: this.isPersistenceEnabled,
         channels: this.isPersistenceEnabled,
         messages: this.isPersistenceEnabled,
+        identities: this.isPersistenceEnabled,
         syncQueue: this.isPersistenceEnabled,
         sessionToken,
       };

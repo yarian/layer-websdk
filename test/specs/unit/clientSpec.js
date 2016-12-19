@@ -124,6 +124,21 @@ describe("The Client class", function() {
         });
     });
 
+    describe("The __adjustAppId() method", function() {
+        it("Should allow appId to be set", function() {
+            client.__appId = "";
+            client.appId = "Doh!";
+            expect(client.appId).toEqual("Doh!");
+        });
+
+        it("Should not allow appId to be reset", function() {
+            expect(function() {
+                client.appId = "Ray!";
+            }).toThrowError(layer.LayerError.dictionary.appIdImmutable);
+            expect(layer.LayerError.dictionary.appIdImmutable.length > 0).toBe(true);
+        });
+    });
+
     describe("Methods that require clientReady", function() {
         beforeEach(function() {
             client.isTrustedDevice = true;
@@ -491,6 +506,10 @@ describe("The Client class", function() {
 
                 // Restore
                 layer.Membership._createFromServer = tmp;
+            });
+
+            it("Should return null if type not recognized", function() {
+                expect(client._createObject({id: "layer:///biteme/frodo"})).toBe(null);
             });
         });
 
@@ -1050,6 +1069,40 @@ describe("The Client class", function() {
                     appId: "test1"
                 });
                 expect(layer.Client.getClient("test2")).toBe(null);
+            });
+        });
+
+        describe("The _updateContainerId() method", function() {
+            it("Should call _updateConversationId", function() {
+                var conversation = client._createObject(responses.conversation1);
+                spyOn(client, "_updateConversationId");
+                client._updateContainerId(conversation, "Fah!");
+                expect(client._updateConversationId).toHaveBeenCalledWith(conversation, "Fah!");
+            });
+
+            it("Should call _updateChannelId", function() {
+                var channel = client._createObject(responses.channel1);
+                spyOn(client, "_updateChannelId");
+                client._updateContainerId(channel, "Fah!");
+                expect(client._updateChannelId).toHaveBeenCalledWith(channel, "Fah!");
+            });
+        });
+
+        describe("The _triggerLogger() method", function() {
+            it("Should not throw errors logging a message, messages, conversation or channels", function() {
+                expect(function() {
+                    var evt = new layer.LayerEvent({
+                        messages: [client._createObject(responses.message1)],
+                        message: client._createObject(responses.message1),
+                        conversations: [client._createObject(responses.conversation1)],
+                        conversation: client._createObject(responses.conversation1)
+                    }, 'something:done');
+                    client.trigger('conversations:add', evt);
+
+                    var evt2 = new layer.LayerEvent({
+                    }, 'something:done');
+                    client.trigger('conversations:add', evt2);
+                }).not.toThrow();
             });
         });
     });

@@ -1,5 +1,14 @@
 # Web SDK Change Log
 
+## 3.1.0
+
+* Adds Channels
+* Removes the `layer.Client` plugin system which was unused
+* Refactoring of how Client adds management of additional resources
+* Renaming/file moving for all model classes
+* Refactoring of how Queries for each additional resources are handled.
+* Refactors retry logic and ping logic; adds debug info to ping requests
+
 ## 3.0.0
 
 ### Major new Feature

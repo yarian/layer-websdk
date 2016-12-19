@@ -119,6 +119,7 @@ exports.defer = (func) => setTimeout(func, 0);
  * Copied from https://github.com/auth0-blog/angular-token-auth, but
  * appears in many places on the web.
  */
+/* istanbul ignore next */
 exports.decode = (str) => {
   let output = str.replace('-', '+').replace('_', '/');
   switch (output.length % 4) {

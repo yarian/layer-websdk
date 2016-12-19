@@ -126,16 +126,19 @@ class Channel extends Container {
    */
   _getSendData(data) {
     const isMetadataEmpty = Util.isEmpty(this.metadata);
+    const members = this._members || [];
+    if (members.indexOf(this.getClient().user.id) === -1) members.push(this.getClient().user.id);
     return {
       method: 'Channel.create',
       data: {
         name: this.name,
         metadata: isMetadataEmpty ? null : this.metadata,
         id: this.id,
-        members: this._members || [this.getClient().user.id],
+        members,
       },
     };
   }
+
 
   _populateFromServer(channel) {
     // Disable events if creating a new Conversation
@@ -144,7 +147,7 @@ class Channel extends Container {
     this.name = channel.name;
 
     this.isCurrentParticipant = Boolean(channel.membership);
-    // this.membership = !channel.membership ? null : this.getClient._createObject(channel.membership);
+    this.membership = !channel.membership || !channel.membership.id ? null : this.getClient()._createObject(channel.membership);
 
     super._populateFromServer(channel);
     this._register();
@@ -334,6 +337,11 @@ class Channel extends Container {
   _register() {
     const client = this.getClient();
     if (client) client._addChannel(this);
+  }
+
+  _deleteResult(result, id) {
+    const client = this.getClient();
+    if (!result.success && (!result.data || result.data.id !== 'not_found')) Channel.load(id, client);
   }
 
   /**

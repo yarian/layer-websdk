@@ -9,6 +9,7 @@ describe("The DbManager Class", function() {
         message,
         announcement,
         identity,
+        userIdentity,
         basicIdentity,
         dbManager;
 
@@ -34,7 +35,7 @@ describe("The DbManager Class", function() {
       });
     }
 
-
+    // NOTE: beforeEach finishes by deleting everything from the database. You must insert before you can query.
     beforeEach(function(done) {
         client = new layer.Client({
             appId: appId,
@@ -60,6 +61,7 @@ describe("The DbManager Class", function() {
           isFullIdentity: true
         });
         client.user = identity;
+
         client._clientAuthenticated();
         dbManager = client.dbManager;
 
@@ -70,7 +72,7 @@ describe("The DbManager Class", function() {
             channel = client._createObject(responses.channel1);
             message = conversation.lastMessage;
             announcement = client._createObject(responses.announcement);
-
+            userIdentity = client._createObject(responses.useridentity);
             basicIdentity = new layer.Identity({
               clientId: client.appId,
               userId: client.userId,
@@ -85,7 +87,7 @@ describe("The DbManager Class", function() {
     });
 
     afterEach(function() {
-        client.destroy();
+        //client.destroy();
     });
 
     describe("The constructor() method", function() {
@@ -448,9 +450,11 @@ describe("The DbManager Class", function() {
           name: channel.name,
           created_at: channel.createdAt.toISOString(),
           metadata: channel.metadata,
+          membership: null,
+          /* TODO: Enable this after spec is complete
           membership: {
             is_member: channel.membership.isMember,
-          },
+          },*/
           sync_state: channel.syncState
         }]);
       });
@@ -1139,13 +1143,23 @@ describe("The DbManager Class", function() {
       );
     });
 
-    it("Should use the fromId and pageSize properties", function() {
+    it("Should use the fromId and pageSize properties for created_at sort", function() {
       spyOn(dbManager, "_loadByIndex")
       dbManager.loadConversations('created_at', conversation.id, 5);
 
       var range = dbManager._loadByIndex.calls.allArgs()[0][2];
       expect(dbManager._loadByIndex).toHaveBeenCalledWith('conversations', 'created_at', jasmine.any(IDBKeyRange), true, 5, jasmine.any(Function));
       expect(range.upper).toEqual([conversation.createdAt.toISOString()]);
+      expect(range.lower).toEqual(undefined);
+    });
+
+    it("Should use the fromId and pageSize properties for last_message sort", function() {
+      spyOn(dbManager, "_loadByIndex")
+      dbManager.loadConversations('last_message', conversation.id, 5);
+
+      var range = dbManager._loadByIndex.calls.allArgs()[0][2];
+      expect(dbManager._loadByIndex).toHaveBeenCalledWith('conversations', 'last_message_sent', jasmine.any(IDBKeyRange), true, 5, jasmine.any(Function));
+      expect(range.upper).toEqual([conversation.lastMessage.sentAt.toISOString()]);
       expect(range.lower).toEqual(undefined);
     });
   });
@@ -1900,7 +1914,8 @@ describe("The DbManager Class", function() {
         dbManager._writeObjects('messages', result, done);
       });
     });
-    it("Should get the specified object", function(done) {
+
+    it("Should get the specified message", function(done) {
       var expectedResult;
       dbManager._getMessageData([m1], function(result) {
         expectedResult = result;
@@ -1919,6 +1934,49 @@ describe("The DbManager Class", function() {
         expect(result.parts[1].encoding).toBe(null);
         expect(layer.Util.isBlob(result.parts[1].body)).toBe(true);
         done();
+      });
+    });
+
+    it("Should get the specified identity", function(done) {
+      var expectedResult = dbManager._getIdentityData([userIdentity]);
+      dbManager.writeIdentities([userIdentity], function() {
+        dbManager.getObject('identities', userIdentity.id, function(result) {
+          expect(result).toEqual(expectedResult[0]);
+          done();
+        });
+      });
+    });
+
+    it("Should get the specified conversation with last_message", function(done) {
+      var expectedResult = dbManager._getConversationData([conversation]);
+      dbManager.writeConversations([conversation], function() {
+        dbManager.getObject('conversations', conversation.id, function(result) {
+          var lastMessageResult = result.last_message;
+          delete result.last_message;
+          delete expectedResult[0].last_message;
+          expect(result).toEqual(expectedResult[0]);
+          dbManager._getMessageData([conversation.lastMessage], function(messageResults) {
+            expect(lastMessageResult).toEqual(messageResults[0]);
+            done();
+          });
+        });
+      });
+    });
+
+    it("Should get the specified channel", function(done) {
+      var expectedResult = dbManager._getChannelData([channel]);
+      dbManager.writeChannels([channel], function() {
+        dbManager.getObject('channels', channel.id, function(result) {
+          expect(result).toEqual(expectedResult[0]);
+          done();
+        });
+      });
+    });
+
+
+    it("Should callback with null if not found", function() {
+      dbManager.getObject('messages', m1.id + "123", function(result) {
+        expect(result).toBe(null);
       });
     });
   });

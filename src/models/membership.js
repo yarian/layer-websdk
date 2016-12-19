@@ -196,7 +196,7 @@ Membership._supportedEvents = [
 ].concat(Syncable._supportedEvents);
 
 Membership.eventPrefix = 'members';
-Membership.prefixUUID = 'layer:///members/';
+Membership.prefixUUID = '/members/';
 
 Root.initClass.apply(Membership, [Membership, 'Membership']);
 Syncable.subclasses.push(Membership);

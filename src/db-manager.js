@@ -148,13 +148,13 @@ class DbManager extends Root {
     const request = window.indexedDB.open(this._getDbName(), DB_VERSION);
 
     try {
+      /* istanbul ignore next */
       request.onerror = (evt) => {
         if (!retry) {
           this.deleteTables(() => this._open(true));
         }
 
         // Triggered by Firefox private browsing window
-        /* istanbul ignore next */
         else {
           this._isOpenError = true;
           logger.warn('Database Unable to Open (common cause: private browsing window)', evt.target.error);
@@ -237,6 +237,7 @@ class DbManager extends Root {
         store.transaction.oncomplete = onComplete;
       } catch (e) {
         // Noop
+        /* istanbul ignore next */
         logger.error(`Failed to create object store ${tableDef.name}`, e);
       }
     });
@@ -332,9 +333,8 @@ class DbManager extends Root {
         url: channel.url,
         created_at: getDate(channel.createdAt),
         sync_state: channel.syncState,
-        membership: {
-          is_member: channel.membership.isMember,
-        },
+        // TODO: membership object should be written... but spec incomplete
+        membership: null,
         name: channel.name,
         metadata: channel.metadata,
       };
@@ -595,6 +595,7 @@ class DbManager extends Root {
               store.add(item);
             }
           } catch (e) {
+            /* istanbul ignore next */
             // Safari throws an error rather than use the onerror event.
             logger.error(e);
           }
@@ -1040,12 +1041,14 @@ class DbManager extends Root {
     this.onOpen(() => {
       const data = [];
       this.db.transaction([tableName], 'readonly').objectStore(tableName).openCursor().onsuccess = (evt) => {
+        /* istanbul ignore next */
         if (this.isDestroyed) return;
         const cursor = evt.target.result;
         if (cursor) {
           data.push(cursor.value);
           cursor.continue();
         } else if (!this.isDestroyed) {
+          /* istanbul ignore next */
           callback(data);
         }
       };
@@ -1077,6 +1080,7 @@ class DbManager extends Root {
           .index(indexName)
           .openCursor(range, 'prev')
           .onsuccess = (evt) => {
+            /* istanbul ignore next */
             if (this.isDestroyed) return;
             const cursor = evt.target.result;
             if (cursor) {
@@ -1147,6 +1151,7 @@ class DbManager extends Root {
       this.db.transaction([tableName], 'readonly')
         .objectStore(tableName)
         .openCursor().onsuccess = (evt) => {
+          /* istanbul ignore next */
           if (this.isDestroyed) return;
           const cursor = evt.target.result;
           if (!cursor) {
@@ -1166,6 +1171,7 @@ class DbManager extends Root {
 
           // Done or check next
           if (index === sortedIds.length) {
+            /* istanbul ignore else */
             if (!this.isDestroyed) callback(data);
           } else {
             cursor.continue(sortedIds[index]);
@@ -1202,11 +1208,19 @@ class DbManager extends Root {
             case 'channels':
               return callback(cursor.value);
             case 'conversations':
-              if (cursor.value.last_message && !this.client.getMessage(cursor.value.last_message)) {
-                return this.getObject('messages', cursor.value.last_message, (message) => {
-                  cursor.value.last_message = message;
-                  callback(cursor.value);
-                });
+              if (cursor.value.last_message) {
+                const lastMessage = this.client.getMessage(cursor.value.last_message);
+                if (lastMessage) {
+                  return this._getMessageData([lastMessage], (messages) => {
+                    cursor.value.last_message = messages[0];
+                    callback(cursor.value);
+                  });
+                } else {
+                  return this.getObject('messages', cursor.value.last_message, (message) => {
+                    cursor.value.last_message = message;
+                    callback(cursor.value);
+                  });
+                }
               } else {
                 return callback(cursor.value);
               }

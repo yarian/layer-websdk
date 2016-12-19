@@ -151,7 +151,18 @@ class Syncable extends Root {
       clientId: client.appId,
     };
 
-    const ConstructorClass = Syncable.subclasses.filter(aClass => obj.id.indexOf(aClass.prefixUUID) === 0)[0];
+    if (!Syncable.sortedSubclasses) {
+      Syncable.sortedSubclasses = Syncable.subclasses.filter(item => item.prefixUUID)
+        .sort((a, b) => a.prefixUUID.length - b.prefixUUID.length);
+    }
+
+    const ConstructorClass = Syncable.sortedSubclasses.filter(aClass => {
+      if (aClass.prefixUUID.indexOf('layer:///') === 0) {
+        return obj.id.indexOf(aClass.prefixUUID) === 0;
+      } else {
+        return obj.id.indexOf(aClass.prefixUUID) !== -1;
+      }
+    })[0];
     const syncItem = new ConstructorClass(obj);
     const typeName = ConstructorClass.eventPrefix;
 

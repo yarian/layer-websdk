@@ -133,6 +133,12 @@ describe("The Client Identities Mixin", function() {
           expect(requests.mostRecent().url).toEqual(client.url + '/identities/222');
           expect(identity.syncState).toEqual(layer.Constants.SYNC_STATE.LOADING);
       });
+
+      it("Should require an ID", function() {
+          expect(function() {
+              client.getIdentity(55);
+          }).toThrowError(layer.LayerError.dictionary.idParamRequired);
+      });
   });
 
   describe("The _addIdentity() method", function() {
@@ -199,24 +205,13 @@ describe("The Client Identities Mixin", function() {
           client._identitiesHash[userIdentity4.id] = userIdentity4;
       });
 
-      it("Should ignore irrelevant ID prefixes", function() {
-          expect(function() {
-              client._removeIdentity(new layer.Identity({
-                  id: "layer:///mountains/2",
-                  clientId: client.appId
-              }));
-          }).not.toThrow();
-      });
-
       it("Should ignore IDS not cached", function() {
-          client._removeIdentity(new layer.Identity({
+          var ident = new layer.Identity({
               id: "layer:///identities/fooled-you",
               clientId: client.appId
-          }));
-          client._removeIdentity(new layer.Identity({
-              id: "layer:///identities/fooled-you",
-              clientId: client.appId
-          }));
+          });
+          delete client._identitiesHash[ident.id];
+          client._removeIdentity(ident);
 
           // Posttest
           var endTest = {};
@@ -256,6 +251,7 @@ describe("The Client Identities Mixin", function() {
             spyOn(layer.Identity.prototype, "follow");
 
             // Run
+           debugger;
             var result1 = client.followIdentity("1");
 
             // Posttest

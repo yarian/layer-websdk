@@ -1150,6 +1150,7 @@ describe("The Client Authenticator Class", function() {
                     conversations: false,
                     channels: false,
                     messages: false,
+                    identities: false,
                     syncQueue: false,
                     sessionToken: true
                 });

@@ -125,11 +125,6 @@ class Client extends ClientAuth {
     this._typingIndicators = new TypingIndicatorListener({
       clientId: this.appId,
     });
-
-    // Instantiate Plugins
-    Object.keys(Client.plugins).forEach(propertyName => {
-      this[propertyName] = new Client.plugins[propertyName](this);
-    });
   }
 
   /**
@@ -152,14 +147,6 @@ class Client extends ClientAuth {
   }
 
   destroy() {
-    // Cleanup all plugins
-    Object.keys(Client.plugins).forEach(propertyName => {
-      if (this[propertyName]) {
-        this[propertyName].destroy();
-        delete this[propertyName];
-      }
-    });
-
     // Cleanup all resources (Conversations, Messages, etc...)
     this._cleanup();
 
@@ -267,11 +254,19 @@ class Client extends ClientAuth {
     return null;
   }
 
+  /**
+   * When a layer.Container's ID changes, we need to update
+   * a variety of things and trigger events.
+   *
+   * @method _updateContainerId
+   * @param {layer.Container} container
+   * @param {String} oldId
+   */
   _updateContainerId(container, oldId) {
     if (container instanceof Conversation) {
       this._updateConversationId(container, oldId);
     } else {
-      this._updateContainerId(container, oldId);
+      this._updateChannelId(container, oldId);
     }
   }
 
@@ -334,10 +329,13 @@ class Client extends ClientAuth {
       } else {
         let text = '';
         if (evt) {
+          // If the triggered event has these messages, use a simpler way of rendering info about them
           if (evt.message) text = evt.message.id;
           if (evt.messages) text = evt.messages.length + ' messages';
           if (evt.conversation) text = evt.conversation.id;
           if (evt.conversations) text = evt.conversations.length + ' conversations';
+          if (evt.channel) text = evt.channel.id;
+          if (evt.channels) text = evt.channels.length + ' channels';
         }
         logger.info(`Client Event: ${eventName} ${text}`);
       }
@@ -460,17 +458,6 @@ class Client extends ClientAuth {
   }
 
   /**
-   * Remove the specified object from cache
-   *
-   * @method _removeObject
-   * @private
-   * @param  {layer.Root}  obj - A Message or Conversation Instance
-   */
-  _removeObject(obj) {
-    if (obj) obj.destroy();
-  }
-
-  /**
    * Creates a layer.TypingIndicators.TypingListener instance
    * bound to the specified dom node.
    *
@@ -553,46 +540,6 @@ class Client extends ClientAuth {
   static destroyAllClients() {
     ClientRegistry.getAll().forEach(client => client.destroy());
   }
-
-  /*
-   * Registers a plugin which can add capabilities to the Client.
-   *
-   * Capabilities must be triggered by Events/Event Listeners.
-   *
-   * This concept is a bit premature and unused/untested...
-   * As implemented, it provides for a plugin that will be
-   * instantiated by the Client and passed the Client as its parameter.
-   * This allows for a library of plugins that can be shared among
-   * different companies/projects but that are outside of the core
-   * app logic.
-   *
-   *      // Define the plugin
-   *      function MyPlugin(client) {
-   *          this.client = client;
-   *          client.on('messages:add', this.onMessagesAdd, this);
-   *      }
-   *
-   *      MyPlugin.prototype.onMessagesAdd = function(event) {
-   *          var messages = event.messages;
-   *          alert('You now have ' + messages.length  + ' messages');
-   *      }
-   *
-   *      // Register the Plugin
-   *      Client.registerPlugin('myPlugin34', MyPlugin);
-   *
-   *      var client = new Client({appId: 'layer:///apps/staging/uuid'});
-   *
-   *      // Trigger the plugin's behavior
-   *      client.myPlugin34.addMessages({messages:[]});
-   *
-   * @method registerPlugin
-   * @static
-   * @param  {string} name     [description]
-   * @param  {Function} classDef [description]
-   */
-  static registerPlugin(name, classDef) {
-    Client.plugins[name] = classDef;
-  }
 }
 
 /**
@@ -662,7 +609,6 @@ Client._supportedEvents = [
 
 ].concat(ClientAuth._supportedEvents);
 
-Client.plugins = {};
 Client.mixins = [
   require('./mixins/client-queries'),
   require('./mixins/client-identities'),

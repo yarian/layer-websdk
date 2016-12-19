@@ -1084,6 +1084,12 @@ Query._supportedEvents = [
   'change:remove',
 
   /**
+   * An item of data has been moved to a new index in the Query results.
+   * @event 'change:remove'
+   */
+  'change:move',
+
+  /**
    * The query data failed to load from the server.
    * @event error
    */
