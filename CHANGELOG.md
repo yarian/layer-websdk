@@ -1,5 +1,9 @@
 # Web SDK Change Log
 
+## 3.0.2
+
+* Fixes error in `npm publish`
+
 ## 3.0.1
 
 * Fixes to issue that caused fast infinite retry loop.
