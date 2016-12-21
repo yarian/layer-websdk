@@ -279,7 +279,7 @@ module.exports = function (grunt) {
     // Documentation
     jsduck: {
       build: {
-        src: ["lib/**.js", "lib/models/**.js", "lib/typing-indicators/**.js", "lib/websockets/**.js", "lib/mixins/**.js"],
+        src: ["lib/**.js", "lib/models/**.js", "lib/queries/**.js", "lib/typing-indicators/**.js", "lib/websockets/**.js", "lib/mixins/**.js"],
         dest: 'docs',
         options: {
           'builtin-classes': false,

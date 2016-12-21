@@ -333,37 +333,38 @@ module.exports = {
     /**
      * This method is recommended way to create a Channel.
      *
-     * There are a few ways to invoke it; note that the default behavior is to create a Public Channel
-     * unless otherwise stated via the layer.Channel.private property.
-     *
-     *         client.createChannel({members: ['a', 'b']});
-     *         client.createChannel({members: [userIdentityA, userIdentityB]});
-     *
+     * ```
      *         client.createChannel({
-     *             members: ['a', 'b'],
-     *             private: true
+     *             members: ['layer:///identities/a', 'layer:///identities/b'],
+     *             name: 'a-channel'
+     *         });
+     *         client.createChannel({
+     *             members: [userIdentityObjectA, userIdentityObjectB],
+     *             name: 'another-channel'
      *         });
      *
      *         client.createChannel({
-     *             members: ['a', 'b'],
+     *             members: ['layer:///identities/a', 'layer:///identities/b'],
+     *             name: 'a-channel-with-metadata',
      *             metadata: {
      *                 topicDetails: 'I am a detail'
      *             }
      *         });
+     * ```
      *
-     * If you try to create a Distinct Conversation that already exists,
-     * you will get back an existing Conversation, and any requested metadata
+     * If you try to create a Channel with a name that already exists,
+     * you will get back an existing Channel, and any requested metadata and members
      * will NOT be set; you will get whatever metadata the matching Conversation
-     * already had.
-     *
-     * The default value for distinct is `true`.
+     * already had, and no members will be added/removed.
      *
      * Whether the Channel already exists or not, a 'channels:sent' event
      * will be triggered asynchronously and the Channel object will be ready
      * at that time.  Further, the event will provide details on the result:
      *
+     * ```
      *       var channel = client.createChannel({
      *          members: ['a', 'b'],
+     *          name: 'yet-another-channel-with-metadata',
      *          metadata: {
      *                 topicDetails: 'I am a detail'
      *          }
@@ -377,10 +378,11 @@ module.exports = {
      *                   alert(channel.id + ' was found');
      *                   break;
      *               case Channel.FOUND_WITHOUT_REQUESTED_METADATA:
-     *                   alert(channel.id + ' was found but it already has a title so your requested title was not set');
+     *                   alert(channel.id + ' was found but it already has a topicDetails so your requested detail was not set');
      *                   break;
      *            }
      *       });
+     * ```
      *
      * Warning: This method will throw an error if called when you are not (or are no longer) an authenticated user.
      * That means if authentication has expired, and you have not yet reauthenticated the user, this will throw an error.
@@ -388,8 +390,8 @@ module.exports = {
      *
      * @method createChannel
      * @param  {Object} options
-     * @param {string[]/layer.Identity[]} members - Array of UserIDs or UserIdentities
-     * @param {Boolean} [options.distinct=true] Is this a distinct Channel?
+     * @param {string[]/layer.Identity[]} options.members - Array of UserIDs or UserIdentities
+     * @param {String} options.name - The unique name for this Channel
      * @param {Object} [options.metadata={}] Metadata for your Channel
      * @return {layer.Channel}
      */

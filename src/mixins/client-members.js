@@ -1,7 +1,7 @@
 /**
  * Adds Identity handling to the layer.Client.
  *
- * @class layer.mixins.ClientIdentities
+ * @class layer.mixins.ClientMembership
  */
 
 const Syncable = require('../models/syncable');

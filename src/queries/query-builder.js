@@ -488,6 +488,7 @@ const QueryBuilder = {
    * Create a new layer.AnnouncementsQuery instance.
    *
    * @method announcements
+   * @static
    * @returns {layer.QueryBuilder.AnnouncementsQuery}
    */
   announcements() {
@@ -508,7 +509,7 @@ const QueryBuilder = {
   /**
    * Create a new layer.ChannelsQuery instance.
    *
-   * @method conversations
+   * @method channels
    * @static
    * @returns {layer.QueryBuilder.ChannelsQuery}
    */
@@ -531,6 +532,7 @@ const QueryBuilder = {
    * Create a new layer.IdentitiesQuery instance.
    *
    * @method identities
+   * @static
    * @returns {layer.QueryBuilder.IdentitiesQuery}
    */
   identities() {

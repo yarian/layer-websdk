@@ -42,7 +42,9 @@
           "layer.QueryBuilder.ConversationsQuery",
           "layer.QueryBuilder.MessagesQuery",
           "layer.QueryBuilder.AnnouncementsQuery",
-          "layer.QueryBuilder.IdentitiesQuery"
+          "layer.QueryBuilder.IdentitiesQuery",
+          "layer.QueryBuilder.ChannelsQuery",
+          "layer.QueryBuilder.MembersQuery"
         ]
       }
     ]

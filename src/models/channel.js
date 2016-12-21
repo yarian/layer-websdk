@@ -298,7 +298,7 @@ class Channel extends Container {
    *    }
    * });
    * ```
-   * @method
+   * @method getMember
    * @param {String} identityId
    * @returns {layer.Membership}
    */
