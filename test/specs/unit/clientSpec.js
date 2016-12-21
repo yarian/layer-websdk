@@ -60,6 +60,10 @@ describe("The Client class", function() {
         });
 
         it("Should initialize all caches", function() {
+            var client = new layer.Client({
+                appId: "Samunwise",
+                url: "https://huh.com"
+            });
             expect(client._scheduleCheckAndPurgeCacheItems).toEqual([]);
         });
 
@@ -908,25 +912,32 @@ describe("The Client class", function() {
 
                 // Run
                 client._scheduleCheckAndPurgeCache(conversation);
+                jasmine.clock().tick(1);
+                client._scheduleCheckAndPurgeCache(conversation);
+                jasmine.clock().tick(1);
+                client._scheduleCheckAndPurgeCache(conversation);
                 jasmine.clock().tick(layer.Client.CACHE_PURGE_INTERVAL + 1);
 
                 // Posttest
-                expect(client._runScheduledCheckAndPurgeCache).not.toHaveBeenCalled();
+                expect(client._runScheduledCheckAndPurgeCache.calls.count()).toEqual(1);
             });
 
             it("Should add object to _scheduleCheckAndPurgeCacheItems if new schedule", function() {
+                client._scheduleCheckAndPurgeCacheItems = [];
                 client._scheduleCheckAndPurgeCacheAt = 0;
                 client._scheduleCheckAndPurgeCache(conversation);
                 expect(client._scheduleCheckAndPurgeCacheItems).toEqual([conversation]);
             });
 
             it("Should add object to _scheduleCheckAndPurgeCacheItems if no new schedule", function() {
+                client._scheduleCheckAndPurgeCacheItems = [];
                 client._scheduleCheckAndPurgeCacheAt = Date.now() + 10;
                 client._scheduleCheckAndPurgeCache(conversation);
                 expect(client._scheduleCheckAndPurgeCacheItems).toEqual([conversation]);
             });
 
             it("Should ignore unsaved objects", function() {
+                client._scheduleCheckAndPurgeCacheItems = [];
                 conversation.syncState = layer.Constants.SYNC_STATE.SAVING;
                 client._scheduleCheckAndPurgeCacheAt = Date.now() + 10;
                 client._scheduleCheckAndPurgeCache(conversation);
@@ -1101,6 +1112,7 @@ describe("The Client class", function() {
 
                     var evt2 = new layer.LayerEvent({
                     }, 'something:done');
+                    client.off(null, null, client.dbManager);
                     client.trigger('conversations:add', evt2);
                 }).not.toThrow();
             });

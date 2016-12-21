@@ -232,7 +232,7 @@ module.exports = function (grunt) {
     jasmine: {
       options: {
         helpers: ['test/lib/mock-ajax.js', 'test/specs/responses.js'],
-        specs: ['test/specs/unit/*Spec.js', 'test/specs/unit/messages/*Spec.js'],
+        specs: ['test/specs/unit/*Spec.js', 'test/specs/unit/**/*Spec.js'],
         summary: true
       },
       debug: {

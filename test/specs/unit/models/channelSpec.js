@@ -171,14 +171,14 @@ describe("The Channel Class", function() {
 
       it("Should return null if no metadata", function() {
         var channel = new layer.Channel({
-          participants: [userIdentity1, client.user],
+          members: [userIdentity1, client.user],
           client: client,
           name: "Frodo is a Dodo"
         });
         expect(channel._getSendData()).toEqual({
           method: 'Channel.create',
           data: {
-            members: [client.user.id],
+            members: [userIdentity1.id, client.user.id],
             id: channel.id,
             name: "Frodo is a Dodo",
             metadata: null
@@ -316,41 +316,117 @@ describe("The Channel Class", function() {
         });
     });
 
-    /* TODO Waiting for SPEC Complete */
-    xdescribe("The addMembers() method", function() {
-      it("Should fire off an xhr call", function() {
-        channel.addMembers(['a', 'b', 'c']);
-        expect(channel._xhr).toHaveBeenCalledWith({
-          url: channel.url + '/members/a',
-          method: 'PUT'
+    describe("The _createResult() method", function() {
+      it("Should trigger trigger channels:sent if successful", function() {
+        spyOn(channel, "_triggerAsync");
+        channel._createResult({success: true, data: {
+          id: channel.id
+        }});
+        expect(channel._triggerAsync).toHaveBeenCalledWith('channels:sent', {
+          result: layer.Channel.CREATED
         });
-        expect(channel._xhr).toHaveBeenCalledWith({
-          url: channel.url + '/members/b',
-          method: 'PUT'
+      });
+
+      it("Should return conflict object if conflict and trigger channels:sent", function() {
+        spyOn(channel, "_triggerAsync");
+        channel._createResult({success: false, data: {
+          id: 'conflict',
+          data: {
+            id: "layer:///channels/frodo-brodo",
+            metadata: {
+              deathTo: "Frodo",
+              longLive: "Sauruman"
+            }
+          }
+        }});
+        expect(channel._triggerAsync).toHaveBeenCalledWith('channels:sent', {
+          result: layer.Channel.FOUND
         });
-        expect(channel._xhr).toHaveBeenCalledWith({
-          url: channel.url + '/members/c',
-          method: 'PUT'
+        expect(channel.metadata).toEqual({
+          deathTo: "Frodo",
+          longLive: "Sauruman"
         });
+        expect(channel.id).toEqual("layer:///channels/frodo-brodo");
+        expect(layer.Channel.FOUND.length > 0).toBe(true);
+      });
+
+      it("Should trigger trigger channels:sent-error if errors", function() {
+        spyOn(channel, "trigger");
+        channel._createResult({success: false, data: {
+          id: 'doh!'
+        }});
+        expect(channel.trigger).toHaveBeenCalledWith('channels:sent-error', {
+          error: {
+            id: 'doh!'
+          }
+        });
+      });
+
+
+      it("Should do nothing if isDestroyed", function() {
+        spyOn(channel, "_triggerAsync");
+        channel.isDestroyed = true;
+        channel._createResult({success: true, data: {status: "Doh!"}});
+        expect(channel._triggerAsync).not.toHaveBeenCalled();
       });
     });
 
     /* TODO Waiting for SPEC Complete */
-    xdescribe("The removeMembers() method", function() {
+    describe("The addMembers() method", function() {
       it("Should fire off an xhr call", function() {
+        spyOn(channel, "_xhr");
+        channel.addMembers(['a', 'b', 'c']);
+        expect(channel._xhr).toHaveBeenCalledWith({
+          url: '/members/a',
+          method: 'PUT'
+        });
+        expect(channel._xhr).toHaveBeenCalledWith({
+          url: '/members/b',
+          method: 'PUT'
+        });
+        expect(channel._xhr).toHaveBeenCalledWith({
+          url: '/members/c',
+          method: 'PUT'
+        });
+      });
+
+      it("Should append items to _members and not fire a request if its new", function() {
+        var channel = client.createChannel({
+          name: "FrodoTheDodo"
+        });
+        channel.addMembers([userIdentity2]);
+        expect(channel._members).toEqual([userIdentity2.id]);
+        expect(requests.mostRecent()).toBe(undefined);
+      });
+    });
+
+    /* TODO Waiting for SPEC Complete */
+    describe("The removeMembers() method", function() {
+      it("Should fire off an xhr call", function() {
+        spyOn(channel, "_xhr");
         channel.removeMembers(['a', 'b', 'c']);
         expect(channel._xhr).toHaveBeenCalledWith({
-          url: channel.url + '/members/a',
+          url: '/members/a',
           method: 'DELETE'
         });
         expect(channel._xhr).toHaveBeenCalledWith({
-          url: channel.url + '/members/b',
+          url: '/members/b',
           method: 'DELETE'
         });
         expect(channel._xhr).toHaveBeenCalledWith({
-          url: channel.url + '/members/c',
+          url: '/members/c',
           method: 'DELETE'
         });
+      });
+
+      it("Should remove items from _members and not fire a request if its new", function() {
+        var channel = client.createChannel({
+          name: "FrodoTheDodo",
+          members: [userIdentity1, userIdentity2]
+        });
+        channel.removeMembers([userIdentity2]);
+        expect(channel._members).toEqual([userIdentity1.id]);
+        expect(requests.mostRecent()).toBe(undefined);
       });
     });
 
@@ -373,12 +449,11 @@ describe("The Channel Class", function() {
     describe("The getMember() method", function() {
       it("Should return a cached member", function() {
         var m = client._createObject(responses.membership1);
-        expect(client.getMember(m.id)).toBe(m);
-        expect(m.channelId).toEqual(responses.membership1.channel.id);
+        expect(channel.getMember(m.identity.id)).toBe(m);
       });
 
       it("Should return an empty member that is loading", function() {
-        var m = client.getMember(responses.membership1.id, true);
+        var m = channel.getMember(responses.membership1.identity.id, true);
         expect(m).toEqual(jasmine.any(layer.Membership));
         expect(m.syncState).toEqual(layer.Constants.SYNC_STATE.LOADING);
       });
@@ -391,4 +466,109 @@ describe("The Channel Class", function() {
         expect(channel._delete).toHaveBeenCalledWith('');
       });
     });
+
+    describe("The _deleteResult() method", function() {
+      it("Should load the channel if error", function() {
+        spyOn(client, "xhr");
+        channel._deleteResult({
+          success: false,
+          data: {
+            id: "Doh!"
+          }
+        }, channel.id);
+        expect(client.xhr).toHaveBeenCalledWith({
+          method: "GET",
+          url: channel.url,
+          sync: false
+        }, jasmine.any(Function));
+      });
+
+      it("Should not load the channel if error is not_found", function() {
+        spyOn(client, "xhr");
+        channel._deleteResult({
+          success: false,
+          data: {
+            id: "not_found"
+          }
+        });
+        expect(client.xhr).not.toHaveBeenCalled();
+      });
+
+    });
+
+    describe("The create() method", function() {
+      it("Should throw error if no client", function() {
+        expect(function() {
+          layer.Channel.create({
+            name: "Argh"
+          });
+        }).toThrowError(layer.LayerError.dictionary.clientMissing);
+
+      });
+
+      it("Should return a Channel", function() {
+        expect(layer.Channel.create({
+          client: client,
+          name: "FrodoIsLame"
+        })).toEqual(jasmine.any(layer.Channel));
+      });
+
+      it("Should have suitable properties", function() {
+        var channel = layer.Channel.create({
+          client: client,
+          name: "FrodoIsLame",
+          metadata: {
+            subtopic: {
+              whoIsCool: "Sauruman"
+            }
+          }
+        });
+        expect(channel.metadata).toEqual({
+          subtopic: {
+              whoIsCool: "Sauruman"
+            }
+        });
+        expect(channel.name).toEqual("FrodoIsLame");
+        expect(channel._sendDistinctEvent).toBe(null);
+      });
+
+      it("Should return a matching Channel with different metadata", function() {
+        var channel2 = layer.Channel.create({
+          client: client,
+          name: channel.name,
+          metadata: {
+            subtopic: {
+              whoIsCool: "Sauruman2"
+            }
+          }
+        });
+
+        expect(channel2).toBe(channel);
+        expect(channel2.metadata).not.toEqual({
+          subtopic: {
+              whoIsCool: "Sauruman"
+            }
+        });
+        expect(channel2.metadata).toEqual(channel.metadata);
+        expect(channel._sendDistinctEvent).not.toBe(null);
+        expect(channel._sendDistinctEvent.result).toEqual(layer.Channel.FOUND_WITHOUT_REQUESTED_METADATA);
+        expect(layer.Channel.FOUND_WITHOUT_REQUESTED_METADATA.length > 0).toBe(true);
+        expect(channel._sendDistinctEvent.target).toBe(channel2);
+      });
+
+      it("Should return a matching Channel with same metadata", function() {
+        var channel2 = layer.Channel.create({
+          client: client,
+          name: channel.name,
+          metadata: channel.metadata
+        });
+
+        expect(channel2).toBe(channel);
+
+        expect(channel._sendDistinctEvent).not.toBe(null);
+        expect(channel._sendDistinctEvent.result).toEqual(layer.Channel.FOUND);
+        expect(layer.Channel.FOUND.length > 0).toBe(true);
+        expect(channel._sendDistinctEvent.target).toBe(channel2);
+      });
+  });
 });

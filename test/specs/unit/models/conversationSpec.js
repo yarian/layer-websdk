@@ -1061,6 +1061,21 @@ describe("The Conversation Class", function() {
           // Posttest
           expect(conversation._load).toHaveBeenCalledWith();
         });
+
+        it("Should not reload the Conversation on success", function() {
+          spyOn(conversation, "_load");
+          spyOn(conversation, "_xhr").and.callFake(function(args, callback) {
+            callback({success: true});
+          });
+
+          // Run
+          conversation._patchParticipants({
+              add: [userIdentity1, userIdentity2], remove: [userIdentity3, userIdentity4, client.user]
+          });
+
+          // Posttest
+          expect(conversation._load).not.toHaveBeenCalled();
+        });
     });
 
     describe("The _applyParticipantChange() method", function() {
@@ -1433,6 +1448,48 @@ describe("The Conversation Class", function() {
             }, jasmine.any(Function));
         });
 
+        it("Should ignore empty string keys", function() {
+            // Setup
+            spyOn(conversation, "_xhr");
+
+            // Run
+            conversation.setMetadataProperties({"a.b.c": "fred", "a.d": "wilma", "": "frodo"});
+
+            // Posttest
+            expect(conversation._xhr).toHaveBeenCalledWith({
+                url: "",
+                method: "PATCH",
+                headers: {
+                    'content-type': 'application/vnd.layer-patch+json'
+                },
+                data: JSON.stringify([
+                    {operation: "set", property: "metadata.a.b.c", value: "fred"},
+                    {operation: "set", property: "metadata.a.d", value: "wilma"}
+                ])
+            }, jasmine.any(Function));
+        });
+
+        it("Should accept metadata prefixed keys", function() {
+            // Setup
+            spyOn(conversation, "_xhr");
+
+            // Run
+            conversation.setMetadataProperties({"metadata.a.b.c": "fred", "metadata.a.d": "wilma"});
+
+            // Posttest
+            expect(conversation._xhr).toHaveBeenCalledWith({
+                url: "",
+                method: "PATCH",
+                headers: {
+                    'content-type': 'application/vnd.layer-patch+json'
+                },
+                data: JSON.stringify([
+                    {operation: "set", property: "metadata.a.b.c", value: "fred"},
+                    {operation: "set", property: "metadata.a.d", value: "wilma"}
+                ])
+            }, jasmine.any(Function));
+        });
+
         it("Should call layerParse", function() {
             // Setup
             var tmp = layer.Util.layerParse;
@@ -1467,6 +1524,19 @@ describe("The Conversation Class", function() {
 
           // Posttest
           expect(conversation._load).toHaveBeenCalledWith();
+        });
+
+        it("Should not reload the Conversation on success", function() {
+          spyOn(conversation, "_load");
+          spyOn(conversation, "_xhr").and.callFake(function(args, callback) {
+            callback({success: true});
+          });
+
+          // Run
+          conversation.setMetadataProperties({"a.b.c": "fred", "a.d": "wilma"});
+
+          // Posttest
+          expect(conversation._load).not.toHaveBeenCalled();
         });
     });
 
@@ -1522,6 +1592,27 @@ describe("The Conversation Class", function() {
             }, jasmine.any(Function));
         });
 
+        it("Should handle metadata prefixed properties", function() {
+            // Setup
+            spyOn(conversation, "_xhr");
+
+            // Run
+            conversation.deleteMetadataProperties(["metadata.a.b.c"]);
+
+            // Posttest
+            expect(conversation._xhr).toHaveBeenCalledWith({
+                url: "",
+                method: "PATCH",
+                headers: {
+                    'content-type': 'application/vnd.layer-patch+json'
+                },
+                data: JSON.stringify([
+                    {operation: "delete", property: "metadata.a.b.c"}
+                ])
+            }, jasmine.any(Function));
+
+        });
+
         it("Should call layerParse", function() {
             // Setup
             var tmp = layer.Util.layerParse;
@@ -1555,6 +1646,19 @@ describe("The Conversation Class", function() {
 
           // Posttest
           expect(conversation._load).toHaveBeenCalledWith();
+        });
+
+        it("Should not reload the Conversation on success", function() {
+          spyOn(conversation, "_load");
+          spyOn(conversation, "_xhr").and.callFake(function(args, callback) {
+            callback({success: true});
+          });
+
+          // Run
+          conversation.deleteMetadataProperties(["a.b.c"]);
+
+          // Posttest
+          expect(conversation._load).not.toHaveBeenCalled();
         });
     });
 
@@ -1845,5 +1949,28 @@ describe("The Conversation Class", function() {
         });
     });
 
+    describe("The create() method", function() {
+        it("Should throw error if no client", function() {
+            expect(function() {
+                var conversation = layer.Conversation.create({
+                    participants: ["a"]
+                });
+            }).toThrowError(layer.LayerError.dictionary.clientMissing);
+        });
 
+        it("Should return a matching distinct conversation", function() {
+            var conversation = layer.Conversation.create({
+                client: client,
+                participants: ["a"],
+                distinct: true
+            });
+            var conversation2 = layer.Conversation.create({
+                client: client,
+                participants: ["a"],
+                distinct: true
+            });
+
+            expect(conversation).toBe(conversation2);
+        });
+    });
 });

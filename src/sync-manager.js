@@ -255,7 +255,6 @@ class SyncManager extends Root {
    * @param {layer.SyncEvent.XHRSyncEvent} requestEvt
    */
   _fireRequestXHR(requestEvt) {
-    console.log("HEY: firing " + requestEvt.url + "; " + new Date().toISOString());
     requestEvt.isFiring = true;
     if (!requestEvt.headers) requestEvt.headers = {};
     requestEvt.headers.authorization = 'Layer session-token="' + this.client.sessionToken + '"';

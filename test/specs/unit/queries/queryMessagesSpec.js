@@ -4,6 +4,7 @@ describe("The MessagesQuery Class", function() {
 
     var conversation, conversationUUID,
         conversation2,
+        channel,
         message,
         identity,
         client,
@@ -51,6 +52,7 @@ describe("The MessagesQuery Class", function() {
         query = client.createQuery({
           model: layer.Query.Message
         });
+        channel = client._createObject(responses.channel1);
         conversation = client._createObject(responses.conversation1);
         conversation2 = client._createObject(responses.conversation2);
         message = conversation.createMessage("Hey").send();
@@ -123,6 +125,66 @@ describe("The MessagesQuery Class", function() {
         });
     });
 
+    describe("The _fixPredicate() method", function() {
+        it("Should generate a well formed predicate for conversations", function() {
+            expect(query._fixPredicate('conversation.id  =    "layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"')).toEqual('conversation.id = \'layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf\'');
+            expect(query._fixPredicate("conversation.id  =    'layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf'")).toEqual('conversation.id = \'layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf\'');
+        });
+
+        it("Should throw error on ill formed predicate for conversations", function() {
+            expect(function() {
+                query._fixPredicate('conversation.id  =    "la:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"');
+            }).toThrowError(layer.LayerError.dictionary.invalidPredicate);
+
+            expect(function() {
+                query._fixPredicate('conversation.id  =    "layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77b"');
+            }).toThrowError(layer.LayerError.dictionary.invalidPredicate);
+
+            expect(function() {
+                query._fixPredicate('conversation.id  =    "layer:///channels/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"');
+            }).toThrowError(layer.LayerError.dictionary.invalidPredicate);
+        });
+
+        it("Should generate a well formed predicate for conversations from just a UUID", function() {
+            expect(query._fixPredicate('conversation.id  =    "fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"')).toEqual('conversation.id = \'layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf\'');
+            expect(query._fixPredicate("conversation.id  =    'fb068f9a-3d2b-4fb2-8b04-7efd185e77bf'")).toEqual('conversation.id = \'layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf\'');
+
+        });
+
+        it("Should generate a well formed predicate for channels", function() {
+             expect(query._fixPredicate('channel.id  =    "layer:///channels/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"')).toEqual('channel.id = \'layer:///channels/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf\'');
+            expect(query._fixPredicate("channel.id  =    'layer:///channels/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf'")).toEqual('channel.id = \'layer:///channels/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf\'');
+
+        });
+
+        it("Should throw error on ill formed predicate for channels", function() {
+            expect(function() {
+                query._fixPredicate('channel.id  =    "la:///channels/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"');
+            }).toThrowError(layer.LayerError.dictionary.invalidPredicate);
+
+            expect(function() {
+                query._fixPredicate('channel.id  =    "layer:///channels/fb068f9a-3d2b-4fb2-8b04-7efd185e77b"');
+            }).toThrowError(layer.LayerError.dictionary.invalidPredicate);
+
+            expect(function() {
+                query._fixPredicate('channel.id  =    "layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"');
+            }).toThrowError(layer.LayerError.dictionary.invalidPredicate);
+
+        });
+
+        it("Should generate a well formed predicate for channels from just a UUID", function() {
+            expect(query._fixPredicate('channel.id  =    "fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"')).toEqual('channel.id = \'layer:///channels/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf\'');
+            expect(query._fixPredicate("channel.id  =    'fb068f9a-3d2b-4fb2-8b04-7efd185e77bf'")).toEqual('channel.id = \'layer:///channels/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf\'');
+
+        });
+
+        it("Should throw an error if neither a conversation nor channel is clearly being queried", function() {
+            expect(function() {
+                query._fixPredicate('identity.id  =    "layer:///conversations/fb068f9a-3d2b-4fb2-8b04-7efd185e77bf"');
+            }).toThrowError(layer.LayerError.dictionary.invalidPredicate);
+        });
+    });
+
     describe("The _getConversationPredicateIds() method", function() {
         var query;
         beforeEach(function() {
@@ -172,6 +234,58 @@ describe("The MessagesQuery Class", function() {
 
 
     describe("The _fetchData() method", function() {
+        it("Should set isFiring to true if _getConversationPredicateIds returns an id", function() {
+            var query = client.createQuery({
+                model: 'Message',
+                paginationWindow: 15,
+                predicate: 'conversation.id = "' + conversation.id + '"'
+            });;
+            spyOn(query, "_getConversationPredicateIds").and.returnValue({
+              uuid: conversation.id.replace(/^layer\:\/\/\/conversations\//,''),
+              id: conversation.id,
+              type: layer.Query.Conversation
+            });
+            query.isFiring = false;
+            query._fetchData(37);
+            expect(query.isFiring).toBe(true);
+        });
+
+        it("Should set isFiring to false if _getConversationPredicateIds returns undefined", function() {
+            var query = client.createQuery({
+                model: 'Message',
+                paginationWindow: 15,
+                predicate: 'conversation.id = "' + conversation.id + '"'
+            });
+            spyOn(query, "_getConversationPredicateIds").and.returnValue(undefined);
+            query.isFiring = false;
+            expect(query.isFiring).toBe(false);
+        });
+
+        it("Should call _fetchConversationMessages", function() {
+            var query = client.createQuery({
+                model: 'Message',
+                paginationWindow: 15,
+                predicate: 'conversation.id = "' + conversation.id + '"'
+            });
+            spyOn(query, "_fetchConversationMessages");
+            query._fetchData(38);
+            expect(query._fetchConversationMessages).toHaveBeenCalledWith(38, jasmine.any(Object));
+        });
+
+        it("Should call _fetchChannelMessages", function() {
+            var query = client.createQuery({
+                model: 'Message',
+                paginationWindow: 15,
+                predicate: 'channel.id = "' + channel.id + '"'
+            });
+            spyOn(query, "_fetchChannelMessages");
+            query._fetchData(39);
+            expect(query._fetchChannelMessages).toHaveBeenCalledWith(39, jasmine.any(Object));
+        });
+    });
+
+    describe("The _fetchConversationMessages() method", function() {
+
         var query;
         beforeEach(function() {
             client._conversationsHash[conversation.id] = conversation;
@@ -189,22 +303,6 @@ describe("The MessagesQuery Class", function() {
             query.destroy();
         });
 
-        it("Should set isFiring to true if _getConversationPredicateIds returns an id", function() {
-            spyOn(query, "_getConversationPredicateIds").and.returnValue({
-              uuid: conversation.id.replace(/^layer\:\/\/\/conversations\//,''),
-              id: conversation.id,
-              type: layer.Query.Conversation
-            });
-            query.isFiring = false;
-            query._fetchData(37);
-            expect(query.isFiring).toBe(true);
-        });
-
-        it("Should set isFiring to false if _getConversationPredicateIds returns undefined", function() {
-            spyOn(query, "_getConversationPredicateIds").and.returnValue(undefined);
-            query.isFiring = false;
-            expect(query.isFiring).toBe(false);
-        });
 
         it("Should do nothing if no predicate", function() {
             query.isFiring = false;
@@ -241,6 +339,16 @@ describe("The MessagesQuery Class", function() {
           query._nextDBFromId = 'howdy';
           query._fetchData(141);
           expect(client.dbManager.loadMessages).toHaveBeenCalledWith(conversation.id, 'howdy', 141, jasmine.any(Function));
+        });
+
+        it("Should call _appendResults with DB results", function() {
+            spyOn(client.dbManager, "loadMessages").and.callFake(function(conversationId, fromId, pageSize, callback) {
+                callback(["a", "b", "c"]);
+            });
+            spyOn(query, "_appendResults");
+            query._fetchData(141);
+
+            expect(query._appendResults).toHaveBeenCalledWith({ data: ["a", "b", "c"]}, true);
         });
 
         it("Should refuse to call if already firing with same url", function() {
@@ -306,6 +414,121 @@ describe("The MessagesQuery Class", function() {
               target: client,
             });
 
+        });
+    });
+
+
+    describe("The _fetchChannelMessages() method", function() {
+
+        var query;
+        beforeEach(function() {
+            client._channelsHash[channel.id] = channel;
+            var tmp = layer.Query.prototype._run;
+            layer.Query.prototype._run = function() {}
+            query = client.createQuery({
+                model: 'Message',
+                paginationWindow: 15,
+                predicate: 'channel.id = "' + channel.id + '"'
+            });
+            layer.Query.prototype._run = tmp;
+        });
+
+        afterEach(function() {
+            query.destroy();
+        });
+
+
+        it("Should do nothing if no predicate", function() {
+            query.isFiring = false;
+            query.predicate = '';
+            query._fetchData(39);
+            expect(query.isFiring).toBe(false);
+        });
+
+        it("Should update _predicate", function() {
+            query.isFiring = false;
+            query.predicate = 'channel.id = "' + channel.id + '"';
+            query._fetchData(40);
+            expect(query._predicate).toEqual(channel.id);
+        });
+
+
+        it("Should call server with _nextServerFromId", function() {
+            // Test 1
+            expect(requests.mostRecent()).toBe(undefined);
+
+            // Test 2
+            query._nextServerFromId = 'howdy';
+            query._fetchData(140);
+            expect(requests.mostRecent().url).toEqual(client.url + '/channels/' + layer.Util.uuid(channel.id) + "/messages?page_size=140&from_id=howdy");
+        });
+
+        it("Should call DB with _nextDBFromId", function() {
+          spyOn(client.dbManager, "loadMessages")
+          // Test 1
+          query._fetchData(141);
+          expect(client.dbManager.loadMessages).toHaveBeenCalledWith(channel.id, '', 141, jasmine.any(Function));
+
+          // Test 2
+          query._nextDBFromId = 'howdy';
+          query._fetchData(141);
+          expect(client.dbManager.loadMessages).toHaveBeenCalledWith(channel.id, 'howdy', 141, jasmine.any(Function));
+        });
+
+        it("Should call _appendResults with DB results", function() {
+            spyOn(client.dbManager, "loadMessages").and.callFake(function(channelId, fromId, pageSize, callback) {
+                callback(["a", "b", "c"]);
+            });
+            spyOn(query, "_appendResults");
+            query._fetchData(141);
+
+            expect(query._appendResults).toHaveBeenCalledWith({ data: ["a", "b", "c"]}, true);
+        });
+
+        it("Should refuse to call if already firing with same url", function() {
+            var m1 = new layer.Message({
+                client: client,
+                fromServer: responses.message1,
+            });
+            var m2 = new layer.Message({
+                client: client,
+                fromServer: responses.message2,
+            });
+            requests.reset();
+
+            query.data = [m1, m2];
+            query._fetchData(45);
+            query._fetchData(45);
+            expect(requests.count()).toEqual(1);
+        });
+
+        it("Should refuse to call if Channel unsaved", function() {
+            var m1 = new layer.Message({
+                client: client
+            });
+            var m2 = new layer.Message({
+                client: client,
+                fromServer: responses.message2,
+            });
+            requests.reset();
+
+            channel.syncState = layer.Constants.SYNC_STATE.SAVING;
+            query.data = [m1, m2];
+            query._fetchData(45);
+            expect(requests.count()).toEqual(0);
+        });
+
+
+        it("Should call _processRunResults", function() {
+            spyOn(query, "_processRunResults");
+            query._fetchData(47);
+            requests.mostRecent().response({
+                status: 200,
+                responseText: JSON.stringify([{id: "a"}, {id: "b"}])
+            });
+            expect(query._processRunResults).toHaveBeenCalledWith(jasmine.objectContaining({
+                success: true,
+            }), "channels/" + channel.id.replace(/^layer\:\/\/\/channels\//, "") + "/messages?page_size=47", 47);
         });
     });
 
@@ -552,6 +775,7 @@ describe("The MessagesQuery Class", function() {
             var oldPosition =  5;
             var newPosition = message.position = 10;
             spyOn(query, "_handlePositionChange").and.returnValue(true);
+            spyOn(query, "_getIndex").and.returnValue(0);
             var evt = new layer.LayerEvent({
                 property: "position",
                 oldValue: oldPosition,
@@ -566,6 +790,65 @@ describe("The MessagesQuery Class", function() {
             // Posttest
             expect(query.data).toBe(data);
             expect(query._handlePositionChange).toHaveBeenCalledWith(evt, 0);
+            expect(query._getIndex.calls.count()).toEqual(1);
+        });
+
+        it("Should call _handlePositionChange and make more changes if that method reports it didnt handle everything", function() {
+            // Setup
+            var oldPosition =  5;
+            var newPosition = message.position = 10;
+            spyOn(query, "_handlePositionChange").and.returnValue(true);
+            spyOn(query, "_getIndex").and.returnValue(0);
+            spyOn(query, "_triggerChange");
+            var evt = new layer.LayerEvent({
+                property: "position",
+                oldValue: oldPosition,
+                newValue: newPosition,
+                target: message
+            }, "messages:change");
+            evt.changes.push({
+                property: 'isRead',
+                oldValue: false,
+                newValue: true
+            });
+            var data = query.data = [message.toObject()];
+
+            // Run
+            query._handleChangeEvent(evt);
+
+            // Posttest
+            expect(query.data).not.toBe(data);
+            expect(query.data).toEqual(data);
+            expect(query._handlePositionChange).toHaveBeenCalledWith(evt, 0);
+            expect(query._getIndex.calls.count()).toEqual(2);
+            expect(query._triggerChange).toHaveBeenCalledWith({
+                type: "property",
+                target: message.toObject(),
+                query: query,
+                changes: evt.changes,
+                isChange: true
+            });
+        });
+
+        it("Should call _handlePositionChange and not update index if position did not change", function() {
+            // Setup
+            spyOn(query, "_handlePositionChange").and.returnValue(true);
+            spyOn(query, "_getIndex").and.returnValue(0);
+            var evt = new layer.LayerEvent({
+                property: "position",
+                oldValue: 10,
+                newValue: 10,
+                target: message
+            }, "messages:change");
+            var data = query.data = [message.toObject()];
+
+            // Run
+            query._handleChangeEvent(evt);
+
+            // Posttest
+            expect(query.data).toBe(data);
+            expect(query._handlePositionChange).toHaveBeenCalledWith(evt, 0);
+            expect(query._getIndex.calls.count()).toEqual(1);
         });
 
 

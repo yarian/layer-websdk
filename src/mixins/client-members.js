@@ -11,7 +11,7 @@ const ErrorDictionary = require('../layer-error').dictionary;
 module.exports = {
   properties: {
     /**
-     * Hash of layer.Message objects for quick lookup by id
+     * Hash of layer.Membership objects for quick lookup by id
      *
      * @private
      * @property {Object}
@@ -91,9 +91,9 @@ module.exports = {
     },
     cleanup() {
       Object.keys(this._membersHash).forEach((id) => {
-        const message = this._membersHash[id];
-        if (message && !message.isDestroyed) {
-          message.destroy();
+        const member = this._membersHash[id];
+        if (member && !member.isDestroyed) {
+          member.destroy();
         }
       });
       this._membersHash = null;
@@ -110,8 +110,8 @@ module.exports = {
      *
      * @method getMember
      * @param  {string} id               - layer:///channels/uuid/members/user_id
-     * @param  {boolean} [canLoad=false] - Pass true to allow loading a message from the server if not found
-     * @return {layer.Message}
+     * @param  {boolean} [canLoad=false] - Pass true to allow loading a member from the server if not found
+     * @return {layer.Membership}
      */
     getMember(id, canLoad) {
       if (typeof id !== 'string') throw new Error(ErrorDictionary.idParamRequired);
@@ -136,6 +136,7 @@ module.exports = {
       if (!this._membersHash[member.id]) {
         this._membersHash[member.id] = member;
         this._triggerAsync('members:add', { members: [member] });
+        this._scheduleCheckAndPurgeCache(member);
       }
     },
 
@@ -147,7 +148,7 @@ module.exports = {
      * @param  {layer.Membership} member
      */
     _removeMembership(member) {
-      const id = (typeof message === 'string') ? member : member.id;
+      const id = (typeof member === 'string') ? member : member.id;
       member = this._membersHash[id];
       if (member) {
         delete this._membersHash[id];

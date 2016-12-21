@@ -33,10 +33,8 @@ class Membership extends Syncable {
     // Make sure the ID from handle fromServer parameter is used by the Root.constructor
     if (options.fromServer) {
       options.id = options.fromServer.id;
-    } else if (!options.id && options.userId) {
-      options.id = Membership.prefixUUID + encodeURIComponent(options.userId);
     } else if (options.id && !options.userId) {
-      options.userId = options.id.substring(Membership.prefixUUID.length);
+      options.userId = options.id.replace(/^.*\//, '');
     }
 
     // Make sure we have an clientId property

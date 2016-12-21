@@ -560,6 +560,8 @@ const QueryBuilder = {
         return new ChannelsQuery(obj);
       case Query.Identity:
         return new IdentitiesQuery(obj);
+      case Query.Membership:
+        return new MembersQuery(obj);
       default:
         return null;
     }

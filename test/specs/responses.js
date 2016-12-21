@@ -159,8 +159,8 @@ responses = {
         metadata: {}
     },
     membership1: {
-        "id": "layer:///channels/uuid/members/user_id",
-        "url": "https://api.layer.com/channels/uuid/members/user_id",
+        "id": "layer:///channels/f3cc7b32-3c92-11e4-baad-164230d1df68/members/FrodoTheDodo",
+        "url": "https://huh.com/channels/f3cc7b32-3c92-11e4-baad-164230d1df68/members/FrodoTheDodo",
         "channel": {
             "id": "layer:///channels/f3cc7b32-3c92-11e4-baad-164230d1df68",
             "url": "https://api.layer.com/channels/f3cc7b32-3c92-11e4-baad-164230d1df68",

@@ -139,6 +139,7 @@ class Message extends Syncable {
     if (!options.fromServer) {
       if ('isUnread' in options) {
         options.isRead = !options.isUnread && !options.is_unread;
+        delete options.isUnread;
       } else {
         options.isRead = true;
       }
@@ -147,7 +148,7 @@ class Message extends Syncable {
     }
 
     if (options.client) options.clientId = options.client.appId;
-    if (!options.clientId) throw new Error('clientId property required to create a Message');
+    if (!options.clientId) throw new Error(LayerError.dictionary.clientMissing);
     if (options.conversation) options.parentId = options.conversation.id;
     if (options.channel) options.parentId = options.channel.id;
 
@@ -292,10 +293,10 @@ class Message extends Syncable {
   addPart(part) {
     if (part) {
       part.clientId = this.clientId;
-      if (typeof part === 'object') {
-        this.parts.push(new MessagePart(part));
-      } else if (part instanceof MessagePart) {
+      if (part instanceof MessagePart) {
         this.parts.push(part);
+      } else if (typeof part === 'object') {
+        this.parts.push(new MessagePart(part));
       }
     }
     return this;
@@ -825,7 +826,7 @@ class Message extends Syncable {
     const id = this.id;
     const client = this.getClient();
     this._xhr({
-      url: '?' + queryStr,
+      url: queryStr ? '?' + queryStr : '',
       method: 'DELETE',
     }, (result) => {
       if (!result.success && (!result.data || result.data.id !== 'not_found')) Message.load(id, client);

@@ -63,14 +63,13 @@ const LayerError = require('../layer-error');
 const LayerEvent = require('../layer-event');
 const Util = require('../client-utils');
 const Constants = require('../const');
-const Logger = require('../logger');
 
 class Channel extends Container {
   constructor(options = {}) {
     // Setup default values
     if (!options.membership) options.membership = {};
     super(options);
-    this._members = options.members || [];
+    this._members = this.getClient()._fixIdentities(options.members || []).map(item => item.id);
     this._register();
   }
 
@@ -82,7 +81,7 @@ class Channel extends Container {
    */
   destroy() {
     this.lastMessage = null;
-    if (this.clientId) this.getClient()._removeChannel(this);
+    this.getClient()._removeChannel(this);
     super.destroy();
     this.membership = null;
   }
@@ -107,9 +106,6 @@ class Channel extends Container {
       message.position = Channel.nextPosition;
       Channel.nextPosition += 8192;
     }
-
-    const client = this.getClient();
-    if (!client) throw new Error(LayerError.dictionary.clientMissing);
     return super.send(message);
   }
 
@@ -156,7 +152,7 @@ class Channel extends Container {
   }
 
   _createResultConflict(data) {
-    this._createSuccess(data);
+    this._createSuccess(data.data);
   }
 
   /**
@@ -189,6 +185,12 @@ class Channel extends Container {
    * @method addMembers
    * @param {String[]} members   Identity IDs of users to add to this Channel
    * @return {layer.Channel} this
+   *
+   *
+   *
+   *
+   *
+   * @ignore until server supports it
    */
   addMembers(members) {
     members = this.getClient()._fixIdentities(members).map(item => item.id);
@@ -215,6 +217,12 @@ class Channel extends Container {
    * @method removeMembers
    * @param {String[]} members   Identity IDs of users to remove from this Channel
    * @return {layer.Channel} this
+   *
+   *
+   *
+   *
+   *
+   * @ignore until server supports it
    */
   removeMembers(members) {
     members = this.getClient()._fixIdentities(members).map(item => item.id);
@@ -242,6 +250,12 @@ class Channel extends Container {
    *
    * @method join
    * @return {layer.Channel} this
+   *
+   *
+   *
+   *
+   *
+   * @ignore until server supports it
    */
   join() {
     return this.addMembers([this.getClient().user.id]);
@@ -252,6 +266,11 @@ class Channel extends Container {
    *
    * @method leave
    * @return {layer.Channel} this
+   *
+   *
+   *
+   *
+   * @ignore until server supports it
    */
   leave() {
     return this.removeMembers([this.getClient().user.id]);
@@ -284,8 +303,8 @@ class Channel extends Container {
    * @returns {layer.Membership}
    */
   getMember(identityId) {
-    identityId = this.getClient().fixIdentities([identityId])[0].id;
-    const membershipId = this.id + '/membership/' + identityId.replace(/layer:\/\/\/identities\//, '');
+    identityId = this.getClient()._fixIdentities([identityId])[0].id;
+    const membershipId = this.id + '/members/' + identityId.replace(/layer:\/\/\/identities\//, '');
     return this.getClient().getMember(membershipId, true);
   }
 
@@ -295,37 +314,7 @@ class Channel extends Container {
    * @method delete
    */
   delete() {
-    Logger.error('Deletion is not yet supported');
     this._delete('');
-  }
-
-  /**
-   * Process result of send method.
-   *
-   * Note that we use _triggerAsync so that
-   * events reporting changes to the layer.Channel.id can
-   * be applied before reporting on it being sent.
-   *
-   * Example: Query will now have the resolved pre-existing IDs rather than the proposed ID
-   * when this event is triggered.
-   *
-   * @method _createResult
-   * @private
-   * @param  {Object} result
-   */
-  _createResult({ success, data }) {
-    if (this.isDestroyed) return;
-    if (success) {
-      this._createSuccess(data);
-    } else if (data.id === 'conflict') {
-      this._populateFromServer(data.data);
-      this._triggerAsync('channels:sent', {
-        result: Channel.NAME_FOUND,
-      });
-    } else {
-      this.trigger('channels:sent-error', { error: data });
-      this.destroy();
-    }
   }
 
   /**
@@ -336,7 +325,7 @@ class Channel extends Container {
    */
   _register() {
     const client = this.getClient();
-    if (client) client._addChannel(this);
+    client._addChannel(this);
   }
 
   _deleteResult(result, id) {

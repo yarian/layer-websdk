@@ -3,6 +3,7 @@ describe("The Message class", function() {
     var appId = "Fred's App";
 
     var conversation,
+        channel,
         userIdentity1,
         userIdentity2,
         userIdentity3,
@@ -72,6 +73,7 @@ describe("The Message class", function() {
         client.onlineManager.isOnline = true;
 
         conversation = layer.Conversation._createFromServer(responses.conversation2, client);
+        channel = layer.Channel._createFromServer(responses.channel1, client);
 
         jasmine.clock().tick(1);
         requests.reset();
@@ -207,6 +209,27 @@ describe("The Message class", function() {
             expect(message.isUnread).toBe(false);
         });
 
+        it("Should set isRead to not isUnread", function() {
+            var m = new layer.Message({
+                client: client,
+                isUnread: true
+            });
+            expect(m.isRead).toBe(false);
+
+            var m = new layer.Message({
+                client: client,
+                isUnread: false
+            });
+            expect(m.isRead).toBe(true);
+        });
+
+        it("Should require a Client", function() {
+            expect(function() {
+                new layer.Message({});
+            }).toThrowError(layer.LayerError.dictionary.clientMissing);
+            expect(layer.LayerError.dictionary.clientMissing.length > 0).toBe(true);
+        });
+
         it("Should call _populateFromServer", function() {
             // Setup
             var tmp = layer.Message.prototype._populateFromServer;
@@ -290,6 +313,14 @@ describe("The Message class", function() {
                 client: client
             });
             expect(m.conversationId).toEqual(conversation.id);
+        });
+
+        it("Should get a channelId", function() {
+            var m = new layer.Message({
+                channel: channel,
+                client: client
+            });
+            expect(m.channelId).toEqual(channel.id);
         });
 
         it("Should get a clientId", function() {
@@ -406,6 +437,36 @@ describe("The Message class", function() {
                 client: client
             });
             var c = m.getConversation(false);
+            expect(c).toEqual(null);
+        });
+    });
+
+    describe("The getChannel() method", function() {
+        it("Should return the client", function() {
+            var m = new layer.Message({
+                channel: channel,
+                client: client
+            });
+            expect(m.getChannel()).toEqual(channel);
+        });
+
+        it("Should load the channel", function() {
+            var m = new layer.Message({
+                parentId: channel.id + 'a',
+                client: client
+            });
+            var c = m.getChannel(true);
+            expect(c).toEqual(jasmine.any(layer.Channel));
+            expect(c.syncState).toEqual(layer.Constants.SYNC_STATE.LOADING);
+            expect(c.isLoading).toBe(true);
+        });
+
+        it("Should not load the channel", function() {
+            var m = new layer.Message({
+                parentId: conversation.id + 'a',
+                client: client
+            });
+            var c = m.getChannel(false);
             expect(c).toEqual(null);
         });
     });
@@ -1125,6 +1186,21 @@ describe("The Message class", function() {
             expect(m._triggerAsync).not.toHaveBeenCalled();
         });
 
+        it("Should do nothing if channelId has a value", function() {
+            m.isRead = true;
+            m.channelId = channel.id;
+            delete m.conversationId;
+            spyOn(m, "_xhr");
+            spyOn(m, "_triggerAsync");
+
+            // Run
+            m.sendReceipt("read");
+
+            // Posttest
+            expect(m._xhr).not.toHaveBeenCalled();
+            expect(m._triggerAsync).not.toHaveBeenCalled();
+        });
+
         it("Should not set isRead and isUnread if delivery receipt", function() {
             m.isRead = false;
             expect(m.isRead).toBe(false);
@@ -1178,6 +1254,22 @@ describe("The Message class", function() {
             var conversation = client.getConversation(m.parentId);
             expect(conversation).toEqual(jasmine.any(layer.Conversation));
             expect(conversation.isLoading).toBe(true);
+        });
+
+        it("Should delay if Conversation is loading", function() {
+            var conversation = m.getConversation();
+            conversation.syncState = layer.Constants.SYNC_STATE.LOADING;
+            spyOn(conversation, "once");
+
+            // Run
+            m.send("argh");
+            expect(conversation.once).toHaveBeenCalledWith('conversations:loaded', jasmine.any(Function));
+
+            // Second test
+            spyOn(m, "send");
+            conversation.once.calls.allArgs()[0][1]();
+
+            expect(m.send).toHaveBeenCalledWith("argh");
         });
 
         it("Should fail if its sending or sent", function() {
@@ -1455,6 +1547,29 @@ describe("The Message class", function() {
                   }
                 }, jasmine.any(Function));
         });
+
+        it("SHould call _sendResult on completion", function() {
+            // Setup
+            var result = {};
+            spyOn(client, "sendSocketRequest").and.callFake(function(options, callback) {
+                callback(true, result);
+            });
+            spyOn(m, "_sendResult");
+
+            // Run
+            m._send({
+                parts: [{
+                    mime_type: "actor/mime",
+                    body: "I am a Mime"
+                }],
+                notification: {
+                  text: "Hey"
+                }
+            });
+
+            // Posttest
+            expect(m._sendResult).toHaveBeenCalledWith(true, result);
+        });
     });
 
     describe("The _getSendData() method", function() {
@@ -1601,6 +1716,23 @@ describe("The Message class", function() {
 
             // Posttest
             expect(m._triggerAsync).toHaveBeenCalledWith("messages:sent");
+        });
+
+        it("Should do nothing if isDestroyed", function() {
+            // Setup
+            spyOn(m, "_triggerAsync");
+            spyOn(m, "_populateFromServer");
+            m.isDestroyed = true;
+
+            // Run
+            m._sendResult({
+                success: true,
+                data: "hey"
+            });
+
+            // Posttest
+            expect(m._triggerAsync).not.toHaveBeenCalled();
+            expect(m._populateFromServer).not.toHaveBeenCalled();
         });
     });
 
@@ -1771,7 +1903,22 @@ describe("The Message class", function() {
 
           // Cleanup
           layer.Message.load = tmp;
-        })
+        });
+
+        it("Should ignore mode for channels", function() {
+            // Setup
+            spyOn(m, "_xhr");
+            m.parentId = channel.id;
+
+            // Run
+            m.delete();
+
+            // Posttest
+            expect(m._xhr).toHaveBeenCalledWith({
+                url: '',
+                method: 'DELETE'
+            }, jasmine.any(Function));
+        });
     });
 
     describe("The destroy() method", function() {
@@ -2399,6 +2546,21 @@ describe("The Message class", function() {
             // Posttest
             expect(client._triggerAsync).not.toHaveBeenCalledWith('messages:notify', { message: m });
         });
+
+        it("Should setup a parent that is a Conversation", function() {
+            var data = JSON.parse(JSON.stringify(responses.message1));
+            data.conversation = {id: conversation.id};
+            var m = layer.Message._createFromServer(data, client);
+            expect(m.getParent()).toBe(conversation);
+        });
+
+        it("Should setup a parent that is a Channel", function() {
+            var data = JSON.parse(JSON.stringify(responses.message1));
+            delete data.conversation;
+            data.channel = {id: channel.id};
+            var m = layer.Message._createFromServer(data, client);
+            expect(m.getParent()).toBe(channel);
+        });
     });
 
     describe("The _loaded() method", function() {
@@ -2415,6 +2577,16 @@ describe("The Message class", function() {
         message.parentId = '';
         message._loaded(responses.message1);
         expect(message.conversationId).toEqual(responses.message1.conversation.id);
+      });
+
+      it("Should setup the Channel ID", function() {
+        message.parentId = '';
+        var message1 = JSON.parse(JSON.stringify(responses.message1));
+        message1.channel = {id: channel.id};
+        delete message1.conversation;
+        message._loaded(message1);
+        expect(message.channelId).toEqual(message1.channel.id);
+        expect(message.conversationId).toBe('');
       });
 
       it("Should register the Message", function() {

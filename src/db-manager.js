@@ -88,21 +88,21 @@ class DbManager extends Root {
 
       // If Client is a layer.ClientAuthenticator, it won't support these events; this affects Unit Tests
       if (enabled && this.client.constructor._supportedEvents.indexOf('conversations:add') !== -1) {
-        this.client.on('conversations:add', evt => this.writeConversations(evt.conversations));
-        this.client.on('conversations:change', evt => this._updateConversation(evt.target, evt.changes));
-        this.client.on('conversations:delete conversations:sent-error', evt => this.deleteObjects('conversations', [evt.target]));
+        this.client.on('conversations:add', evt => this.writeConversations(evt.conversations), this);
+        this.client.on('conversations:change', evt => this._updateConversation(evt.target, evt.changes), this);
+        this.client.on('conversations:delete conversations:sent-error', evt => this.deleteObjects('conversations', [evt.target]), this);
 
-        this.client.on('channels:add', evt => this.writeChannels(evt.channels));
-        this.client.on('channels:change', evt => this._updateChannel(evt.target, evt.changes));
-        this.client.on('channels:delete channels:sent-error', evt => this.deleteObjects('channels', [evt.target]));
+        this.client.on('channels:add', evt => this.writeChannels(evt.channels), this);
+        this.client.on('channels:change', evt => this._updateChannel(evt.target, evt.changes), this);
+        this.client.on('channels:delete channels:sent-error', evt => this.deleteObjects('channels', [evt.target]), this);
 
-        this.client.on('messages:add', evt => this.writeMessages(evt.messages));
-        this.client.on('messages:change', evt => this.writeMessages([evt.target]));
-        this.client.on('messages:delete messages:sent-error', evt => this.deleteObjects('messages', [evt.target]));
+        this.client.on('messages:add', evt => this.writeMessages(evt.messages), this);
+        this.client.on('messages:change', evt => this.writeMessages([evt.target]), this);
+        this.client.on('messages:delete messages:sent-error', evt => this.deleteObjects('messages', [evt.target]), this);
 
-        this.client.on('identities:add', evt => this.writeIdentities(evt.identities));
-        this.client.on('identities:change', evt => this.writeIdentities([evt.target]));
-        this.client.on('identities:unfollow', evt => this.deleteObjects('identities', [evt.target]));
+        this.client.on('identities:add', evt => this.writeIdentities(evt.identities), this);
+        this.client.on('identities:change', evt => this.writeIdentities([evt.target]), this);
+        this.client.on('identities:unfollow', evt => this.deleteObjects('identities', [evt.target]), this);
       }
 
       // Sync Queue only really works properly if we have the Messages and Conversations written to the DB; turn it off

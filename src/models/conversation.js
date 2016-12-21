@@ -973,20 +973,6 @@ Conversation.FOUND_WITHOUT_REQUESTED_METADATA = 'FoundMismatch';
 
 
 /**
- * Cache's a Distinct Event.
- *
- * On creating a Distinct Conversation that already exists,
- * when the send() method is called, we should trigger
- * specific events detailing the results.  Results
- * may be determined locally or on the server, but same Event may be needed.
- *
- * @type {layer.LayerEvent}
- * @private
- */
-Conversation.prototype._sendDistinctEvent = null;
-
-
-/**
  * Prefix to use when generating an ID for instances of this class
  * @type {String}
  * @static

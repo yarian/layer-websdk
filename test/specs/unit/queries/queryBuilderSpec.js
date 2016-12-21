@@ -115,6 +115,17 @@ describe("The QueryBuilder Classes", function() {
                     paginationWindow: layer.Query.prototype.paginationWindow
                 });
             });
+
+            it("Should update the predicate to a channel", function() {
+                var builder = layer.QueryBuilder.messages().forConversation(responses.channel1.id);
+                expect(builder.build()).toEqual({
+                    model: 'Message',
+                    returnType: 'object',
+                    dataType: 'object',
+                    predicate: "channel.id = '" + responses.channel1.id + "'",
+                    paginationWindow: layer.Query.prototype.paginationWindow
+                });
+            });
         });
 
         describe("The paginationWindow() method", function() {
@@ -312,6 +323,99 @@ describe("The QueryBuilder Classes", function() {
                     dataType: 'object',
                     sortBy: [{'createdAt': 'asc'}],
                     paginationWindow: 100
+                });
+            });
+        });
+    });
+
+
+    describe("The ChannelsQueryBuilder Class", function() {
+        describe("The constructor() method", function() {
+            it("Should not require parameters", function() {
+                var builder = layer.QueryBuilder.channels();
+                expect(builder.build()).toEqual({
+                    model: 'Channel',
+                    returnType: 'object',
+                    dataType: 'object',
+                    paginationWindow: layer.Query.prototype.paginationWindow,
+                    sortBy: null
+                });
+            });
+
+            it("Should initialize from a Query", function() {
+                var query = new layer.Query({
+                    client: client,
+                    model: 'Channel',
+                    returnType: 'count',
+                    dataType: 'instance'
+                });
+                var builder = layer.QueryBuilder.fromQueryObject(query);
+                expect(builder.build()).toEqual({
+                    model: 'Channel',
+                    returnType: 'count',
+                    dataType: 'instance',
+                    paginationWindow: layer.Query.prototype.paginationWindow,
+                    sortBy: null
+                });
+            });
+        });
+
+        describe("The paginationWindow() method", function() {
+            it("Should update the paginationWindow property", function() {
+                var builder = layer.QueryBuilder.channels().paginationWindow(5);
+                builder._conversationIdSet = true;
+                expect(builder.build()).toEqual({
+                    model: 'Channel',
+                    returnType: 'object',
+                    dataType: 'object',
+                    paginationWindow: 5,
+                    sortBy: null
+                });
+            });
+        });
+    });
+
+    describe("The MembersQueryBuilder Class", function() {
+        describe("The constructor() method", function() {
+            it("Should not require parameters", function() {
+                var builder = layer.QueryBuilder.members();
+                expect(builder.build()).toEqual({
+                    model: layer.Query.Membership,
+                    returnType: 'object',
+                    dataType: 'object',
+                    paginationWindow: layer.Query.prototype.paginationWindow,
+                    sortBy: null
+                });
+            });
+
+            it("Should initialize from a Query", function() {
+                var query = new layer.Query({
+                    client: client,
+                    model: layer.Query.Membership,
+                    returnType: 'count',
+                    dataType: 'instance'
+                });
+                var builder = layer.QueryBuilder.fromQueryObject(query);
+                expect(builder.build()).toEqual({
+                    model: layer.Query.Membership,
+                    returnType: 'count',
+                    dataType: 'instance',
+                    paginationWindow: layer.Query.prototype.paginationWindow,
+                    sortBy: null
+                });
+            });
+        });
+
+        describe("The paginationWindow() method", function() {
+            it("Should update the paginationWindow property", function() {
+                var builder = layer.QueryBuilder.members().paginationWindow(5);
+                builder._conversationIdSet = true;
+                expect(builder.build()).toEqual({
+                    model: layer.Query.Membership,
+                    returnType: 'object',
+                    dataType: 'object',
+                    paginationWindow: 5,
+                    sortBy: null
                 });
             });
         });

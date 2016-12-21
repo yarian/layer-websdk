@@ -42,6 +42,8 @@ class Container extends Syncable {
     if (options.client) options.clientId = options.client.appId;
 
     super(options);
+
+    if (!this.clientId) throw new Error(LayerError.dictionary.clientMissing);
     this.isInitializing = true;
 
     // If the options contains a full server definition of the object,
@@ -360,6 +362,19 @@ Container.prototype.isCurrentParticipant = true;
 
 
 /**
+ * Cache's a Distinct Event.
+ *
+ * On creating a Channel or Conversation that already exists,
+ * when the send() method is called, we should trigger
+ * specific events detailing the results.  Results
+ * may be determined locally or on the server, but same Event may be needed.
+ *
+ * @type {layer.LayerEvent}
+ * @private
+ */
+Container.prototype._sendDistinctEvent = null;
+
+/**
  * Caches last result of toObject()
  * @type {Object}
  * @private
@@ -396,6 +411,18 @@ Container.CREATED = 'Created';
  */
 Container.FOUND = 'Found';
 
+/**
+ * The Conversation/Channel that was requested has been found, but there was a mismatch in metadata.
+ *
+ * If the createConversation request contained metadata and it did not match the Distinct Conversation
+ * that matched the requested participants, then this value is passed to notify your app that the Conversation
+ * was returned but does not exactly match your request.
+ *
+ * Used in `conversations:sent` events.
+ * @type {String}
+ * @static
+ */
+Container.FOUND_WITHOUT_REQUESTED_METADATA = 'FoundMismatch';
 
 
 Root.initClass.apply(Container, [Container, 'Container']);

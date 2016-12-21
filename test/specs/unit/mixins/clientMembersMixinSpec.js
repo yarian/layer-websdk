@@ -57,7 +57,8 @@ describe("The Client Members Mixin", function() {
 
     describe("The cleanup() method", function() {
         afterEach(function() {
-            client._conversationsHash = client._messagesHash = client._membersHash = client._queriesHash = client._identitiesHash = {};
+            debugger;
+            client._conversationsHash = client._messagesHash = client._channelsHash = client._membersHash = client._queriesHash = client._identitiesHash = {};
         });
 
         it("Should destroy all channels", function() {
@@ -73,7 +74,13 @@ describe("The Client Members Mixin", function() {
           // Posttest
           expect(membership.isDestroyed).toBe(true);
           expect(client._membersHash).toBe(null);
+      });
 
+      it("Should not throw errors on unknown ids", function() {
+          client._membersHash["frodo"] = null;
+          client._cleanup();
+          expect(client._membersHash).toBe(null);
+          debugger;
       });
     });
 
@@ -92,9 +99,8 @@ describe("The Client Members Mixin", function() {
 
             // Posttest
             expect(m1 instanceof layer.Membership).toBe(true);
-
             expect(m1.id).toEqual(responses.membership1.id);
-            expect(requests.mostRecent().url).toEqual(url1);
+            expect(requests.mostRecent().url).toEqual(responses.membership1.url);
         });
 
         it("Should fail without id", function() {
@@ -106,6 +112,10 @@ describe("The Client Members Mixin", function() {
     });
 
     describe("The _addMembership() method", function() {
+        var membership;
+        beforeEach(function() {
+            membership = client._createObject(responses.membership1);
+        });
         it("Should register a member in _membersHash", function() {
             client._membersHash = {};
 
@@ -113,7 +123,7 @@ describe("The Client Members Mixin", function() {
             client._addMembership(membership);
 
             // Posttest
-            expect(client.getChannel(membership.id)).toBe(membership);
+            expect(client.getMember(membership.id)).toBe(membership);
         });
 
         it("Should set the clientId property", function() {
@@ -161,6 +171,7 @@ describe("The Client Members Mixin", function() {
 
         it("Should call _scheduleCheckAndPurgeCache", function() {
             spyOn(client, "_scheduleCheckAndPurgeCache");
+            client._membersHash = {};
 
             // Run
             client._addMembership(membership);
@@ -174,7 +185,7 @@ describe("The Client Members Mixin", function() {
 
         it("Should deregister a member", function() {
             // Setup
-            var c1 = client._createObject(responses.membership1);
+            var membership = client._createObject(responses.membership1);
 
             // Pretest
             var hash = {};
@@ -208,6 +219,7 @@ describe("The Client Members Mixin", function() {
 
         it("Should do nothing if membership not registered", function() {
             // Setup
+            var membership = client._createObject(responses.membership1);
             client._membersHash = {};
             spyOn(client, "trigger");
 

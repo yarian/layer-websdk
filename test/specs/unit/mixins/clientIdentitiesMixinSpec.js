@@ -251,12 +251,11 @@ describe("The Client Identities Mixin", function() {
             spyOn(layer.Identity.prototype, "follow");
 
             // Run
-           debugger;
-            var result1 = client.followIdentity("1");
+            var result1 = client.followIdentity("123");
 
             // Posttest
             expect(layer.Identity.prototype.follow.calls.count()).toEqual(1);
-            expect(result1.id).toEqual("layer:///identities/1");
+            expect(result1.id).toEqual("layer:///identities/123");
         });
     });
 
@@ -280,11 +279,11 @@ describe("The Client Identities Mixin", function() {
             spyOn(layer.Identity.prototype, "unfollow");
 
             // Run
-            var result1 = client.unfollowIdentity("1");
+            var result1 = client.unfollowIdentity("321");
 
             // Posttest
             expect(layer.Identity.prototype.unfollow.calls.count()).toEqual(1);
-            expect(result1.id).toEqual("layer:///identities/1");
+            expect(result1.id).toEqual("layer:///identities/321");
         });
 
     });

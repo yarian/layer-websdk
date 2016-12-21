@@ -1,6 +1,6 @@
 /* eslint-disable */
 describe("The Websocket Change Manager Class", function() {
-    var client, changeManager;
+    var client, changeManager, conversation, channel;
     var appId = "Fred's App";
 
     beforeEach(function() {
@@ -43,6 +43,7 @@ describe("The Websocket Change Manager Class", function() {
 
         changeManager = client.socketChangeManager;
         conversation = client._createObject(responses.conversation1);
+        channel = client._createObject(responses.channel1);
         requests.reset();
     });
 
@@ -332,6 +333,64 @@ describe("The Websocket Change Manager Class", function() {
             layer.Conversation._loadResourceForPatch = _loadResourceForPatch;
         });
 
+
+        it("Should load a Channel if not found and allowed", function() {
+            var tmp = layer.Util.layerParse;
+            spyOn(layer.Util, "layerParse");
+
+            var _loadResourceForPatch = layer.Channel._loadResourceForPatch;
+            spyOn(layer.Channel, "_loadResourceForPatch").and.returnValue(true);
+
+            var m = channel.createMessage("hey");
+            spyOn(changeManager, "getObject").and.returnValue(null);
+
+            // Run
+            changeManager._handlePatch({
+                operation: "update",
+                object: {
+                    id: "layer:///channels/fred"
+                },
+                data: [{operation: "set", property: "joe", value: "jane"}]
+            });
+            jasmine.clock().tick(100);
+
+            // Posttest
+            expect(layer.Util.layerParse).not.toHaveBeenCalled();
+            expect(requests.mostRecent().url).toEqual(client.url + "/channels/fred");
+
+            // Cleanup
+            layer.Util.LayerParse = tmp;
+            layer.Channel._loadResourceForPatch = _loadResourceForPatch;
+        });
+
+        it("Should not load a Channel if not found and not allowed", function() {
+            var tmp = layer.Util.layerParse;
+            spyOn(layer.Util, "layerParse");
+
+            var _loadResourceForPatch = layer.Channel._loadResourceForPatch;
+            spyOn(layer.Channel, "_loadResourceForPatch").and.returnValue(false);
+
+            var m = channel.createMessage("hey");
+            spyOn(changeManager, "getObject").and.returnValue(null);
+
+            // Run
+            changeManager._handlePatch({
+                operation: "update",
+                object: {
+                    id: "layer:///channels/fred"
+                },
+                data: [{operation: "set", property: "joe", value: "jane"}]
+            });
+
+            // Posttest
+            expect(layer.Util.layerParse).not.toHaveBeenCalled();
+            expect(requests.mostRecent()).toBe(undefined);
+
+            // Cleanup
+            layer.Util.LayerParse = tmp;
+            layer.Channel._loadResourceForPatch = _loadResourceForPatch;
+        });
+
         it("Should load a Message if not found and allowed", function() {
             var tmp = layer.Util.layerParse;
             spyOn(layer.Util, "layerParse");
@@ -387,6 +446,32 @@ describe("The Websocket Change Manager Class", function() {
             // Cleanup
             layer.Util.LayerParse = tmp;
             layer.Message._loadResourceForPatch = _loadResourceForPatch;
+        });
+
+        it("Shouldn't do much of anything for Announcements", function() {
+            var tmp = layer.Util.layerParse;
+            spyOn(layer.Util, "layerParse");
+
+
+
+            var announcement = client._createObject(responses.announcement);
+            spyOn(changeManager, "getObject").and.returnValue(null);
+
+            // Run
+            changeManager._handlePatch({
+                operation: "update",
+                object: {
+                    id: announcement.id
+                },
+                data: [{operation: "set", property: "joe", value: "jane"}]
+            });
+
+            // Posttest
+            expect(layer.Util.layerParse).not.toHaveBeenCalled();
+            expect(requests.mostRecent()).toBe(undefined);
+
+            // Cleanup
+            layer.Util.LayerParse = tmp;
         });
     });
 });

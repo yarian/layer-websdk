@@ -3,16 +3,27 @@
     "name": "Components",
     "groups": [
       {
-        "name": "Core Classes",
+        "name": "Core Classes and Services",
         "classes": [
           "layer.Client",
+          "layer.Query",
+          "layer.TypingIndicators.TypingPublisher",
+          "layer.TypingIndicators.TypingListener",
+          "layer.TypingIndicators.TypingIndicatorListener",
+          "layer.SyncManager"
+        ]
+      },
+      {
+        "name": "Models",
+        "classes": [
           "layer.Identity",
           "layer.Conversation",
           "layer.Channel",
           "layer.Message",
           "layer.Announcement",
           "layer.MessagePart",
-          "layer.Query"
+          "layer.Query",
+          "layer.Membership"
         ]
       },
       {
@@ -23,15 +34,6 @@
           "layer.ClientUtils",
           "layer.Root",
           "layer.Constants"
-        ]
-      },
-      {
-        "name": "Services",
-        "classes": [
-          "layer.TypingIndicators.TypingPublisher",
-          "layer.TypingIndicators.TypingListener",
-          "layer.TypingIndicators.TypingIndicatorListener",
-          "layer.SyncManager"
         ]
       },
       {
