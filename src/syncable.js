@@ -195,7 +195,9 @@ class Syncable extends Root {
     if (!result.success) {
       this.syncState = SYNC_STATE.NEW;
       this._triggerAsync(prefix + ':loaded-error', { error: result.data });
-      setTimeout(() => this.destroy(), 100); // Insure destroyed AFTER loaded-error event has triggered
+      setTimeout(() => {
+        if (!this.isDestroyed) this.destroy();
+      }, 100); // Insure destroyed AFTER loaded-error event has triggered
     } else {
       this._populateFromServer(result.data);
       this._loaded(result.data);

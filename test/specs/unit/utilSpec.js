@@ -203,6 +203,55 @@ describe("The Util Library", function() {
         });
     });
 
+
+    describe("The defer() method", function() {
+        it("Should call methods in the right order", function(done) {
+            var result = [];
+            layer.Util.defer(function() {
+                result.push("a");
+            });
+            layer.Util.defer(function() {
+                result.push("b");
+            });
+            layer.Util.defer(function() {
+                result.push("c");
+            });
+            layer.Util.defer(function() {
+                result.push("d");
+            });
+            result.push("before");
+            layer.Util.defer(function() {
+                expect(result).toEqual(["before", "a", "b", "c", "d"]);
+                setTimeout(function() {
+                    done();
+                }, 0);
+            });
+        });
+
+        it("Should run functions queued within defer after all other queued calls", function(done) {
+            var result = [];
+
+            layer.Util.defer(function() {
+                result.push(1);
+                layer.Util.defer(function() {
+                    result.push(11);
+                });
+            });
+
+            layer.Util.defer(function() {
+                result.push(2);
+                layer.Util.defer(function() {
+                    result.push(22);
+                });
+            });
+
+            setTimeout(function() {
+                expect(result).toEqual([1, 2, 11, 22]);
+                done();
+            }, 10);
+        });
+    });
+
      describe("The getExponentialBackoffSeconds() method", function() {
         it("Should return a value between 0.1 and 0.35", function() {
             for (var i = 0; i < 100; i++) {

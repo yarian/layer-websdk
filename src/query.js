@@ -1346,6 +1346,7 @@ class Query extends Root {
    * If this is ever changed to be async, make sure that destroy() still triggers synchronous events
    */
   _triggerChange(evt) {
+    if (this.isDestroyed || this.client._inCleanup) return;
     this.trigger('change', evt);
     this.trigger('change:' + evt.type, evt);
   }
@@ -1686,6 +1687,13 @@ Query._supportedEvents = [
    * @event 'change:remove'
    */
   'change:remove',
+
+  /**
+   * An item of data has been moved within the Query.
+   * @event 'change:move'
+   */
+  'change:move',
+
 
   /**
    * The query data failed to load from the server.

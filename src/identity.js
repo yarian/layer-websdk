@@ -392,7 +392,7 @@ Identity.prototype.type = Identity.UserType;
 Object.defineProperty(Identity.prototype, 'isBot', {
   enumerable: true,
   get: function get() {
-    return this.type !== Identity.BotType;
+    return this.type === Identity.BotType;
   },
 });
 
