@@ -18,8 +18,8 @@
 
 const Root = require('../root');
 const ClientRegistry = require('../client-registry');
-
 const { STARTED, PAUSED, FINISHED } = require('./typing-indicators');
+
 class TypingIndicatorListener extends Root {
 
   /**
@@ -134,7 +134,7 @@ class TypingIndicatorListener extends Root {
     if (stateEntry) {
       return {
         typing: stateEntry.typing.map(id => stateEntry.users[id].identity.toObject()),
-        paused: stateEntry.paused.map(id => stateEntry.users[id].identity.toObject())
+        paused: stateEntry.paused.map(id => stateEntry.users[id].identity.toObject()),
       };
     } else {
       return {
@@ -205,7 +205,7 @@ class TypingIndicatorListener extends Root {
   _poll() {
     const conversationIds = Object.keys(this.state);
 
-    conversationIds.forEach(id => {
+    conversationIds.forEach((id) => {
       const state = this.state[id];
       Object.keys(state.users)
         .forEach((identityId) => {
@@ -258,7 +258,7 @@ TypingIndicatorListener._supportedEvents = [
    * @param {layer.LayerEvent} evt
    * @param {layer.Identity[]} evt.typing - Array of Identities of people who are typing
    * @param {layer.Identity[]} evt.paused - Array of Identities of people who are paused
-   * @param {string} evt.conversationId - ID of the Converation that has changed typing indicator state
+   * @param {string} evt.conversationId - ID of the Conversation that has changed typing indicator state
    */
   'typing-indicator-change',
 ].concat(Root._supportedEvents);

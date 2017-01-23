@@ -223,9 +223,10 @@ class Root extends EventClass {
     // Iterate over all formally defined properties
     try {
       const keys = [];
-      for (let key in this.constructor.prototype) if (!(key in Root.prototype)) keys.push(key);
+      let aKey;
+      for (aKey in this.constructor.prototype) if (!(aKey in Root.prototype)) keys.push(aKey);
 
-      keys.forEach(key => {
+      keys.forEach((key) => {
         const v = this[key];
 
         // Ignore private/protected properties and functions
@@ -235,7 +236,7 @@ class Root extends EventClass {
         // Generate arrays...
         if (Array.isArray(v)) {
           obj[key] = [];
-          v.forEach(item => {
+          v.forEach((item) => {
             if (item instanceof Root) {
               if (noChildren) {
                 delete obj[key];
@@ -448,7 +449,7 @@ class Root extends EventClass {
         // A LayerEvent will be an argument when bubbling events up; these args can be used as-is
       } else {
         if (typeof computedArgs[1] === 'object') {
-          Object.keys(computedArgs[1]).forEach(name => {newArg[name] = computedArgs[1][name];});
+          Object.keys(computedArgs[1]).forEach(name => (newArg[name] = computedArgs[1][name]));
         } else {
           newArg.data = computedArgs[1];
         }
@@ -490,11 +491,11 @@ class Root extends EventClass {
     // fail to get called when length = 1, and after that length just continuously grows.  So we add
     // the _lastDelayedTrigger test to insure that it will still run.
     const shouldScheduleTrigger = this._delayedTriggers.length === 1 ||
-      this._delayedTriggers.length && this._lastDelayedTrigger + 500 < Date.now();
+      (this._delayedTriggers.length && this._lastDelayedTrigger + 500 < Date.now());
     if (shouldScheduleTrigger) {
       this._lastDelayedTrigger = Date.now();
       if (typeof postMessage === 'function' && typeof jasmine === 'undefined') {
-        var messageData = {
+        const messageData = {
           type: 'layer-delayed-event',
           internalId: this.internalId,
         };
@@ -589,6 +590,12 @@ class Root extends EventClass {
   }
 
 
+  _runMixins(mixinName, argArray) {
+    this.constructor.mixins.forEach((mixin) => {
+      if (mixin.lifecycle[mixinName]) mixin.lifecycle[mixinName].apply(this, argArray);
+    });
+  }
+
 
   /**
    * Returns a string representation of the class that is nicer than `[Object]`.
@@ -644,13 +651,28 @@ function initClass(newClass, className) {
   if (!newClass._supportedEvents) newClass._supportedEvents = Root._supportedEvents;
   if (!newClass._ignoredEvents) newClass._ignoredEvents = Root._ignoredEvents;
 
+  if (newClass.mixins) {
+    newClass.mixins.forEach((mixin) => {
+      if (mixin.events) newClass._supportedEvents = newClass._supportedEvents.concat(mixin.events);
+      if (mixin.properties) {
+        Object.keys(mixin.properties).forEach((key) => {
+          newClass.prototype[key] = mixin.properties[key];
+        });
+      }
+      if (mixin.methods) {
+        Object.keys(mixin.methods).forEach((key) => {
+          newClass.prototype[key] = mixin.methods[key];
+        });
+      }
+    });
+  }
+
   // Generate a list of properties for this class; we don't include any
   // properties from layer.Root
   const keys = Object.keys(newClass.prototype).filter(key =>
     newClass.prototype.hasOwnProperty(key) &&
     !Root.prototype.hasOwnProperty(key) &&
-    typeof newClass.prototype[key] !== 'function'
-  );
+    typeof newClass.prototype[key] !== 'function');
 
   // Define getters/setters for any property that has __adjust or __update methods defined
   keys.forEach(name => defineProperty(newClass, name));

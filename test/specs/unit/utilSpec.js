@@ -71,11 +71,12 @@ describe("The Util Library", function() {
             layer.Util.sortBy(a1, function(v) {return v.a;});
             expect(a1.slice(0,2)).toEqual([{a: 3}, {a: 5}]);
             expect(a1.slice(2,4)).toEqual(jasmine.arrayContaining([{b: 4}, {c: 10}]));
+
+            var a1 = [{a: 5}, {b: 4}, {a: 3}, {c: 10}];
+            layer.Util.sortBy(a1.reverse(), function(v) {return v.a;});
+            expect(a1.slice(0,2)).toEqual([{a: 3}, {a: 5}]);
+            expect(a1.slice(2,4)).toEqual(jasmine.arrayContaining([{b: 4}, {c: 10}]));
         });
-
-
-
-
     });
 
     describe("The clone() function", function() {
@@ -200,6 +201,23 @@ describe("The Util Library", function() {
                     doh: "ray"
                 }
             )).toBe(false);
+        });
+
+        it("Should inform caller that array comparisons aren't supported yet", function() {
+            expect(function() {
+                layer.Util.doesObjectMatch(
+                    {
+                        a: "hi",
+                        b: [1],
+                        doh: "ray"
+                    },
+                    {
+                        a: "hi",
+                        b: [1],
+                        doh: "ray"
+                    }
+                );
+            }).toThrowError('Array comparison not handled yet');
         });
     });
 
@@ -455,6 +473,41 @@ describe("The Util Library", function() {
         });
     });
 
+    describe("The base64ToBlob() method", function() {
+        it("Should return a blob", function() {
+            var imgBase64 = "iVBORw0KGgoAAAANSUhEUgAAAIAAAACACAYAAADDPmHLAAAECElEQVR4Xu2ZO44TURREa0SAWBASKST8xCdDQMAq+OyAzw4ISfmLDBASISERi2ADEICEWrKlkYWny6+77fuqalJfz0zVOXNfv/ER8mXdwJF1+oRHBDCXIAJEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8wbM42cDRADzBszjZwNEAPMGzONnA0QA8waWjX8OwHcAv5f9Me3fPRugvbuxd14C8B7AVwA3q0oQAcYwtr2+hn969faPVSWIAG2AT3rXJvz17CcAN6ptgggwrwDb4JeVIALMJ8AY/JISRIB5BGDhr3/aZwDXKxwHEWC6AJcBvAOwfuBjvuNfABcBfGGGl5yJANPabYV/B8DLaT96nndHgPYeu4c/RI8AbQJIwO9FgDMAfrVxWuRdMvB7EOA+gHsALgD4uQjO3b6pFPzqAjwA8HTF5weA8weWQA5+ZQGOw1//jR5SAkn4VQV4CODJls18CAmuAHjbcM8vc9U76ZSrdgt4BODxyLG8Twla4P8BcLfKPX/sEaeSAAz8fR4H8vArHQHXAHwYs3Xj9SU3gQX8SgKcAvBitTp38WAJCWzgVxJg+F0qSGAFv5oAh5bADn5FAQ4lwVUAb3a86nX1tL/tXK10Czj+O+7zOLCFX3UDrEXYhwTW8KsLsPRx0Ap/+A/fq12uKpVnqx4BSx8Hgb9quAcB5t4EgX/sz6sXAeaSIPA3zqOeBJgqwTMAzxuuelJn/ubzSG8CTJFg12ex4Z4vDb+HW8A2aK1XRFYCC/g9C7DkJrCB37sAS0hgBV9BgDklGODfBvCaPScU5np8CPxf71OfCSzhq2yAqZ8d2MJXE6DlOLCGryjALhLYw1cVgJEg8Dv7MKjlgXvbg2Hgd/ph0BwSBH7nHwZNkeCW4z1/rDCV/wOM5RyOg7MAvo0Nur3uIoAbVzpvBKCr0hyMAJpc6VQRgK5KczACaHKlU0UAuirNwQigyZVOFQHoqjQHI4AmVzpVBKCr0hyMAJpc6VQRgK5KczACaHKlU0UAuirNwQigyZVOFQHoqjQHI4AmVzpVBKCr0hyMAJpc6VQRgK5KczACaHKlU0UAuirNwQigyZVOFQHoqjQHI4AmVzpVBKCr0hyMAJpc6VQRgK5KczACaHKlU0UAuirNwQigyZVOFQHoqjQHI4AmVzpVBKCr0hyMAJpc6VQRgK5KczACaHKlU0UAuirNwQigyZVOFQHoqjQHI4AmVzpVBKCr0hz8BzIXtYE3VcPnAAAAAElFTkSuQmCC";
+            expect(layer.Util.base64ToBlob(imgBase64)).toEqual(jasmine.any(Blob));
+        });
+
+        it("Should return null", function() {
+            expect(layer.Util.base64ToBlob()).toBe(null);
+        });
+    });
+
+    describe("The decode() method", function() {
+        // Don't really understand this method's details well, but verify it returns null if invalid
+        it("Should throw error if it fails to process the input", function() {
+            expect(function() {
+                layer.Util.decode('•');
+            }).toThrowError("Illegal base64url string!");
+        });
+
+        it("Should return string if it processes the input", function() {
+            expect(layer.Util.decode(btoa("hello"))).toEqual("hello");
+        });
+    });
+
+
+    describe("The atou() method", function() {
+        it("Should mutate the input string", function() {
+            expect(layer.Util.atou('SSDimaEgVW5pY29kZSE=')).toEqual("I ♡ Unicode!");
+        });
+
+        it("Should restore original string value", function() {
+            expect(layer.Util.utoa(layer.Util.atou("SSDimaEgVW5pY29kZSE="))).toEqual("SSDimaEgVW5pY29kZSE=");
+        });
+    });
+
     describe("The includes() method", function() {
       it("Should detect inclusion", function() {
         expect(layer.Util.includes([1,3,5], 3)).toBe(true);
@@ -466,6 +519,10 @@ describe("The Util Library", function() {
     });
 
     describe("The asciiInit() method", function() {
+      it("Should abort if no version", function() {
+          expect(layer.Util.asciiInit()).toEqual("Missing version");
+      });
+
       it("Should return ASCII Layer logo with version 1.0.0", function() {
         expect(layer.Util.asciiInit('1.0.0')).toEqual(
         '\n    /hNMMMMMMMMMMMMMMMMMMMms.' +

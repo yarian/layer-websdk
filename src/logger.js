@@ -4,7 +4,6 @@
  *
  */
 const { DEBUG, INFO, WARN, ERROR, NONE } = require('./const').LOG;
-const { isEmpty } = require('./client-utils');
 
 // Pretty arbitrary test that IE/edge fails and others don't.  Yes I could do a more direct
 // test for IE/edge but its hoped that MS will fix this around the time they cleanup their internal console object.
@@ -20,8 +19,8 @@ class Logger {
       msg = '';
     }
     const timestamp = new Date().toLocaleTimeString();
-    var op;
-    switch(type) {
+    let op;
+    switch (type) {
       case DEBUG:
         op = 'debug';
         break;
@@ -43,12 +42,10 @@ class Logger {
       } else {
         console[op](`Layer ${op.toUpperCase()} [${timestamp}]: ${msg}`, obj);
       }
+    } else if (supportsConsoleFormatting) {
+      console[op](`%cLayer%c ${op.toUpperCase()}%c [${timestamp}]: ${msg}`, LayerCss, `color: ${color}`, Black);
     } else {
-      if (supportsConsoleFormatting) {
-        console[op](`%cLayer%c ${op.toUpperCase()}%c [${timestamp}]: ${msg}`, LayerCss, `color: ${color}`, Black);
-      } else {
-        console[op](`Layer ${op.toUpperCase()} [${timestamp}]: ${msg}`);
-      }
+      console[op](`Layer ${op.toUpperCase()} [${timestamp}]: ${msg}`);
     }
   }
 

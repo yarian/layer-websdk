@@ -1,19 +1,23 @@
+/* eslint-disable global-require */
 module.exports = {
   Root: require('./src/root'),
   Client: require('./src/client'),
   ClientAuthenticator: require('./src/client-authenticator'),
-  Syncable: require('./src/syncable'),
-  Conversation: require('./src/conversation'),
-  Message: require('./src/message'),
-  Announcement: require('./src/announcement'),
-  MessagePart: require('./src/message-part'),
-  Query: require('./src/query'),
-  QueryBuilder: require('./src/query-builder'),
+  Syncable: require('./src/models/syncable'),
+  Conversation: require('./src/models/conversation'),
+  Channel: require('./src/models/channel'),
+  Container: require('./lib/models/container'),
+  Message: require('./src/models/message'),
+  Announcement: require('./src/models/announcement'),
+  MessagePart: require('./src/models/message-part'),
+  Content: require('./src/models/content'),
+  Query: require('./src/queries/query'),
+  QueryBuilder: require('./src/queries/query-builder'),
   xhr: require('./src/xhr'),
-  Identity: require('./src/identity'),
+  Identity: require('./src/models/identity'),
+  Membership: require('./src/models/membership'),
   LayerError: require('./src/layer-error'),
   LayerEvent: require('./src/layer-event'),
-  Content: require('./src/content'),
   SyncManager: require('./src/sync-manager'),
   SyncEvent: require('./src/sync-event').SyncEvent,
   XHRSyncEvent: require('./src/sync-event').XHRSyncEvent,
@@ -31,3 +35,5 @@ module.exports = {
 };
 module.exports.TypingIndicators.TypingListener = require('./src/typing-indicators/typing-listener');
 module.exports.TypingIndicators.TypingPublisher = require('./src/typing-indicators/typing-publisher');
+module.exports.Message.ConversationMessage = require('./src/models/conversation-message');
+module.exports.Message.ChannelMessage = require('./src/models/channel-message');

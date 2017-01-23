@@ -23,6 +23,7 @@
  * @class layer.LayerError
  */
 const Logger = require('./logger');
+
 class LayerError {
   constructor(options) {
     if (options instanceof LayerError) {
@@ -42,7 +43,7 @@ class LayerError {
       };
     }
 
-    Object.keys(options).forEach(name => this[name] = options[name]);
+    Object.keys(options).forEach(name => (this[name] = options[name]));
     if (!this.data) this.data = {};
   }
 
@@ -170,6 +171,7 @@ LayerError.dictionary = {
   invalidPredicate: 'The predicate does not match the expected format',
   appIdImmutable: 'The appId property cannot be changed',
   clientMustBeReady: 'The Client must have triggered its "ready" event before you can call this',
+  modelImmutable: 'The model property cannot be changed',
 };
 
 module.exports = LayerError;

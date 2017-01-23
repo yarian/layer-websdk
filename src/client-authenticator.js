@@ -37,7 +37,7 @@ const LayerError = require('./layer-error');
 const OnlineManager = require('./online-state-manager');
 const SyncManager = require('./sync-manager');
 const DbManager = require('./db-manager');
-const Identity = require('./identity');
+const Identity = require('./models/identity');
 const { XHRSyncEvent, WebsocketSyncEvent } = require('./sync-event');
 const { ACCEPT, LOCALSTORAGE_KEYS } = require('./const');
 const logger = require('./logger');
@@ -144,7 +144,7 @@ class ClientAuthenticator extends Root {
    * @private
    */
   _isPersistedSessionsDisabled() {
-    return !global.localStorage || this.persistenceFeatures && !this.persistenceFeatures.sessionToken;
+    return !global.localStorage || (this.persistenceFeatures && !this.persistenceFeatures.sessionToken);
   }
 
   /**
@@ -216,7 +216,7 @@ class ClientAuthenticator extends Root {
    *
    * Called by constructor().
    *
-   * Will either attempt to validate the cached sessionToken by getting converations,
+   * Will either attempt to validate the cached sessionToken by getting conversations,
    * or if no sessionToken, will call /nonces to start process of getting a new one.
    *
    * ```javascript
@@ -260,7 +260,7 @@ class ClientAuthenticator extends Root {
         url: '/nonces',
         method: 'POST',
         sync: false,
-      }, (result) => this._connectionResponse(result));
+      }, result => this._connectionResponse(result));
     }
     return this;
   }
@@ -414,7 +414,9 @@ class ClientAuthenticator extends Root {
       const userData = Util.decode(identityToken.split('.')[1]);
       const identityObj = JSON.parse(userData);
 
-      if (this.user.userId && this.user.userId !== identityObj.prn) throw new Error(LayerError.dictionary.invalidUserIdChange);
+      if (this.user.userId && this.user.userId !== identityObj.prn) {
+        throw new Error(LayerError.dictionary.invalidUserIdChange);
+      }
 
       this.user._setUserId(identityObj.prn);
 
@@ -429,7 +431,7 @@ class ClientAuthenticator extends Root {
           identity_token: identityToken,
           app_id: this.appId,
         },
-      }, (result) => this._authResponse(result, identityToken));
+      }, result => this._authResponse(result, identityToken));
     }
   }
 
@@ -474,7 +476,7 @@ class ClientAuthenticator extends Root {
         global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId] = JSON.stringify({
           sessionToken: this.sessionToken || '',
           user: DbManager.prototype._getIdentityData([this.user], true)[0],
-          expires: Date.now() + 30 * 60 * 60 * 24 * 1000,
+          expires: Date.now() + (30 * 60 * 60 * 24 * 1000),
         });
       } catch (e) {
         // Do nothing
@@ -541,7 +543,9 @@ class ClientAuthenticator extends Root {
       }
       this.persistenceFeatures = {
         conversations: this.isPersistenceEnabled,
+        channels: this.isPersistenceEnabled,
         messages: this.isPersistenceEnabled,
+        identities: this.isPersistenceEnabled,
         syncQueue: this.isPersistenceEnabled,
         sessionToken,
       };
@@ -640,7 +644,7 @@ class ClientAuthenticator extends Root {
    */
   logout(callback) {
     let callbackCount = 1,
-       counter = 0;
+      counter = 0;
     if (this.isAuthenticated) {
       callbackCount++;
       this.xhr({
@@ -724,7 +728,7 @@ class ClientAuthenticator extends Root {
         ios_version: options.iosVersion,
         apns_bundle_id: options.bundleId,
       },
-    }, (result) => callback(result.data));
+    }, result => callback(result.data));
   }
 
   /**
@@ -750,7 +754,7 @@ class ClientAuthenticator extends Root {
         device_id: options.deviceId,
         gcm_sender_id: options.senderId,
       },
-    }, (result) => callback(result.data));
+    }, result => callback(result.data));
   }
 
   /**
@@ -766,7 +770,7 @@ class ClientAuthenticator extends Root {
     this.xhr({
       url: 'push_tokens/' + deviceId,
       method: 'DELETE',
-    }, (result) => callback(result.data));
+    }, result => callback(result.data));
   }
 
   /* SESSION MANAGEMENT METHODS END */
@@ -933,7 +937,7 @@ class ClientAuthenticator extends Root {
    * @param  {number}   retryCount
    */
   _nonsyncXhr(options, callback, retryCount) {
-    xhr(options, result => {
+    xhr(options, (result) => {
       if ([502, 503, 504].indexOf(result.status) !== -1 && retryCount < MAX_XHR_RETRIES) {
         setTimeout(() => this._nonsyncXhr(options, callback, retryCount + 1), 1000);
       } else {
@@ -990,7 +994,7 @@ class ClientAuthenticator extends Root {
     // Replace all headers in arbitrary case with all lower case
     // for easy matching.
     const headerNameList = Object.keys(headers);
-    headerNameList.forEach(headerName => {
+    headerNameList.forEach((headerName) => {
       if (headerName !== headerName.toLowerCase()) {
         headers[headerName.toLowerCase()] = headers[headerName];
         delete headers[headerName];

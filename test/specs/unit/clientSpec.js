@@ -10,7 +10,7 @@ describe("The Client class", function() {
         url1 = "https://huh.com/conversations/test1",
         url2 = "https://huh.com/conversations/test2",
         url3 = "https://huh.com/conversations/test3";
-    var client, requests, userIdentity, userIdentity2;
+    var client, requests, userIdentity, userIdentity2, membership1, membership2;
 
     beforeEach(function() {
         jasmine.clock().install();
@@ -37,6 +37,7 @@ describe("The Client class", function() {
             displayName: "UserIdentity",
             userId: '1'
         });
+        membership = client._createObject(responses.membership1);
         client.isReady = true;
     });
 
@@ -59,15 +60,11 @@ describe("The Client class", function() {
         });
 
         it("Should initialize all caches", function() {
-            expect(client._messagesHash).toEqual({});
-            expect(client._conversationsHash).toEqual({});
-            expect(client._queriesHash).toEqual({});
+            var client = new layer.Client({
+                appId: "Samunwise",
+                url: "https://huh.com"
+            });
             expect(client._scheduleCheckAndPurgeCacheItems).toEqual([]);
-
-            var identityHash = {};
-            identityHash[client.user.id] = client.user;
-            identityHash[userIdentity2.id] = userIdentity2;
-            expect(client._identitiesHash).toEqual(identityHash);
         });
 
 
@@ -109,6 +106,7 @@ describe("The Client class", function() {
 
     describe("The destroy() method", function() {
         afterEach(function() {
+            if (!client.isDestroyed) client.destroy();
             client = null;
         });
         it("Should call _cleanup", function() {
@@ -131,10 +129,25 @@ describe("The Client class", function() {
         });
     });
 
+    describe("The __adjustAppId() method", function() {
+        it("Should allow appId to be set", function() {
+            client.__appId = "";
+            client.appId = "Doh!";
+            expect(client.appId).toEqual("Doh!");
+        });
+
+        it("Should not allow appId to be reset", function() {
+            expect(function() {
+                client.appId = "Ray!";
+            }).toThrowError(layer.LayerError.dictionary.appIdImmutable);
+            expect(layer.LayerError.dictionary.appIdImmutable.length > 0).toBe(true);
+        });
+    });
+
     describe("Methods that require clientReady", function() {
         beforeEach(function() {
             client.isTrustedDevice = true;
-            delete client._identitiesHash['layer:///identities/Frodo'];
+            delete client._models.identities['layer:///identities/Frodo'];
             client.user = new layer.Identity({
                userId: client.userId,
                displayName: "Frodo2",
@@ -156,77 +169,7 @@ describe("The Client class", function() {
 
         describe("The _cleanup() method", function() {
             afterEach(function() {
-                client._messagesHash = client._conversationsHash = client._queriesHash = client._identitiesHash = {};
-            });
-
-            it("Should destroy all Messages", function() {
-                // Setup
-                var conversation = client.createConversation({ participants: ["a"] });
-                var message = conversation.createMessage("Hi").send();
-                conversation.lastMessage = null;
-                message.conversationId = "c1";
-
-                // Pretest
-                expect(client._messagesHash[message.id]).toBe(message);
-
-                // Run
-                client._cleanup();
-
-                // Posttest
-                expect(message.isDestroyed).toBe(true);
-                expect(client._messagesHash).toBe(null);
-            });
-
-            it("Should destroy all Conversations", function() {
-                // Setup
-                var conversation = client.createConversation({ participants: ["a"] });
-
-                // Pretest
-                expect(client._conversationsHash[conversation.id]).toBe(conversation);
-
-                // Run
-                client._cleanup();
-
-                // Posttest
-                expect(conversation.isDestroyed).toBe(true);
-                expect(client._conversationsHash).toBe(null);
-
-            });
-
-            it("Should destroy all Queries", function() {
-                // Setup
-                client._clientAuthenticated();
-                client._clientReady();
-                var query = client.createQuery({});
-
-                // Pretest
-                expect(client._queriesHash[query.id]).toBe(query);
-
-                // Run
-                client._cleanup();
-
-                // Posttest
-                expect(query.isDestroyed).toBe(true);
-                expect(client._queriesHash).toBe(null);
-            });
-
-            it("Should destroy all Identities", function() {
-                // Setup
-                client._clientAuthenticated();
-                client._clientReady();
-                var serviceIdentity = new layer.Identity({
-                    clientId: client.appId,
-                    id: "layer:///identities/2",
-                    displayName: "ServiceIdentity"
-                });
-                client._identitiesHash[userIdentity.id] = userIdentity;
-
-                // Run
-                client._cleanup();
-
-                // Posttest
-                expect(userIdentity.isDestroyed).toBe(true);
-                expect(client._identitiesHash).toBe(null);
+                client._models.channels = client._models.messages = client._models.conversations = client._models.queries = client._models.identities = {};
             });
 
             it("Should close the websocket", function() {
@@ -238,276 +181,19 @@ describe("The Client class", function() {
             it("Should do nothing if destroyed", function() {
                 client.isDestroyed = true;
                 client._cleanup();
-                expect(client._conversationsHash).toEqual({});
+                expect(client._models.conversations).toEqual({});
                 client.isDestroyed = false;
             });
         });
 
-        describe("The getConversation() method", function() {
-            var conversation;
-            beforeEach(function() {
-                conversation = new layer.Conversation({
-                    client: client,
-                    fromServer: {
-                        id: "layer:///conversations/" + layer.Util.generateUUID(),
-                        participants: ["a"]
-                    }
-                });
-            });
-            it("Should get by id", function() {
-                expect(client.getConversation(conversation.id)).toBe(conversation);
-            });
 
-            it("Should load by id", function() {
-                var c1 = client.getConversation(cid1, true);
-
-                // Posttest
-                expect(c1 instanceof layer.Conversation).toBe(true);
-
-                expect(c1.participants).toEqual([client.user]);
-                expect(c1.id).toEqual(cid1);
-                expect(requests.mostRecent().url).toEqual(url1);
-            });
-
-            it("Should fail without id", function() {
-                expect(function() {
-                    client.getConversation(5);
-                }).toThrowError(layer.LayerError.dictionary.idParamRequired);
-                expect(layer.LayerError.dictionary.idParamRequired.length > 0).toBe(true);
-            });
-        });
-
-        describe("The _addConversation() method", function() {
-
-
-            it("Should register a conversation in _conversationsHash", function() {
-                client._conversationsHash = {};
-                var c = new layer.Conversation({
-                    client: client
-                });
-
-                // Run
-                client._addConversation(c);
-
-                // Posttest
-                expect(client.getConversation(c.id)).toBe(c);
-            });
-
-            it("Should set the clientId property", function() {
-                // Setup
-                var c = new layer.Conversation({
-                    client: client
-                });
-
-                // Pretest
-                expect(c.clientId).toEqual(client.appId);
-
-                // Run
-                client._addConversation(c);
-
-                // Posttest
-                expect(c.clientId).toEqual(client.appId);
-            });
-
-            it("Should fire conversations:add", function() {
-                // Setup
-                spyOn(client, "_triggerAsync");
-
-                // Run
-                var c = new layer.Conversation({
-                    client: client,
-                });
-                client._addConversation(c);
-
-                // Posttest
-                expect(client._triggerAsync)
-                .toHaveBeenCalledWith("conversations:add", {conversations: [c]});
-            });
-
-            it("Should not do anything if the conversation is already added", function() {
-                // Setup
-                var c = new layer.Conversation({
-                    client: client
-                });
-                client._addConversation(c);
-                spyOn(client, "_triggerAsync");
-
-
-                // Run
-                var c2 = new layer.Conversation({
-                    id: c.id,
-                    client: client
-                });
-                client._addConversation(c2);
-
-                // Posttest
-                expect(client.getConversation(c.id)).toBe(c);
-                expect(client._triggerAsync).not.toHaveBeenCalled();
-            });
-
-            it("Should call _scheduleCheckAndPurgeCache", function() {
-                spyOn(client, "_scheduleCheckAndPurgeCache");
-
-                // Run
-                var c = new layer.Conversation({
-                    client: client
-                });
-                client._addConversation(c);
-
-                // Posttest
-                expect(client._scheduleCheckAndPurgeCache).toHaveBeenCalledWith(c);
-            });
-        });
-
-        describe("The _removeConversation() method", function() {
-
-            it("Should deregister a conversation", function() {
-                // Setup
-                var c1 = client.createConversation({ participants: ["a"] });
-
-                // Pretest
-                var hash = {};
-                hash[c1.id] = c1;
-                expect(client._conversationsHash).toEqual(hash);
-
-                // Run
-                client._removeConversation(c1);
-
-                // Posttest
-                delete hash[c1.id];
-                expect(client._conversationsHash).toEqual(hash);
-            });
-
-            it("Should trigger event on removing conversation", function() {
-                // Setup
-                var c1 = new layer.Conversation({
-                    client: client
-                });
-                client._addConversation(c1);
-                spyOn(client, "_triggerAsync");
-
-                // Run
-                client._removeConversation(c1);
-
-                // Posttest
-                expect(client._triggerAsync).toHaveBeenCalledWith(
-                    "conversations:remove", {
-                        conversations: [c1]
-                    }
-                );
-            });
-
-
-            it("Should do nothing if conversation not registered", function() {
-                // Setup
-                var c1 = new layer.Conversation({
-                    client: client
-                });
-                client._conversationsHash = {};
-                spyOn(client, "trigger");
-
-                // Pretest
-                expect(client.getConversation(c1.id)).toEqual(null);
-
-                // Run
-                client._removeConversation(c1);
-
-                // Posttest
-                expect(client.trigger).not.toHaveBeenCalled();
-            });
-
-            it("Should destroy any Messages associated with the Conversation", function() {
-                // Setup
-                var c1 = client.createConversation({ participants: ["a"] });
-                var m1 = c1.createMessage("a").send();
-                var m2 = c1.createMessage("b").send();
-                var m3 = c1.createMessage("c").send();
-                var c2 = client.createConversation({ participants: ["b"] });
-                var m4 = c2.createMessage("a").send();
-
-                // Pretest
-                expect(Object.keys(client._messagesHash))
-                    .toEqual(jasmine.arrayContaining([m1.id, m2.id, m3.id, m4.id]));
-
-                // Run
-                client._removeConversation(c1);
-
-                // Posttest
-                expect(Object.keys(client._messagesHash)).toEqual(jasmine.arrayContaining([m4.id]));
-            });
-        });
-
-        describe("The _updateConversationId() method", function() {
-            it("Should register the conversation under the new id", function() {
-                // Setup
-                var c1 = new layer.Conversation({
-                    client: client
-                });
-                client._addConversation(c1);
-                var c1id = c1.id;
-
-                // Run
-                c1.id = "fred";
-                client._updateConversationId(c1, c1id);
-
-                // Posttest
-                expect(client.getConversation("fred")).toBe(c1);
-            });
-
-            it("Should delete the old id", function() {
-                // Setup
-                var c1 = new layer.Conversation({
-                    client: client
-                });
-                client._addConversation(c1);
-                var c1id = c1.id;
-
-                // Pretest
-                expect(client.getConversation(c1id)).toBe(c1);
-
-                // Run
-                c1.id = "fred";
-                client._updateConversationId(c1, c1id);
-
-                // Posttest
-                expect(client._conversationsHash[c1id]).toBe(undefined);
-            });
-
-            it("Should update all Message conversationIds", function() {
-                // Setup
-                var c1 = new layer.Conversation({
-                    participants: ["a"],
-                    client: client
-                });
-                client._addConversation(c1);
-                var m1 = c1.createMessage("Hey").send();
-                var m2 = c1.createMessage("Ho").send();
-                var c1id = c1.id;
-
-                // Pretest
-                expect(m1.conversationId).toEqual(c1id);
-                expect(m2.conversationId).toEqual(c1id);
-
-                // Run
-                c1.id = "fred";
-                client._updateConversationId(c1, c1id);
-
-                // Posttest
-                expect(m1.conversationId).toEqual("fred");
-                expect(m2.conversationId).toEqual("fred");
-            });
-
-        });
 
         describe("The getMessagePart() method", function() {
             var conversation;
             var message;
             beforeEach(function() {
                 conversation = client.createConversation({ participants: ["a"] });
-                message = new layer.Message({
-                    client: client,
-                    fromServer: responses.message1,
-                });
+                message = client._createObject(responses.message1);
             });
 
             it("Should get by id", function() {
@@ -519,361 +205,6 @@ describe("The Client class", function() {
             });
         });
 
-
-        describe("The getMessage() method", function() {
-            var conversation;
-            var message;
-            beforeEach(function() {
-                conversation = client.createConversation({ participants: ["a"] });
-                message = conversation.createMessage("hello").send();
-            });
-
-            it("Should get by id", function() {
-                expect(client.getMessage(message.id)).toBe(message);
-            });
-
-            it("Should load Message by id", function() {
-                var newId = message.id + "a";
-                var m1 = client.getMessage(newId, true);
-
-                // Posttest
-                expect(m1 instanceof layer.Message).toBe(true);
-                expect(m1.id).toEqual(newId);
-                expect(requests.mostRecent().url).toEqual(client.url + newId.replace(/layer\:\/\//,""));
-            });
-
-            it("Should load Announcement by id", function() {
-                var newId = message.id.replace(/messages/, 'announcements');
-                var m1 = client.getMessage(newId, true);
-
-                // Posttest
-                expect(m1 instanceof layer.Announcement).toBe(true);
-                expect(m1.id).toEqual(newId);
-                expect(requests.mostRecent().url).toEqual(client.url + newId.replace(/layer\:\/\//,""));
-            });
-
-            it("Should fail without id", function() {
-                expect(function() {
-                    client.getMessage(5);
-                }).toThrowError(layer.LayerError.dictionary.idParamRequired);
-                expect(layer.LayerError.dictionary.idParamRequired.length > 0).toBe(true);
-            });
-        });
-
-        describe("The _addMessage() method", function() {
-            var conversation;
-            var message;
-            beforeEach(function() {
-                conversation = client.createConversation({ participants: ["a"] });
-                message = conversation.createMessage("hello").send();
-            });
-
-            it("Should register a Message in _messagesHash", function() {
-                // Setup
-                client._messagesHash = {};
-
-                // Run
-                client._addMessage(message);
-
-                // Posttest
-                expect(client.getMessage(message.id)).toBe(message);
-            });
-
-            it("Should fire messages:add", function() {
-                // Setup
-                spyOn(client, "_triggerAsync");
-                client._messagesHash = {};
-
-                // Run
-                client._addMessage(message);
-
-                // Posttest
-                expect(client._triggerAsync)
-                .toHaveBeenCalledWith("messages:add", {messages: [message]});
-            });
-
-            it("Should not do anything if the Message is already added", function() {
-                // Setup
-                var m = conversation.createMessage("b").send();
-                m.id = message.id;
-                spyOn(client, "_triggerAsync");
-
-                // Run
-                client._addMessage(m);
-
-                // Posttest
-                expect(client.getMessage(m.id)).toBe(message);
-                expect(client._triggerAsync).not.toHaveBeenCalled();
-            });
-
-            it("Should update conversation lastMessage if position is greater than last Position", function() {
-            // Setup
-            conversation.lastMessage = conversation.createMessage("Hey");
-            message.position = 10;
-            client._messagesHash = {};
-
-
-            // Run
-            client._addMessage(message);
-
-            // Posttest
-            expect(conversation.lastMessage).toBe(message);
-        });
-
-        it("Should update conversation lastMessage if no lastMessage", function() {
-            // Setup
-            conversation.lastMessage = null;
-            client._messagesHash = {};
-
-            // Run
-            client._addMessage(message);
-
-            // Posttest
-            expect(conversation.lastMessage).toBe(message);
-        });
-
-        it("Should call _scheduleCheckAndPurgeCache if no Conversation found", function() {
-                spyOn(client, "_scheduleCheckAndPurgeCache");
-                message.conversationId = '';
-                client._messagesHash = {};
-
-                // Run
-                client._addMessage(message);
-
-                // Posttest
-                expect(client._scheduleCheckAndPurgeCache).toHaveBeenCalledWith(message);
-            });
-
-            it("Should not call _scheduleCheckAndPurgeCache if Conversation found and no lastMessage", function() {
-                spyOn(client, "_scheduleCheckAndPurgeCache");
-                client._messagesHash = {};
-                var c = message.getConversation();
-                c.lastMessage = null;
-
-                // Run
-                client._addMessage(message);
-
-                // Posttest
-                expect(client._scheduleCheckAndPurgeCache).not.toHaveBeenCalled();
-            });
-
-            it("Should call _scheduleCheckAndPurgeCache on prior lastMessage", function() {
-                spyOn(client, "_scheduleCheckAndPurgeCache");
-                var lastMessage = conversation.lastMessage;
-                lastMessage.position = 1;
-
-                client._messagesHash = {};
-                client._messagesHash[lastMessage.id] = lastMessage;
-                var m = conversation.createMessage("Hi");
-                m.position = 2;
-
-                // Run
-                client._addMessage(m);
-
-                // Posttest
-                expect(client._scheduleCheckAndPurgeCache).toHaveBeenCalledWith(lastMessage);
-            });
-
-            it("Should not call _scheduleCheckAndPurgeCache if no lastMessage", function() {
-                spyOn(client, "_scheduleCheckAndPurgeCache");
-                conversation.lastMessage = null;
-                client._messagesHash = {};
-
-                // Run
-                client._addMessage(message);
-
-                // Posttest
-                expect(client._scheduleCheckAndPurgeCache).not.toHaveBeenCalled();
-            });
-        });
-
-        describe("The _removeMessage() method", function() {
-            var conversation;
-            var message;
-            beforeEach(function() {
-                conversation = client.createConversation({ participants: ["a"] });
-                message = conversation.createMessage("hello").send();
-            });
-
-            it("Should deregister a Message", function() {
-                // Pretest
-                var hash = {};
-                hash[message.id] = message;
-                expect(client._messagesHash).toEqual(hash);
-
-                // Run
-                client._removeMessage(message);
-
-                // Posttest
-                expect(client._messagesHash).toEqual({});
-            });
-
-            it("Should trigger event on removing Message", function() {
-                // Setup
-                spyOn(client, "_triggerAsync");
-
-                // Run
-                client._removeMessage(message);
-
-                // Posttest
-                expect(client._triggerAsync).toHaveBeenCalledWith(
-                    "messages:remove", {
-                        messages: [message]
-                    }
-                );
-            });
-
-
-            it("Should do nothing if Message not registered", function() {
-                // Setup
-                var m = conversation.createMessage("h").send();
-                delete client._messagesHash[m.id];
-                spyOn(client, "trigger");
-
-                // Pretest
-                expect(client.getMessage(m.id)).toEqual(null);
-
-                // Run
-                client._removeMessage(m);
-
-                // Posttest
-                expect(client.trigger).not.toHaveBeenCalled();
-            });
-        });
-
-        describe("The _addIdentity() method", function() {
-            it("Should not add a UserIdentity that already exists", function() {
-                // Setup
-                client._identitiesHash = {};
-                client._identitiesHash[userIdentity.id] = userIdentity;
-                userIdentity2.id = userIdentity.id;
-                expect(userIdentity).not.toBe(userIdentity2);
-
-                // Run
-                client._addIdentity(userIdentity2);
-
-                // Posttest
-                var endHash = {};
-                endHash[userIdentity.id] = userIdentity;
-                expect(client._identitiesHash).toEqual(endHash);
-            });
-
-            it("Should add a UserIdentity and trigger identities:add", function() {
-                // Setup
-                client._identitiesHash = {};
-                spyOn(client, "_triggerAsync");
-
-                // Run
-                client._addIdentity(userIdentity);
-
-                // Posttest
-                var endHash = {};
-                endHash[userIdentity.id] = userIdentity;
-                expect(client._identitiesHash).toEqual(endHash);
-                expect(client._triggerAsync).toHaveBeenCalledWith('identities:add', {identities: [userIdentity]});
-            });
-
-            it("Should not add an Identity only a display_name", function() {
-                // Setup
-                client._identitiesHash = {};
-                userIdentity  = new layer.Identity({
-                    client: client,
-                    fromServer: {
-                        display_name: "Fred"
-                    }
-                });
-
-                // Run
-                client._addIdentity(userIdentity);
-
-                // Posttest
-                expect(client._identitiesHash).toEqual({});
-            });
-
-        });
-
-        describe("The _removeIdentity() method", function() {
-            var serviceIdentity;
-            beforeEach(function() {
-                serviceIdentity = new layer.Identity({
-                    clientId: client.appId,
-                    id: "layer:///identities/2",
-                    displayName: "ServiceIdentity"
-                });
-                client._identitiesHash = {};
-                client._identitiesHash[userIdentity.id] = userIdentity;
-                client._identitiesHash[serviceIdentity.id] = serviceIdentity;
-            });
-
-            it("Should ignore irrelevant ID prefixes", function() {
-                expect(function() {
-                    client._removeIdentity(new layer.Identity({
-                        id: "layer:///mountains/2",
-                        clientId: client.appId
-                    }));
-                }).not.toThrow();
-            });
-
-            it("Should ignore IDS not cached", function() {
-                client._removeIdentity(new layer.Identity({
-                    id: "layer:///identities/fooled-you",
-                    clientId: client.appId
-                }));
-                client._removeIdentity(new layer.Identity({
-                    id: "layer:///identities/fooled-you",
-                    clientId: client.appId
-                }));
-
-                // Posttest
-                var endTest = {};
-                endTest[userIdentity.id] = userIdentity;
-                endTest[serviceIdentity.id] = serviceIdentity;
-                expect(client._identitiesHash).toEqual(endTest);
-            });
-
-            it("Should remove UserIdentity and trigger identities:remove", function() {
-                spyOn(client, "_triggerAsync");
-                client._removeIdentity(userIdentity);
-                var endTest = {};
-                endTest[serviceIdentity.id] = serviceIdentity;
-                expect(client._identitiesHash).toEqual(endTest);
-                expect(client._triggerAsync).toHaveBeenCalledWith('identities:remove', {identities: [userIdentity]});
-            });
-
-        });
-
-        describe("The getIdentity() method", function() {
-            var serviceIdentity;
-            beforeEach(function() {
-                serviceIdentity = new layer.Identity({
-                    clientId: client.appId,
-                    id: "layer:///identities/2",
-                    displayName: "ServiceIdentity"
-                });
-                client._identitiesHash = {
-                    "layer:///identities/1": userIdentity2,
-                    "layer:///identities/2": serviceIdentity
-                };
-            });
-
-            it("Should get the user by ID", function() {
-                expect(client.getIdentity(userIdentity2.id)).toBe(userIdentity2);
-            });
-
-            it("Should get the user by UserID", function() {
-                expect(client.getIdentity(userIdentity2.userId)).toBe(userIdentity2);
-            });
-
-            it("Should get the ServiceIdentity by ID", function() {
-                expect(client.getIdentity(serviceIdentity.id)).toBe(serviceIdentity);
-            });
-
-            it("Should load the identity if canLoad was used", function() {
-                var identity = client.getIdentity('222', true);
-                expect(requests.mostRecent().url).toEqual(client.url + '/identities/222');
-                expect(identity.syncState).toEqual(layer.Constants.SYNC_STATE.LOADING);
-            });
-        });
 
         describe("The _fixIdentities() method", function() {
             it("Should return identities by userId", function() {
@@ -897,96 +228,40 @@ describe("The Client class", function() {
             });
         });
 
-        describe("The followIdentity() method", function() {
-            it("Should call follow() on an existing Identity", function() {
-                client._identitiesHash[userIdentity.id] = userIdentity;
-                spyOn(userIdentity, "follow");
-
-                // Run
-                var result1 = client.followIdentity(userIdentity.userId);
-                var result2 = client.followIdentity(userIdentity.id);
-
-                // Posttest
-                expect(userIdentity.follow.calls.count()).toEqual(2);
-                expect(result1).toBe(userIdentity);
-                expect(result2).toBe(userIdentity);
-            });
-
-            it("Should call follow() on a new Identity", function() {
-                var tmp = layer.Identity.prototype.follow;
-                spyOn(layer.Identity.prototype, "follow");
-
-                // Run
-                var result1 = client.followIdentity("1");
-
-                // Posttest
-                expect(layer.Identity.prototype.follow.calls.count()).toEqual(1);
-                expect(result1.id).toEqual("layer:///identities/1");
-            });
-        });
-
-        describe("The unfollowIdentity() method", function() {
-            it("Should call unfollow() on an existing Identity", function() {
-                client._identitiesHash[userIdentity.id] = userIdentity;
-                spyOn(userIdentity, "unfollow");
-
-                // Run
-                var result1 = client.unfollowIdentity(userIdentity.userId);
-                var result2 = client.unfollowIdentity(userIdentity.id);
-
-                // Posttest
-                expect(userIdentity.unfollow.calls.count()).toEqual(2);
-                expect(result1).toBe(userIdentity);
-                expect(result2).toBe(userIdentity);
-            });
-
-            it("Should call unfollow() on a new Identity", function() {
-                var tmp = layer.Identity.prototype.unfollow;
-                spyOn(layer.Identity.prototype, "unfollow");
-
-                // Run
-                var result1 = client.unfollowIdentity("1");
-
-                // Posttest
-                expect(layer.Identity.prototype.unfollow.calls.count()).toEqual(1);
-                expect(result1.id).toEqual("layer:///identities/1");
-            });
-
-        });
 
         describe("The _purgeMessagesByPosition() method", function() {
-        var m1, m2, m3, m4, conversation;
+            var m1, m2, m3, m4, conversation;
 
-        beforeEach(function() {
-                conversation = client.createConversation({ participants: ["a"] });
-                var c2 = client.createConversation({ participants: ["b"] });
-                m1 = conversation.createMessage("hello").send();
-                m2 = conversation.createMessage("hello").send();
-                m3 = conversation.createMessage("hello").send();
-                m4 = c2.createMessage("hello").send();
+            beforeEach(function() {
+                    conversation = client.createConversation({ participants: ["a"] });
+                    var c2 = client.createConversation({ participants: ["b"] });
+                    m1 = conversation.createMessage("hello").send();
+                    m2 = conversation.createMessage("hello").send();
+                    m3 = conversation.createMessage("hello").send();
+                    m4 = c2.createMessage("hello").send();
 
-                m1.position = 5;
-                m2.position = 6;
-                m3.position = 7;
-                m4.position = 1;
-                client._purgeMessagesByPosition(conversation.id, 6);
+                    m1.position = 5;
+                    m2.position = 6;
+                    m3.position = 7;
+                    m4.position = 1;
+                    client._purgeMessagesByPosition(conversation.id, 6);
+                });
+
+            it("Should remove messages in the Conversation", function() {
+                expect(m1.isDestroyed).toBe(true);
+                expect(m2.isDestroyed).toBe(true);
             });
 
-        it("Should remove messages in the Conversation", function() {
-            expect(m1.isDestroyed).toBe(true);
-            expect(m2.isDestroyed).toBe(true);
+            it("Should leave messages not in the Conversation", function() {
+                expect(m3.isDestroyed).toBe(false);
+            });
+
+            it("Should leave messages whose position is greater than fromPosition", function() {
+                expect(m4.isDestroyed).toBe(false);
+            });
         });
 
-        it("Should leave messages not in the Conversation", function() {
-            expect(m3.isDestroyed).toBe(false);
-        });
-
-        it("Should leave messages whose position is greater than fromPosition", function() {
-            expect(m4.isDestroyed).toBe(false);
-        });
-        });
-
-        describe("The _getObject() method", function() {
+        describe("The getObject() method", function() {
             var message, announcement, conversation, query, userIdentity, serviceIdentity;
             beforeEach(function() {
                 client._clientReady();
@@ -1025,88 +300,89 @@ describe("The Client class", function() {
                 identHash[responses.useridentity.id] = client.getIdentity(responses.useridentity.id);
                 identHash[userIdentity2.id] = userIdentity2;
                 identHash[serviceIdentity.id] = serviceIdentity;
+                identHash[membership.identity.id] = membership.identity;
 
-                expect(client._conversationsHash).toEqual(cHash);
-                expect(client._messagesHash).toEqual(mHash);
-                expect(client._queriesHash).toEqual(qHash);
-                expect(client._identitiesHash).toEqual(identHash);
+                expect(client._models.conversations).toEqual(cHash);
+                expect(client._models.messages).toEqual(mHash);
+                expect(client._models.queries).toEqual(qHash);
+                expect(client._models.identities).toEqual(identHash);
             });
 
             it("Should get a Conversation", function() {
-                expect(client._getObject(conversation.id)).toBe(conversation);
+                expect(client.getObject(conversation.id)).toBe(conversation);
             });
 
             it("Should not get a Conversation", function() {
-                expect(client._getObject(conversation.id + "a")).toBe(null);
+                expect(client.getObject(conversation.id + "a")).toBe(null);
             });
 
             it("Should get a Message", function() {
-                expect(client._getObject(message.id)).toBe(message);
+                expect(client.getObject(message.id)).toBe(message);
             });
 
             it("Should not get a Message", function() {
-                expect(client._getObject(message.id + "a")).toBe(null);
+                expect(client.getObject(message.id + "a")).toBe(null);
             });
 
             it("Should get an Announcement", function() {
-                expect(client._getObject(announcement.id)).toBe(announcement);
+                expect(client.getObject(announcement.id)).toBe(announcement);
             });
 
             it("Should not get an Announcement", function() {
-                expect(client._getObject(announcement.id + "a")).toBe(null);
+                expect(client.getObject(announcement.id + "a")).toBe(null);
             });
 
             it("Should get a Query", function() {
-                expect(client._getObject(query.id)).toBe(query);
+                expect(client.getObject(query.id)).toBe(query);
             });
 
             it("Should not get a Query", function() {
-                expect(client._getObject(query.id + "a")).toBe(null);
+                expect(client.getObject(query.id + "a")).toBe(null);
             });
 
             it("Should get a UserIdentity", function() {
-                expect(client._getObject(userIdentity.id)).toBe(userIdentity);
+                expect(client.getObject(userIdentity.id)).toBe(userIdentity);
             });
 
             it("Should not get a UserIdentity", function() {
-                expect(client._getObject(userIdentity.id + "a")).toBe(null);
+                expect(client.getObject(userIdentity.id + "a")).toBe(null);
             });
 
             it("Should get a ServiceIdentity", function() {
-                expect(client._getObject(serviceIdentity.id)).toBe(serviceIdentity);
+                expect(client.getObject(serviceIdentity.id)).toBe(serviceIdentity);
             });
 
             it("Should not get a ServiceIdentity", function() {
-                expect(client._getObject(serviceIdentity.id + "a")).toBe(null);
+                expect(client.getObject(serviceIdentity.id + "a")).toBe(null);
             });
 
             it("Should not get a non-layer-object", function() {
-                expect(client._getObject("Hey")).toBe(null);
+                expect(client.getObject("Hey")).toBe(null);
             });
         });
 
         describe("The _createObject() method", function() {
             it("Should call _populateFromServer if found", function() {
-            // Setup
-            var m = client.createConversation({ participants: ["a"]}).createMessage("a").send({ });
-            spyOn(m, "_populateFromServer");
+                // Setup
+                var m = client.createConversation({ participants: ["a"]}).createMessage("a").send({ });
+                spyOn(m, "_populateFromServer");
 
-            // Pretest
-            expect(client.getMessage(m.id)).toBe(m);
+                // Pretest
+                expect(client.getMessage(m.id)).toBe(m);
 
-            // Run
-            var result = client._createObject(m.toObject());
+                // Run
+                var result = client._createObject(m.toObject());
 
-            // Posttest
-            expect(result).toBe(m);
-            expect(m._populateFromServer).toHaveBeenCalledWith(m.toObject());
+                // Posttest
+                expect(result).toBe(m);
+                expect(m._populateFromServer).toHaveBeenCalledWith(m.toObject());
             });
 
             it("Should call Message._createFromServer", function() {
                 // Setup
-                var tmp = layer.Message._createFromServer;
+                var tmp = layer.Message.ConversationMessage._createFromServer;
                 var m = client.createConversation({ participants: ["a"]}).createMessage("a").send();
-                spyOn(layer.Message, "_createFromServer").and.returnValue(m);
+                spyOn(layer.Message.ConversationMessage, "_createFromServer").and.returnValue(m);
                 var messageObj = JSON.parse(JSON.stringify(responses.message1));
 
                 // Run
@@ -1114,10 +390,10 @@ describe("The Client class", function() {
 
                 // Posttest
                 expect(message).toBe(m);
-                expect(layer.Message._createFromServer).toHaveBeenCalledWith(messageObj, client);
+                expect(layer.Message.ConversationMessage._createFromServer).toHaveBeenCalledWith(messageObj, client);
 
                 // Restore
-                layer.Message._createFromServer = tmp;
+                layer.Message.ConversationMessage._createFromServer = tmp;
             });
 
             it("Should call Announcement._createFromServer", function() {
@@ -1127,7 +403,7 @@ describe("The Client class", function() {
                 client: client,
                 fromServer: JSON.parse(JSON.stringify(responses.announcement))
                 });
-                delete client._messagesHash[announcement.id];
+                delete client._models.messages[announcement.id];
                 spyOn(layer.Announcement, "_createFromServer").and.returnValue(announcement);
                 var messageObj = JSON.parse(JSON.stringify(responses.announcement));
 
@@ -1171,7 +447,7 @@ describe("The Client class", function() {
                 });
                 spyOn(layer.Identity, "_createFromServer").and.returnValue(identity);
                 var identityObj = JSON.parse(JSON.stringify(responses.useridentity));
-                delete client._identitiesHash[identity.id];
+                delete client._models.identities[identity.id];
 
                 // Run
                 var identity2 = client._createObject(identityObj);
@@ -1206,6 +482,36 @@ describe("The Client class", function() {
 
                 // Restore
                 layer.Identity._createFromServer = tmp;
+            });
+
+            it("Should call Membership._createFromServer", function() {
+                // Setup
+                var tmp = layer.Membership._createFromServer;
+                var membershipObj = JSON.parse(JSON.stringify(responses.membership1));
+
+                var membership = new layer.Membership({
+                    id: responses.membership1.id,
+                    role: responses.membership1.role,
+                    identity: userIdentity,
+                    clientId: client.appId
+                });
+                client._models.members = {};
+
+                spyOn(layer.Membership, "_createFromServer").and.returnValue(membership);
+
+                // Run
+                var membership2 = client._createObject(membershipObj);
+
+                // Posttest
+                expect(membership2).toBe(membership);
+                expect(layer.Membership._createFromServer).toHaveBeenCalledWith(membershipObj, client);
+
+                // Restore
+                layer.Membership._createFromServer = tmp;
+            });
+
+            it("Should return null if type not recognized", function() {
+                expect(client._createObject({id: "layer:///biteme/frodo"})).toBe(null);
             });
         });
 
@@ -1275,8 +581,8 @@ describe("The Client class", function() {
             it("Should call _foldEvents on all messages:add events", function() {
                 // Setup
                 var c1 = client.createConversation({ participants: ["a"] });
-                var m1 = new layer.Message({clientId: client.appId, parts: "a"});
-                var m2 = new layer.Message({clientId: client.appId, parts: "b"});
+                var m1 = c1.createMessage({parts: "a"});
+                var m2 = c1.createMessage({parts: "b"});
                 client._delayedTriggers = [];
                 client._triggerAsync("messages:a", {value: "a"});
                 client._triggerAsync("messages:b", {value: "b"});
@@ -1303,8 +609,8 @@ describe("The Client class", function() {
             it("Should call _foldEvents on all messages:remove events", function() {
                 // Setup
                 var c1 = client.createConversation({ participants: ["a"] });
-                var m1 = new layer.Message({clientId: client.appId, parts: "a"});
-                var m2 = new layer.Message({clientId: client.appId, parts: "b"});
+                var m1 = c1.createMessage({parts: "a"});
+                var m2 = c1.createMessage({parts: "b"});
                 client._delayedTriggers = [];
                 client._triggerAsync("messages:a", {value: "a"});
                 client._triggerAsync("messages:b", {value: "b"});
@@ -1383,74 +689,6 @@ describe("The Client class", function() {
             });
         });
 
-        describe("The findCachedConversation() method", function() {
-            var c1, c2, c3;
-            beforeEach(function() {
-                c1 = client.createConversation({
-                    participants: ["a"],
-                    metadata: {
-                        b: "c"
-                    }
-                });
-                c2 = client.createConversation({
-                    participants: ["b"],
-                    metadata: {
-                        d: "e"
-                    }
-                });
-                c3 = client.createConversation({
-                    participants: ["c"]
-                });
-
-            });
-
-            it("Should call the callback with each Conversation", function() {
-                // Setup
-                var spy = jasmine.createSpy('spy');
-
-                // Run
-                client.findCachedConversation(spy);
-
-                // Posttest
-                expect(spy).toHaveBeenCalledWith(c1, 0);
-                expect(spy).toHaveBeenCalledWith(c2, 1);
-                expect(spy).toHaveBeenCalledWith(c3, 2);
-            });
-
-            it("Should call the callback with correct context", function() {
-                // Setup
-                var d = new Date();
-
-                // Run
-                client.findCachedConversation(function(conversation) {
-                    expect(this).toBe(d);
-                }, d);
-            });
-
-            it("Should return undefined if no matches", function() {
-                // Run
-                var result = client.findCachedConversation(function(conversation) {
-                    return false;
-                });
-
-                // Posttest
-                expect(result).toBe(null);
-            });
-
-            it("Should return matching Conversation", function() {
-                // Setup
-                var identity = client.getIdentity("b");
-
-                // Run
-                var result = client.findCachedConversation(function(conversation) {
-                    return conversation.participants.indexOf(identity) != -1;
-                });
-
-                // Posttest
-                expect(result).toBe(c2);
-            });
-        });
-
         describe("The _resetSession() method", function() {
             it("Should call _cleanup", function() {
                 // Setup
@@ -1471,7 +709,7 @@ describe("The Client class", function() {
                 client._resetSession();
 
                 // Posttest
-                expect(client._conversationsHash).toEqual({});
+                expect(client._models.conversations).toEqual({});
             });
 
             it("Should reset message data", function() {
@@ -1482,7 +720,7 @@ describe("The Client class", function() {
                 client._resetSession();
 
                 // Posttest
-                expect(client._messagesHash).toEqual({});
+                expect(client._models.messages).toEqual({});
             });
 
             it("Should reset query data", function() {
@@ -1494,7 +732,7 @@ describe("The Client class", function() {
                 client._resetSession();
 
                 // Posttest
-                expect(client._queriesHash).toEqual({});
+                expect(client._models.queries).toEqual({});
             });
 
             it("Should reset identity data", function() {
@@ -1510,133 +748,10 @@ describe("The Client class", function() {
                 client._resetSession();
 
                 // Posttest
-                expect(client._identitiesHash).toEqual({});
+                expect(client._models.identities).toEqual({});
             });
         });
 
-        describe("The createConversation() method", function() {
-            var createMethod;
-            beforeEach(function() {
-                createMethod = layer.Conversation.create;
-                spyOn(layer.Conversation, "create").and.returnValue(5);
-            });
-
-            afterEach(function() {
-                layer.Conversation.create = createMethod;
-            });
-
-            it("Should create a conversation with a full object and strings", function() {
-                // Run
-                var c = client.createConversation({participants: ["a","z"]});
-
-                // Posttest
-                expect(layer.Conversation.create).toHaveBeenCalledWith({
-                    participants: ["a", "z"],
-                    distinct: true,
-                    client: client
-                });
-            });
-
-            it("Should create a conversation with a full object and identities", function() {
-                // Run
-                var c = client.createConversation({participants: [userIdentity, userIdentity2]});
-
-                // Posttest
-                expect(layer.Conversation.create).toHaveBeenCalledWith({
-                    participants: [userIdentity, userIdentity2],
-                    distinct: true,
-                    client: client
-                });
-            });
-
-            it("Should create a conversation with a full object", function() {
-                // Run
-                var c = client.createConversation({
-                participants: ["a","z"],
-                distinct: false
-                });
-
-                // Posttest
-                expect(layer.Conversation.create).toHaveBeenCalledWith({
-                    participants: ["a", "z"],
-                    distinct: false,
-                    client: client
-                });
-            });
-
-            it("Should return the new conversation", function() {
-                // Run
-                var c = client.createConversation({ participants: ["a","z"] });
-
-                // Posttest
-                expect(c).toEqual(5);
-            });
-
-            it("Should throw an error if not authenticated", function() {
-                client.isAuthenticated = false;
-                expect(function() {
-                    client.createConversation({participants: [userIdentity, userIdentity2]});
-                }).toThrowError(layer.LayerError.dictionary.clientMustBeReady);
-                expect(layer.LayerError.dictionary.clientMustBeReady.length > 0).toEqual(true);
-            });
-        });
-
-        describe("The createQuery() method", function() {
-            beforeEach(function() {
-            client._clientReady();
-            });
-            it("Should return a Query from options", function() {
-                var query = client.createQuery({
-                    model: "Conversation"
-                });
-
-                expect(query).toEqual(jasmine.any(layer.Query));
-                expect(query.client).toBe(client);
-                expect(query.model).toEqual("Conversation");
-            });
-
-            it("Should return a Query from QueryBuilder", function() {
-                var query = client.createQuery(layer.QueryBuilder.conversations());
-
-                expect(query).toEqual(jasmine.any(layer.Query));
-                expect(query.client).toBe(client);
-                expect(query.model).toEqual("Conversation");
-            });
-
-            it("Should call _addQuery", function() {
-                spyOn(client, "_addQuery");
-                var query = client.createQuery({
-                    model: "Conversation"
-                });
-                expect(client._addQuery).toHaveBeenCalledWith(query);
-            });
-        });
-
-        describe("The getQuery() method", function() {
-            beforeEach(function() {
-            client._clientReady();
-            });
-            it("Should throw an error if an invalid id is passed in", function() {
-                expect(function() {
-                    client.getQuery(5);
-                }).toThrowError(layer.LayerError.dictionary.idParamRequired);
-                expect(layer.LayerError.dictionary.idParamRequired.length > 0).toEqual(true);
-            });
-
-            it("Should return a Query if it exists", function() {
-                var q = client.createQuery({
-                    model: "Conversation"
-                });
-                expect(client.getQuery(q.id)).toBe(q);
-            });
-
-            it("Should return undefined if it does not exist", function() {
-                var q = client.createQuery({
-                    model: "Conversation"
-                });
-                expect(client.getQuery(q.id + "1")).toBe(null);
-            });
-        });
 
         // TODO: May want to break these up, but they form a fairly simple self contained test
         describe("The _checkAndPurgeCache(), _isCachedObject and _removeObject methods", function() {
@@ -1653,7 +768,7 @@ describe("The Client class", function() {
                 client._checkAndPurgeCache([c1, c2, c3]);
 
                 // Posttest
-                expect(Object.keys(client._conversationsHash)).toEqual([]);
+                expect(Object.keys(client._models.conversations)).toEqual([]);
                 expect(c1.isDestroyed).toBe(true);
                 expect(c2.isDestroyed).toBe(true);
                 expect(c3.isDestroyed).toBe(true);
@@ -1669,7 +784,7 @@ describe("The Client class", function() {
                 client._checkAndPurgeCache([c1, c2, c3]);
 
                 // Posttest
-                expect(Object.keys(client._conversationsHash)).toEqual([c2.id]);
+                expect(Object.keys(client._models.conversations)).toEqual([c2.id]);
                 expect(c1.isDestroyed).toBe(true);
                 expect(c2.isDestroyed).toBe(true);
                 expect(c3.isDestroyed).toBe(true);
@@ -1684,14 +799,14 @@ describe("The Client class", function() {
                 query.data = [c1, c3];
 
                 // Pretest
-                expect(Object.keys(client._conversationsHash))
+                expect(Object.keys(client._models.conversations))
                     .toEqual(jasmine.arrayContaining([c1.id, c2.id, c3.id]));
 
                 // Run
                 client._checkAndPurgeCache([c1, c2, c3]);
 
                 // Posttest
-                expect(Object.keys(client._conversationsHash)).toEqual(jasmine.arrayContaining([c1.id, c3.id]));
+                expect(Object.keys(client._models.conversations)).toEqual(jasmine.arrayContaining([c1.id, c3.id]));
                 expect(c1.isDestroyed).toBe(false);
                 expect(c2.isDestroyed).toBe(true);
                 expect(c3.isDestroyed).toBe(false);
@@ -1707,14 +822,14 @@ describe("The Client class", function() {
                 query.data = [c1, c3];
 
                 // Pretest
-                expect(Object.keys(client._conversationsHash))
+                expect(Object.keys(client._models.conversations))
                     .toEqual(jasmine.arrayContaining([c1.id, c2.id, c3.id]));
 
                 // Run
                 client._checkAndPurgeCache([c1.toObject(), c2.toObject(), c3.toObject()]);
 
                 // Posttest
-                expect(Object.keys(client._conversationsHash)).toEqual(jasmine.arrayContaining([c1.id, c3.id]));
+                expect(Object.keys(client._models.conversations)).toEqual(jasmine.arrayContaining([c1.id, c3.id]));
                 expect(c1.isDestroyed).toBe(false);
                 expect(c2.isDestroyed).toBe(true);
                 expect(c3.isDestroyed).toBe(false);
@@ -1738,13 +853,13 @@ describe("The Client class", function() {
                 query.data = [m1, m3];
 
                 // Pretest
-                expect(Object.keys(client._messagesHash)).toEqual(jasmine.arrayContaining([m1.id, m2.id, m3.id]));
+                expect(Object.keys(client._models.messages)).toEqual(jasmine.arrayContaining([m1.id, m2.id, m3.id]));
 
                 // Run
                 client._checkAndPurgeCache([m1, m2, m3]);
 
                 // Posttest
-                expect(Object.keys(client._messagesHash)).toEqual(jasmine.arrayContaining([m1.id, m3.id]));
+                expect(Object.keys(client._models.messages)).toEqual(jasmine.arrayContaining([m1.id, m3.id]));
                 expect(m1.isDestroyed).toBe(false);
                 expect(m2.isDestroyed).toBe(true);
                 expect(m3.isDestroyed).toBe(false);
@@ -1752,77 +867,84 @@ describe("The Client class", function() {
         });
 
         describe("The _scheduleCheckAndPurgeCache() method", function() {
-        var conversation;
-        beforeEach(function() {
-            conversation = client.createConversation({
-                participants: ["a","z"],
-                distinct: false
+            var conversation;
+            beforeEach(function() {
+                conversation = client.createConversation({
+                    participants: ["a","z"],
+                    distinct: false
+                });
+                conversation.syncState = layer.Constants.SYNC_STATE.SYNCED;
             });
-            conversation.syncState = layer.Constants.SYNC_STATE.SYNCED;
-        });
 
-        afterEach(function() {
-            conversation.destroy();
-        });
+            afterEach(function() {
+                conversation.destroy();
+            });
 
-        it("Should schedule call to _runScheduledCheckAndPurgeCache if unscheduled", function() {
-            client._scheduleCheckAndPurgeCacheAt = 0;
-            spyOn(client, "_runScheduledCheckAndPurgeCache");
+            it("Should schedule call to _runScheduledCheckAndPurgeCache if unscheduled", function() {
+                client._scheduleCheckAndPurgeCacheAt = 0;
+                spyOn(client, "_runScheduledCheckAndPurgeCache");
 
-            // Run
-            client._scheduleCheckAndPurgeCache(conversation);
-            jasmine.clock().tick(layer.Client.CACHE_PURGE_INTERVAL + 1);
+                // Run
+                client._scheduleCheckAndPurgeCache(conversation);
+                jasmine.clock().tick(layer.Client.CACHE_PURGE_INTERVAL + 1);
 
-            // Posttest
-            expect(client._runScheduledCheckAndPurgeCache).toHaveBeenCalledWith();
-        });
+                // Posttest
+                expect(client._runScheduledCheckAndPurgeCache).toHaveBeenCalledWith();
+            });
 
-        it("Should schedule call to _runScheduledCheckAndPurgeCache if late", function() {
-            client._scheduleCheckAndPurgeCacheAt = Date.now() - 10;
-            spyOn(client, "_runScheduledCheckAndPurgeCache");
+            it("Should schedule call to _runScheduledCheckAndPurgeCache if late", function() {
+                client._scheduleCheckAndPurgeCacheAt = Date.now() - 10;
+                spyOn(client, "_runScheduledCheckAndPurgeCache");
 
-            // Run
-            client._scheduleCheckAndPurgeCache(conversation);
-            jasmine.clock().tick(layer.Client.CACHE_PURGE_INTERVAL + 1);
+                // Run
+                client._scheduleCheckAndPurgeCache(conversation);
+                jasmine.clock().tick(layer.Client.CACHE_PURGE_INTERVAL + 1);
 
-            // Posttest
-            expect(client._runScheduledCheckAndPurgeCache).toHaveBeenCalledWith();
-        });
+                // Posttest
+                expect(client._runScheduledCheckAndPurgeCache).toHaveBeenCalledWith();
+            });
 
-        it("Should not schedule call to _runScheduledCheckAndPurgeCache if already scheduled", function() {
-            client._scheduleCheckAndPurgeCacheAt = Date.now() + 10;
-            spyOn(client, "_runScheduledCheckAndPurgeCache");
+            it("Should not schedule call to _runScheduledCheckAndPurgeCache if already scheduled", function() {
+                client._scheduleCheckAndPurgeCacheAt = Date.now() + 10;
+                spyOn(client, "_runScheduledCheckAndPurgeCache");
 
-            // Run
-            client._scheduleCheckAndPurgeCache(conversation);
-            jasmine.clock().tick(layer.Client.CACHE_PURGE_INTERVAL + 1);
+                // Run
+                client._scheduleCheckAndPurgeCache(conversation);
+                jasmine.clock().tick(1);
+                client._scheduleCheckAndPurgeCache(conversation);
+                jasmine.clock().tick(1);
+                client._scheduleCheckAndPurgeCache(conversation);
+                jasmine.clock().tick(layer.Client.CACHE_PURGE_INTERVAL + 1);
 
-            // Posttest
-            expect(client._runScheduledCheckAndPurgeCache).not.toHaveBeenCalled();
-        });
+                // Posttest
+                expect(client._runScheduledCheckAndPurgeCache.calls.count()).toEqual(1);
+            });
 
-        it("Should add object to _scheduleCheckAndPurgeCacheItems if new schedule", function() {
-            client._scheduleCheckAndPurgeCacheAt = 0;
-            client._scheduleCheckAndPurgeCache(conversation);
-            expect(client._scheduleCheckAndPurgeCacheItems).toEqual([conversation]);
-        });
+            it("Should add object to _scheduleCheckAndPurgeCacheItems if new schedule", function() {
+                client._scheduleCheckAndPurgeCacheItems = [];
+                client._scheduleCheckAndPurgeCacheAt = 0;
+                client._scheduleCheckAndPurgeCache(conversation);
+                expect(client._scheduleCheckAndPurgeCacheItems).toEqual([conversation]);
+            });
 
-        it("Should add object to _scheduleCheckAndPurgeCacheItems if no new schedule", function() {
-            client._scheduleCheckAndPurgeCacheAt = Date.now() + 10;
-            client._scheduleCheckAndPurgeCache(conversation);
-            expect(client._scheduleCheckAndPurgeCacheItems).toEqual([conversation]);
-        });
+            it("Should add object to _scheduleCheckAndPurgeCacheItems if no new schedule", function() {
+                client._scheduleCheckAndPurgeCacheItems = [];
+                client._scheduleCheckAndPurgeCacheAt = Date.now() + 10;
+                client._scheduleCheckAndPurgeCache(conversation);
+                expect(client._scheduleCheckAndPurgeCacheItems).toEqual([conversation]);
+            });
 
-        it("Should ignore unsaved objects", function() {
-            conversation.syncState = layer.Constants.SYNC_STATE.SAVING;
-            client._scheduleCheckAndPurgeCacheAt = Date.now() + 10;
-            client._scheduleCheckAndPurgeCache(conversation);
-            expect(client._scheduleCheckAndPurgeCacheItems).toEqual([]);
-        });
+            it("Should ignore unsaved objects", function() {
+                client._scheduleCheckAndPurgeCacheItems = [];
+                conversation.syncState = layer.Constants.SYNC_STATE.SAVING;
+                client._scheduleCheckAndPurgeCacheAt = Date.now() + 10;
+                client._scheduleCheckAndPurgeCache(conversation);
+                expect(client._scheduleCheckAndPurgeCacheItems).toEqual([]);
+            });
         });
 
         describe("The _runScheduledCheckAndPurgeCache() method", function() {
-        var c1, c2, c3;
+            var c1, c2, c3;
             beforeEach(function() {
                 c1 = client.createConversation({ participants: ["a"] });
                 c2 = client.createConversation({ participants: ["b"] });
@@ -1830,53 +952,24 @@ describe("The Client class", function() {
                 client._scheduleCheckAndPurgeCacheItems = [c1, c2, c3];
                 client._scheduleCheckAndPurgeCacheAt = Date.now() + 10;
             });
-        it("Should call _checkAndPurgeCache", function() {
-            spyOn(client, "_checkAndPurgeCache");
-            client._runScheduledCheckAndPurgeCache();
-            expect(client._checkAndPurgeCache).toHaveBeenCalledWith([c1, c2, c3]);
-        });
-
-        it("Should clear the list", function() {
-            client._runScheduledCheckAndPurgeCache();
-            expect(client._scheduleCheckAndPurgeCacheItems).toEqual([]);
-        });
-
-        it("Should clear the scheduled time", function() {
-            client._runScheduledCheckAndPurgeCache();
-            expect(client._scheduleCheckAndPurgeCacheAt).toEqual(0);
-        });
-        });
-
-        describe("The _removeQuery() method", function() {
-            var query, c1, c2, c3;
-            beforeEach(function() {
-                client._clientReady();
-                query = client.createQuery({model: "Conversation"});
-                c1 = client.createConversation({ participants: ["a"] });
-                c2 = client.createConversation({ participants: ["b"] });
-                c3 = client.createConversation({ participants: ["c"] });
-                query.data = [c1, c2, c3];
-            });
-
-            it("Should call _checkAndPurgeCache with Conversations that are registered", function() {
+            it("Should call _checkAndPurgeCache", function() {
                 spyOn(client, "_checkAndPurgeCache");
-                delete client._conversationsHash[c2.id];
-                client._removeQuery(query);
-                expect(client._checkAndPurgeCache).toHaveBeenCalledWith([c1, c3]);
+                client._runScheduledCheckAndPurgeCache();
+                expect(client._checkAndPurgeCache).toHaveBeenCalledWith([c1, c2, c3]);
             });
 
-            it("Should remove the query from cache", function() {
-                expect(client.getQuery(query.id)).toBe(query);
-                client._removeQuery(query);
-                expect(client.getQuery(query.id)).toBe(null);
+            it("Should clear the list", function() {
+                client._runScheduledCheckAndPurgeCache();
+                expect(client._scheduleCheckAndPurgeCacheItems).toEqual([]);
             });
 
-            it("Should do nothing if no query", function() {
-                expect(function() {
-                    client._removeQuery();
-                }).not.toThrow();
+            it("Should clear the scheduled time", function() {
+                client._runScheduledCheckAndPurgeCache();
+                expect(client._scheduleCheckAndPurgeCacheAt).toEqual(0);
             });
         });
+
+
 
         describe("The _connectionRestored() method", function() {
         var q1, q2, conversation;
@@ -1985,6 +1078,41 @@ describe("The Client class", function() {
                     appId: "test1"
                 });
                 expect(layer.Client.getClient("test2")).toBe(null);
+            });
+        });
+
+        describe("The _updateContainerId() method", function() {
+            it("Should call _updateConversationId", function() {
+                var conversation = client._createObject(responses.conversation1);
+                spyOn(client, "_updateConversationId");
+                client._updateContainerId(conversation, "Fah!");
+                expect(client._updateConversationId).toHaveBeenCalledWith(conversation, "Fah!");
+            });
+
+            it("Should call _updateChannelId", function() {
+                var channel = client._createObject(responses.channel1);
+                spyOn(client, "_updateChannelId");
+                client._updateContainerId(channel, "Fah!");
+                expect(client._updateChannelId).toHaveBeenCalledWith(channel, "Fah!");
+            });
+        });
+
+        describe("The _triggerLogger() method", function() {
+            it("Should not throw errors logging a message, messages, conversation or channels", function() {
+                expect(function() {
+                    var evt = new layer.LayerEvent({
+                        messages: [client._createObject(responses.message1)],
+                        message: client._createObject(responses.message1),
+                        conversations: [client._createObject(responses.conversation1)],
+                        conversation: client._createObject(responses.conversation1)
+                    }, 'something:done');
+                    client.trigger('conversations:add', evt);
+
+                    var evt2 = new layer.LayerEvent({
+                    }, 'something:done');
+                    client.off(null, null, client.dbManager);
+                    client.trigger('conversations:add', evt2);
+                }).not.toThrow();
             });
         });
     });

@@ -1,11 +1,11 @@
 /* eslint-disable no-undef */
 var messageTemplate = {
     "id": "layer:///messages/940de862-3c96-11e4-baad-164230d1df67",
-    "url": "https://doh.com/messages/940de862-3c96-11e4-baad-164230d1df67",
+    "url": "https://huh.com/messages/940de862-3c96-11e4-baad-164230d1df67",
     "position": 15032697020,
     "conversation": {
         "id": "layer:///conversations/f3cc7b32-3c92-11e4-baad-164230d1df67",
-        "url": "https://doh.com/conversations/f3cc7b32-3c92-11e4-baad-164230d1df67"
+        "url": "https://huh.com/conversations/f3cc7b32-3c92-11e4-baad-164230d1df67"
     },
     "parts": [
         {
@@ -62,12 +62,12 @@ responses = {
         "type": "missing",
         "code": 401,
         "id": "you-are-frelled",
-        "url": "https://doh.com"
+        "url": "https://huh.com"
     },
 
     conversation1: {
         "id": "layer:///conversations/f3cc7b32-3c92-11e4-baad-164230d1df67",
-        "url": "https://doh.com/conversations/f3cc7b32-3c92-11e4-baad-164230d1df67",
+        "url": "https://huh.com/conversations/f3cc7b32-3c92-11e4-baad-164230d1df67",
         "created_at": "2014-09-15T04:44:47+00:00",
         "last_message": sampleMessage1,
         "participants": [
@@ -83,7 +83,7 @@ responses = {
     },
     conversation2: {
         "id": "layer:///conversations/f3cc7b32-3c92-11e4-baad-164230d1df68",
-        "url": "https://doh.com/conversations/f3cc7b32-3c92-11e4-baad-164230d1df68",
+        "url": "https://huh.com/conversations/f3cc7b32-3c92-11e4-baad-164230d1df68",
         "created_at": "2014-09-15T04:44:47+00:00",
         "last_message": sampleMessage2,
         "participants": [
@@ -98,11 +98,37 @@ responses = {
             "background_color": "#3c3c3c"
         }
     },
+    channel1: {
+        "id": "layer:///channels/f3cc7b32-3c92-11e4-baad-164230d1df68",
+        "url": "https://huh.com/channels/f3cc7b32-3c92-11e4-baad-164230d1df68",
+        "created_at": "2014-09-15T04:44:47+00:00",
+        "name": "just a channel",
+        "metadata": {
+            "favorite": "true",
+            "background_color": "#3c3c3c"
+        },
+        "membership": {
+            "is_member": true
+        }
+    },
+    channel2: {
+        "id": "layer:///channels/f3cc7b32-3c92-11e4-baad-164230d1df33",
+        "url": "https://huh.com/channels/f3cc7b32-3c92-11e4-baad-164230d1df33",
+        "created_at": "2014-09-15T04:44:47+00:00",
+        "name": "another a channel",
+        "metadata": {
+            "favorite": "false",
+            "background_color": "#3c3c3c"
+        },
+        "membership": {
+            "is_member": true
+        }
+    },
     message1: sampleMessage2,
     message2: sampleMessage3,
     announcement: {
        "id": "layer:///announcements/b40de862-3c96-11e4-baad-164230d1df67",
-      "url": "https://doh.com/announcements/b40de862-3c96-11e4-baad-164230d1df67",
+      "url": "https://huh.com/announcements/b40de862-3c96-11e4-baad-164230d1df67",
       "position": 15032697020,
       "parts": [
           {
@@ -131,6 +157,42 @@ responses = {
         first_name: "Frodo",
         last_name: "Dodo",
         metadata: {}
+    },
+    membership1: {
+        "id": "layer:///channels/f3cc7b32-3c92-11e4-baad-164230d1df68/members/FrodoTheDodo",
+        "url": "https://huh.com/channels/f3cc7b32-3c92-11e4-baad-164230d1df68/members/FrodoTheDodo",
+        "channel": {
+            "id": "layer:///channels/f3cc7b32-3c92-11e4-baad-164230d1df68",
+            "url": "https://api.layer.com/channels/f3cc7b32-3c92-11e4-baad-164230d1df68",
+            "name": "Channel Name"
+        },
+        "identity": {
+            "id": "layer:///identities/FrodoTheDodo",
+            "url": "https://api.layer.com/identities/FrodoTheDodo",
+            "display_name": "Frodo is a Dodo",
+            "first_name": "Frodo",
+            "last_name": "Dodo"
+        },
+        "role": "user",
+        "joined_at": "2014-09-15T04:44:47+00:00"
+    },
+    membership2: {
+        "id": "layer:///channels/uuid/members/user_id2",
+        "url": "https://api.layer.com/channels/uuid/members/user_id2",
+        "channel": {
+            "id": "layer:///channels/f3cc7b32-3c92-11e4-baad-164230d1df68",
+            "url": "https://api.layer.com/channels/f3cc7b32-3c92-11e4-baad-164230d1df68",
+            "name": "Channel Name"
+        },
+        "identity": {
+            "id": "layer:///identities/FrodoTheDodo2",
+            "url": "https://api.layer.com/identities/FrodoTheDodo2",
+            "display_name": "Frodo is a Dodo2",
+            "first_name": "Frodo2",
+            "last_name": "Dodo2"
+        },
+        "role": "user",
+        "joined_at": "2014-09-15T04:44:47+00:00"
     }
 };
 

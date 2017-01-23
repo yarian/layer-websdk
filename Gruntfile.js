@@ -112,15 +112,32 @@ module.exports = function (grunt) {
           "lib/xhr.js": "src/xhr.js",
           "lib/client-authenticator.js": "src/client-authenticator.js",
           "lib/client.js": "src/client.js",
-          "lib/syncable.js": "src/syncable.js",
-          "lib/conversation.js": "src/conversation.js",
-          "lib/message-part.js": "src/message-part.js",
-          "lib/message.js": "src/message.js",
-          "lib/announcement.js": "src/announcement.js",
-          "lib/identity.js": "src/identity.js",
-          "lib/content.js": "src/content.js",
-          "lib/query.js": "src/query.js",
-          "lib/query-builder.js": "src/query-builder.js",
+          "lib/mixins/client-identities.js": "src/mixins/client-identities.js",
+          "lib/mixins/client-conversations.js": "src/mixins/client-conversations.js",
+          "lib/mixins/client-channels.js": "src/mixins/client-channels.js",
+          "lib/mixins/client-members.js": "src/mixins/client-members.js",
+          "lib/mixins/client-messages.js": "src/mixins/client-messages.js",
+          "lib/mixins/client-queries.js": "src/mixins/client-queries.js",
+          "lib/models/syncable.js": "src/models/syncable.js",
+          "lib/models/container.js": "src/models/container.js",
+          "lib/models/conversation.js": "src/models/conversation.js",
+          "lib/models/channel.js": "src/models/channel.js",
+          "lib/models/message-part.js": "src/models/message-part.js",
+          "lib/models/message.js": "src/models/message.js",
+          "lib/models/conversation-message.js": "src/models/conversation-message.js",
+          "lib/models/channel-message.js": "src/models/channel-message.js",
+          "lib/models/announcement.js": "src/models/announcement.js",
+          "lib/models/content.js": "src/models/content.js",
+          "lib/models/identity.js": "src/models/identity.js",
+          "lib/models/membership.js": "src/models/membership.js",
+          "lib/queries/query.js": "src/queries/query.js",
+          "lib/queries/identities-query.js": "src/queries/identities-query.js",
+          "lib/queries/conversations-query.js": "src/queries/conversations-query.js",
+          "lib/queries/channels-query.js": "src/queries/channels-query.js",
+          "lib/queries/members-query.js": "src/queries/members-query.js",
+          "lib/queries/messages-query.js": "src/queries/messages-query.js",
+          "lib/queries/announcements-query.js": "src/queries/announcements-query.js",
+          "lib/queries/query-builder.js": "src/queries/query-builder.js",
           "lib/sync-manager.js": "src/sync-manager.js",
           "lib/sync-event.js": "src/sync-event.js",
           "lib/db-manager.js": "src/db-manager.js",
@@ -209,7 +226,7 @@ module.exports = function (grunt) {
     watch: {
       debug: {
         files: ['src/**', "Gruntfile.js"],
-        tasks: ['debug']
+        tasks: ['debug', 'prepublish']
       }
     },
 
@@ -217,7 +234,7 @@ module.exports = function (grunt) {
     jasmine: {
       options: {
         helpers: ['test/lib/mock-ajax.js', 'test/specs/responses.js'],
-        specs: ['test/specs/unit/*Spec.js', 'test/specs/unit/messages/*Spec.js'],
+        specs: ['test/specs/unit/*Spec.js', 'test/specs/unit/**/*Spec.js'],
         summary: true
       },
       debug: {
@@ -264,7 +281,7 @@ module.exports = function (grunt) {
     // Documentation
     jsduck: {
       build: {
-        src: ["lib/**.js", "lib/typing-indicators/**.js", "lib/websockets/**.js"],
+        src: ["lib/**.js", "lib/models/**.js", "lib/queries/**.js", "lib/typing-indicators/**.js", "lib/websockets/**.js", "lib/mixins/**.js"],
         dest: 'docs',
         options: {
           'builtin-classes': false,
@@ -275,6 +292,17 @@ module.exports = function (grunt) {
           'head-html': HTML_HEAD,
           'css': [CSS],
           'footer': 'Layer Web SDK v' + version
+        }
+      }
+    },
+    jsduckfixes: {
+      build: {
+        files: [
+          {
+            src: ['docs/output/*.js']
+          }
+        ],
+        options: {
         }
       }
     },
@@ -307,15 +335,35 @@ module.exports = function (grunt) {
     function replace(fileGroup, version) {
       fileGroup.src.forEach(function(file, index) {
         var contents = grunt.file.read(file);
-        contents = contents.replace(/Client\.version = (.*)$/m, "Client.version = '" + options.version + "';");
-        grunt.file.write(fileGroup.dest, contents);
+        var newContents = contents.replace(/Client\.version = (.*)$/m, "Client.version = '" + options.version + "';");
+        if (newContents != contents) grunt.file.write(fileGroup.dest, contents);
       });
     }
 
     // Iterate over each file set and fire away on that set
     this.files.forEach(function(fileGroup) {
-      console.dir(options);
       replace(fileGroup, options.version);
+    });
+  });
+
+  grunt.registerMultiTask('jsduckfixes', 'Building Web Components', function() {
+    var options = this.options();
+
+    this.files.forEach(function(fileGroup) {
+      fileGroup.src.forEach(function(file, index) {
+          var contents = grunt.file.read(file);
+          var startIndex = contents.indexOf('{');
+          var endIndex = contents.lastIndexOf('}') + 1;
+          var parsedContents = JSON.parse(contents.substring(startIndex, endIndex));
+
+          if (parsedContents.members) parsedContents.members.forEach(function(element) {
+            element.id = element.id.replace(/:/g, '_');
+          });
+          parsedContents.html = parsedContents.html.replace(/id='([^']*):([^']*)'/g, "id='" + "$1" + "_" + "$2'");
+          parsedContents.html = parsedContents.html.replace(/href='([^']*):([^']*)'/g, "href='" + "$1" + "_" + "$2'");
+          contents = contents.substring(0, startIndex) + JSON.stringify(parsedContents) + contents.substring(endIndex);
+          grunt.file.write(file, contents);
+      });
     });
   });
 
@@ -325,14 +373,14 @@ module.exports = function (grunt) {
   grunt.loadNpmTasks('grunt-contrib-watch');
   grunt.loadNpmTasks('grunt-contrib-uglify');
   grunt.loadNpmTasks('grunt-remove');
-  grunt.registerTask('debug', ['browserify:debug', 'version']);
+  grunt.registerTask('debug', ['version', 'babel:dist', 'browserify:debug']);
   grunt.registerTask('buildmin', ['version', 'browserify:build',  'uglify', 'remove:build']);
-  grunt.registerTask('build', ['debug', 'buildmin', 'babel:dist']);
-  grunt.registerTask('prepublish', ['version', 'babel:dist']);
+  grunt.registerTask('build', ['debug', 'buildmin']);
+  grunt.registerTask('prepublish', ['build']);
 
   // Documentation
   grunt.loadNpmTasks('grunt-jsduck');
-  grunt.registerTask('docs', ['version', 'babel:dist',  'jsduck']);
+  grunt.registerTask('docs', ['version', 'babel:dist',  'jsduck', 'jsduckfixes']);
 
   // Testing
   grunt.loadNpmTasks('grunt-contrib-jasmine');

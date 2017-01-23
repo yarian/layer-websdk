@@ -135,21 +135,20 @@ class WebsocketRequestManager {
     if (this.isDestroyed || !this._isOpen()) return;
     let count = 0;
     const now = Date.now();
-    Object.keys(this._requestCallbacks).forEach(requestId => {
+    Object.keys(this._requestCallbacks).forEach((requestId) => {
       const callbackConfig = this._requestCallbacks[requestId];
       // If the request hasn't expired, we'll need to reschedule callback cleanup; else if its expired...
       if (callbackConfig && now < callbackConfig.date + DELAY_UNTIL_TIMEOUT) {
         count++;
+      }
+
+      // If there has been no data from the server, there's probably a problem with the websocket; reconnect.
+      else if (now > this.socketManager._lastDataFromServerTimestamp + DELAY_UNTIL_TIMEOUT) {
+        this.socketManager._reconnect(false);
+        this._scheduleCallbackCleanup();
       } else {
-        // If there has been no data from the server, there's probably a problem with the websocket; reconnect.
-        if (now > this.socketManager._lastDataFromServerTimestamp + DELAY_UNTIL_TIMEOUT) {
-          this.socketManager._reconnect(false);
-          this._scheduleCallbackCleanup();
-          return;
-        } else {
-          // The request isn't responding and the socket is good; fail the request.
-          this._timeoutRequest(requestId);
-        }
+        // The request isn't responding and the socket is good; fail the request.
+        this._timeoutRequest(requestId);
       }
     });
     if (count) this._scheduleCallbackCleanup();

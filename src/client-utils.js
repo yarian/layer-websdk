@@ -39,11 +39,20 @@ exports.generateUUID = uuid.v4;
  * @return {string}
  */
 exports.typeFromID = (id) => {
-  const matches = id.match(/layer:\/\/\/(.*?)\//);
+  const matches = id.match(/([^/]*)(\/[^/]*)$/);
   return matches ? matches[1] : '';
 };
 
-exports.isEmpty = (obj) => Object.prototype.toString.apply(obj) === '[object Object]' && Object.keys(obj).length === 0;
+/**
+ * Returns the UUID portion of a Layer ID
+ *
+ * @method
+ * @param  {string} id
+ * @return {string}
+ */
+exports.uuid = id => (id || '').replace(/^.*\//, '');
+
+exports.isEmpty = obj => Object.prototype.toString.apply(obj) === '[object Object]' && Object.keys(obj).length === 0;
 
 /**
  * Simplified sort method.
@@ -177,6 +186,7 @@ exports.defer = defer;
  * Copied from https://github.com/auth0-blog/angular-token-auth, but
  * appears in many places on the web.
  */
+/* istanbul ignore next */
 exports.decode = (str) => {
   let output = str.replace('-', '+').replace('_', '/');
   switch (output.length % 4) {
@@ -230,7 +240,7 @@ exports.decode = (str) => {
  * @return {number}     Delay in seconds/fractions of a second
  */
 exports.getExponentialBackoffSeconds = function getExponentialBackoffSeconds(maxSeconds, counter) {
-  let secondsWaitTime = Math.pow(2, counter) / 10,
+  let secondsWaitTime = (Math.pow(2, counter)) / 10,
     secondsOffset = Math.random(); // value between 0-1 seconds.
   if (counter < 2) secondsOffset = secondsOffset / 4; // values less than 0.2 should be offset by 0-0.25 seconds
   else if (counter < 6) secondsOffset = secondsOffset / 2; // values between 0.2 and 1.0 should be offset by 0-0.5 seconds
@@ -247,7 +257,7 @@ exports.getExponentialBackoffSeconds = function getExponentialBackoffSeconds(max
  * @param {Mixed} value
  * @returns {Boolean} - True if its a blob, false if not.
  */
-exports.isBlob = (value) => typeof Blob !== 'undefined' && value instanceof Blob;
+exports.isBlob = value => typeof Blob !== 'undefined' && value instanceof Blob;
 
 /**
  * Given a blob return a base64 string.
@@ -309,7 +319,7 @@ exports.base64ToBlob = (b64Data, contentType) => {
  * @param {String} str
  * @return {String}
  */
-exports.utoa = (str) => btoa(unescape(encodeURIComponent(str)));
+exports.utoa = str => btoa(unescape(encodeURIComponent(str)));
 
 /**
  * Does window.atob() in a way that can decode data from utoa()
@@ -320,7 +330,7 @@ exports.utoa = (str) => btoa(unescape(encodeURIComponent(str)));
  * @param {String} str
  * @return {String}
  */
-exports.atou = (str) => decodeURIComponent(escape(atob(str)));
+exports.atou = str => decodeURIComponent(escape(atob(str)));
 
 
 /**
@@ -357,7 +367,7 @@ function createParser(request) {
 
   parser = new LayerParser({
     camelCase: true,
-    getObjectCallback: (id) => request.client._getObject(id),
+    getObjectCallback: id => request.client.getObject(id),
     createObjectCallback: (id, obj) => request.client._createObject(obj),
     propertyNameMap: {
       Conversation: {
@@ -422,7 +432,7 @@ exports.layerParse = (request) => {
  * @return {boolean}
  */
 exports.doesObjectMatch = (requestedData, actualData) => {
-  if (!requestedData && actualData || requestedData && !actualData) return false;
+  if ((!requestedData && actualData) || (requestedData && !actualData)) return false;
   const requestedKeys = Object.keys(requestedData).sort();
   const actualKeys = Object.keys(actualData).sort();
 
@@ -466,8 +476,8 @@ exports.asciiInit = (version) => {
   if (!version) return 'Missing version';
 
   const split = version.split('-');
-  let line1 = split[0] || '';
-  let line2 = split[1] || '';
+  let line1 = split[0] || '',
+    line2 = split[1] || '';
 
   line1 += new Array(13 - line1.length).join(' ');
   line2 += new Array(14 - line2.length).join(' ');
@@ -486,4 +496,4 @@ exports.asciiInit = (version) => {
   NMMMMMMMMmy+:-.'      'yMM/        'yyyyyyyyyyyo  :shhhys:+y/     .MMh       '-oyhhhys:'   sy:
   :dMMMMMMMMMMMMNNNNNNNNNMNs                                        hMd'
    -/+++++++++++++++++++:'                                      sNmdo'`;
- }
+};

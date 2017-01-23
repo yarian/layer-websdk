@@ -74,22 +74,30 @@
  *
  * @class  layer.Client
  * @extends layer.ClientAuthenticator
- *
+ * @mixin layer.mixins.ClientIdentities
+ * //@ mixin layer.mixins.ClientMembership
+ * @mixin layer.mixins.ClientConversations
+ * //@ mixin layer.mixins.ClientChannels
+ * @mixin layer.mixins.ClientMessages
+ * @mixin layer.mixins.ClientQueries
  */
 
 const ClientAuth = require('./client-authenticator');
-const Conversation = require('./conversation');
-const Query = require('./query');
+const Conversation = require('./models/conversation');
+const Channel = require('./models/channel');
 const ErrorDictionary = require('./layer-error').dictionary;
-const Syncable = require('./syncable');
-const Message = require('./message');
-const Announcement = require('./announcement');
-const Identity = require('./identity');
+const ConversationMessage = require('./models/conversation-message');
+const ChannelMessage = require('./models/channel-message');
+const Announcement = require('./models/announcement');
+const Identity = require('./models/identity');
+const Membership = require('./models/membership');
 const TypingIndicatorListener = require('./typing-indicators/typing-indicator-listener');
 const Util = require('./client-utils');
 const Root = require('./root');
 const ClientRegistry = require('./client-registry');
 const logger = require('./logger');
+const TypingListener = require('./typing-indicators/typing-listener');
+const TypingPublisher = require('./typing-indicators/typing-publisher');
 
 class Client extends ClientAuth {
 
@@ -100,12 +108,10 @@ class Client extends ClientAuth {
   constructor(options) {
     super(options);
     ClientRegistry.register(this);
+    this._models = {};
+    this._runMixins('constructor', [options]);
 
     // Initialize Properties
-    this._conversationsHash = {};
-    this._messagesHash = {};
-    this._queriesHash = {};
-    this._identitiesHash = {};
     this._scheduleCheckAndPurgeCacheItems = [];
 
     this._initComponents();
@@ -122,11 +128,6 @@ class Client extends ClientAuth {
     this._typingIndicators = new TypingIndicatorListener({
       clientId: this.appId,
     });
-
-    // Instantiate Plugins
-    Object.keys(Client.plugins).forEach(propertyName => {
-      this[propertyName] = new Client.plugins[propertyName](this);
-    });
   }
 
   /**
@@ -139,47 +140,16 @@ class Client extends ClientAuth {
     if (this.isDestroyed) return;
     this._inCleanup = true;
 
-    Object.keys(this._conversationsHash).forEach(id => {
-      const c = this._conversationsHash[id];
-      if (c && !c.isDestroyed) {
-        c.destroy();
-      }
-    });
-    this._conversationsHash = null;
-
-    Object.keys(this._messagesHash).forEach(id => {
-      const m = this._messagesHash[id];
-      if (m && !m.isDestroyed) {
-        m.destroy();
-      }
-    });
-    this._messagesHash = null;
-
-    Object.keys(this._queriesHash).forEach(id => {
-      this._queriesHash[id].destroy();
-    });
-    this._queriesHash = null;
-
-    Object.keys(this._identitiesHash).forEach((id) => {
-      const identity = this._identitiesHash[id];
-      if (identity && !identity.isDestroyed) {
-        identity.destroy();
-      }
-    });
-    this._identitiesHash = null;
+    try {
+      this._runMixins('cleanup', []);
+    } catch (e) {
+      logger.error(e);
+    }
 
     if (this.socketManager) this.socketManager.close();
   }
 
   destroy() {
-    // Cleanup all plugins
-    Object.keys(Client.plugins).forEach(propertyName => {
-      if (this[propertyName]) {
-        this[propertyName].destroy();
-        delete this[propertyName];
-      }
-    });
-
     // Cleanup all resources (Conversations, Messages, etc...)
     this._cleanup();
 
@@ -193,300 +163,6 @@ class Client extends ClientAuth {
 
   __adjustAppId() {
     if (this.appId) throw new Error(ErrorDictionary.appIdImmutable);
-  }
-
-  /**
-   * Retrieve a conversation by Identifier.
-   *
-   *      var c = client.getConversation('layer:///conversations/uuid');
-   *
-   * If there is not a conversation with that id, it will return null.
-   *
-   * If you want it to load it from cache and then from server if not in cache, use the `canLoad` parameter.
-   * If loading from the server, the method will return
-   * a layer.Conversation instance that has no data; the `conversations:loaded` / `conversations:loaded-error` events
-   * will let you know when the conversation has finished/failed loading from the server.
-   *
-   *      var c = client.getConversation('layer:///conversations/123', true)
-   *      .on('conversations:loaded', function() {
-   *          // Render the Conversation with all of its details loaded
-   *          myrerender(c);
-   *      });
-   *      // Render a placeholder for c until the details of c have loaded
-   *      myrender(c);
-   *
-   * Note in the above example that the `conversations:loaded` event will trigger even if the Conversation has previously loaded.
-   *
-   * @method getConversation
-   * @param  {string} id
-   * @param  {boolean} [canLoad=false] - Pass true to allow loading a conversation from
-   *                                    the server if not found
-   * @return {layer.Conversation}
-   */
-  getConversation(id, canLoad) {
-    if (typeof id !== 'string') throw new Error(ErrorDictionary.idParamRequired);
-    if (this._conversationsHash[id]) {
-      return this._conversationsHash[id];
-    } else if (canLoad) {
-      return Conversation.load(id, this);
-    }
-    return null;
-  }
-
-  /**
-   * Adds a conversation to the client.
-   *
-   * Typically, you do not need to call this; the following code
-   * automatically calls _addConversation for you:
-   *
-   *      var conv = new layer.Conversation({
-   *          client: client,
-   *          participants: ['a', 'b']
-   *      });
-   *
-   *      // OR:
-   *      var conv = client.createConversation(['a', 'b']);
-   *
-   * @method _addConversation
-   * @protected
-   * @param  {layer.Conversation} c
-   */
-  _addConversation(conversation) {
-    const id = conversation.id;
-    if (!this._conversationsHash[id]) {
-      // Register the Conversation
-      this._conversationsHash[id] = conversation;
-
-      // Make sure the client is set so that the next event bubbles up
-      if (conversation.clientId !== this.appId) conversation.clientId = this.appId;
-      this._triggerAsync('conversations:add', { conversations: [conversation] });
-
-      this._scheduleCheckAndPurgeCache(conversation);
-    }
-  }
-
-  /**
-   * Removes a conversation from the client.
-   *
-   * Typically, you do not need to call this; the following code
-   * automatically calls _removeConversation for you:
-   *
-   *      converation.destroy();
-   *
-   * @method _removeConversation
-   * @protected
-   * @param  {layer.Conversation} c
-   */
-  _removeConversation(conversation) {
-    // Insure we do not get any events, such as message:remove
-    conversation.off(null, null, this);
-
-    if (this._conversationsHash[conversation.id]) {
-      delete this._conversationsHash[conversation.id];
-      this._triggerAsync('conversations:remove', { conversations: [conversation] });
-    }
-
-    // Remove any Message associated with this Conversation
-    Object.keys(this._messagesHash).forEach(id => {
-      if (this._messagesHash[id].conversationId === conversation.id) {
-        this._messagesHash[id].destroy();
-      }
-    });
-  }
-
-  /**
-   * If the Conversation ID changes, we need to reregister the Conversation
-   *
-   * @method _updateConversationId
-   * @protected
-   * @param  {layer.Conversation} conversation - Conversation whose ID has changed
-   * @param  {string} oldId - Previous ID
-   */
-  _updateConversationId(conversation, oldId) {
-    if (this._conversationsHash[oldId]) {
-      this._conversationsHash[conversation.id] = conversation;
-      delete this._conversationsHash[oldId];
-
-      // This is a nasty way to work... but need to find and update all
-      // conversationId properties of all Messages or the Query's won't
-      // see these as matching the query.
-      Object.keys(this._messagesHash)
-            .filter(id => this._messagesHash[id].conversationId === oldId)
-            .forEach(id => (this._messagesHash[id].conversationId = conversation.id));
-    }
-  }
-
-
-  /**
-   * Retrieve the message or announcement id.
-   *
-   * Useful for finding a message when you have only the ID.
-   *
-   * If the message is not found, it will return null.
-   *
-   * If you want it to load it from cache and then from server if not in cache, use the `canLoad` parameter.
-   * If loading from the server, the method will return
-   * a layer.Message instance that has no data; the messages:loaded/messages:loaded-error events
-   * will let you know when the message has finished/failed loading from the server.
-   *
-   *      var m = client.getMessage('layer:///messages/123', true)
-   *      .on('messages:loaded', function() {
-   *          // Render the Message with all of its details loaded
-   *          myrerender(m);
-   *      });
-   *      // Render a placeholder for m until the details of m have loaded
-   *      myrender(m);
-   *
-   *
-   * @method getMessage
-   * @param  {string} id              - layer:///messages/uuid
-   * @param  {boolean} [canLoad=false] - Pass true to allow loading a message from the server if not found
-   * @return {layer.Message}
-   */
-  getMessage(id, canLoad) {
-    if (typeof id !== 'string') throw new Error(ErrorDictionary.idParamRequired);
-
-    if (this._messagesHash[id]) {
-      return this._messagesHash[id];
-    } else if (canLoad) {
-      return Syncable.load(id, this);
-    }
-    return null;
-  }
-
-  /**
-   * Get a MessagePart by ID
-   *
-   * ```
-   * var part = client.getMessagePart('layer:///messages/6f08acfa-3268-4ae5-83d9-6ca00000000/parts/0');
-   * ```
-   *
-   * @method getMessagePart
-   * @param {String} id - ID of the Message Part; layer:///messages/uuid/parts/5
-   */
-  getMessagePart(id) {
-    if (typeof id !== 'string') throw new Error(ErrorDictionary.idParamRequired);
-
-    const messageId = id.replace(/\/parts.*$/, '');
-    const message = this.getMessage(messageId);
-    if (message) return message.getPartById(id);
-    return null;
-  }
-
-  /**
-   * Registers a message in _messagesHash and triggers events.
-   *
-   * May also update Conversation.lastMessage.
-   *
-   * @method _addMessage
-   * @protected
-   * @param  {layer.Message} message
-   */
-  _addMessage(message) {
-    if (!this._messagesHash[message.id]) {
-      this._messagesHash[message.id] = message;
-      this._triggerAsync('messages:add', { messages: [message] });
-      if (message._notify) {
-        this._triggerAsync('messages:notify', { message });
-        message._notify = false;
-      }
-
-      const conversation = message.getConversation(false);
-      if (conversation && (!conversation.lastMessage || conversation.lastMessage.position < message.position)) {
-        const lastMessageWas = conversation.lastMessage;
-        conversation.lastMessage = message;
-        if (lastMessageWas) this._scheduleCheckAndPurgeCache(lastMessageWas);
-      } else {
-        this._scheduleCheckAndPurgeCache(message);
-      }
-    }
-  }
-
-  /**
-   * Removes message from _messagesHash.
-   *
-   * Accepts IDs or Message instances
-   *
-   * TODO: Remove support for remove by ID
-   *
-   * @method _removeMessage
-   * @private
-   * @param  {layer.Message|string} message or Message ID
-   */
-  _removeMessage(message) {
-    const id = (typeof message === 'string') ? message : message.id;
-    message = this._messagesHash[id];
-    if (message) {
-      delete this._messagesHash[id];
-      if (!this._inCleanup) {
-        this._triggerAsync('messages:remove', { messages: [message] });
-        const conv = message.getConversation(false);
-        if (conv && conv.lastMessage === message) conv.lastMessage = null;
-      }
-    }
-  }
-
-  /**
-   * Handles delete from position event from Websocket.
-   *
-   * A WebSocket may deliver a `delete` Conversation event with a
-   * from_position field indicating that all Messages at the specified position
-   * and earlier should be deleted.
-   *
-   * @method _purgeMessagesByPosition
-   * @private
-   * @param {string} conversationId
-   * @param {number} fromPosition
-   */
-  _purgeMessagesByPosition(conversationId, fromPosition) {
-    Object.keys(this._messagesHash).forEach(mId => {
-      const message = this._messagesHash[mId];
-      if (message.conversationId === conversationId && message.position <= fromPosition) {
-        message.destroy();
-      }
-    });
-  }
-
-  /**
-   * Retrieve a identity by Identifier.
-   *
-   *      var identity = client.getIdentity('layer:///identities/user_id');
-   *
-   * If there is not an Identity with that id, it will return null.
-   *
-   * If you want it to load it from cache and then from server if not in cache, use the `canLoad` parameter.
-   * This is only supported for User Identities, not Service Identities.
-   *
-   * If loading from the server, the method will return
-   * a layer.Identity instance that has no data; the identities:loaded/identities:loaded-error events
-   * will let you know when the identity has finished/failed loading from the server.
-   *
-   *      var user = client.getIdentity('layer:///identities/123', true)
-   *      .on('identities:loaded', function() {
-   *          // Render the user list with all of its details loaded
-   *          myrerender(user);
-   *      });
-   *      // Render a placeholder for user until the details of user have loaded
-   *      myrender(user);
-   *
-   * @method getIdentity
-   * @param  {string} id - Accepts full Layer ID (layer:///identities/frodo-the-dodo) or just the UserID (frodo-the-dodo).
-   * @param  {boolean} [canLoad=false] - Pass true to allow loading an identity from
-   *                                    the server if not found
-   * @return {layer.Identity}
-   */
-  getIdentity(id, canLoad) {
-    if (typeof id !== 'string') throw new Error(ErrorDictionary.idParamRequired);
-    if (!Identity.isValidId(id)) {
-      id = Identity.prefixUUID + encodeURIComponent(id);
-    }
-
-    if (this._identitiesHash[id]) {
-      return this._identitiesHash[id];
-    } else if (canLoad) {
-      return Identity.load(id, this);
-    }
-    return null;
   }
 
   /**
@@ -510,99 +186,10 @@ class Client extends ClientAuth {
           return this._createObject(identity);
         }
       }
+      return null;
     });
   }
 
-  /**
-   * Adds an identity to the client.
-   *
-   * Typically, you do not need to call this; the Identity constructor will call this.
-   *
-   * @method _addIdentity
-   * @protected
-   * @param  {layer.Identity} identity
-   *
-   * TODO: It should be possible to add an Identity whose userId is populated, but
-   * other values are not yet loaded from the server.  Should add to _identitiesHash now
-   * but trigger `identities:add` only when its got enough data to be renderable.
-   */
-  _addIdentity(identity) {
-    const id = identity.id;
-    if (id && !this._identitiesHash[id]) {
-      // Register the Identity
-      this._identitiesHash[id] = identity;
-      this._triggerAsync('identities:add', { identities: [identity] });
-    }
-  }
-
-  /**
-   * Removes an identity from the client.
-   *
-   * Typically, you do not need to call this; the following code
-   * automatically calls _removeIdentity for you:
-   *
-   *      identity.destroy();
-   *
-   * @method _removeIdentity
-   * @protected
-   * @param  {layer.Identity} identity
-   */
-  _removeIdentity(identity) {
-    // Insure we do not get any events, such as message:remove
-    identity.off(null, null, this);
-
-    const id = identity.id;
-    if (this._identitiesHash[id]) {
-      delete this._identitiesHash[id];
-      this._triggerAsync('identities:remove', { identities: [identity] });
-    }
-  }
-
-  /**
-   * Follow this user and get Full Identity, and websocket changes on Identity.
-   *
-   * @method followIdentity
-   * @param  {string} id - Accepts full Layer ID (layer:///identities/frodo-the-dodo) or just the UserID (frodo-the-dodo).
-   * @returns {layer.Identity}
-   */
-  followIdentity(id) {
-    if (!Identity.isValidId(id)) {
-      id = Identity.prefixUUID + encodeURIComponent(id);
-    }
-    let identity = this.getIdentity(id);
-    if (!identity) {
-      identity = new Identity({
-        id,
-        clientId: this.appId,
-        userId: id.substring(20),
-      });
-    }
-    identity.follow();
-    return identity;
-  }
-
-  /**
-   * Unfollow this user and get only Basic Identity, and no websocket changes on Identity.
-   *
-   * @method unfollowIdentity
-   * @param  {string} id - Accepts full Layer ID (layer:///identities/frodo-the-dodo) or just the UserID (frodo-the-dodo).
-   * @returns {layer.Identity}
-   */
-  unfollowIdentity(id) {
-    if (!Identity.isValidId(id)) {
-      id = Identity.prefixUUID + encodeURIComponent(id);
-    }
-    let identity = this.getIdentity(id);
-    if (!identity) {
-      identity = new Identity({
-        id,
-        clientId: this.appId,
-        userId: id.substring(20),
-      });
-    }
-    identity.unfollow();
-    return identity;
-  }
 
   /**
    * Takes as input an object id, and either calls getConversation() or getMessage() as needed.
@@ -610,25 +197,30 @@ class Client extends ClientAuth {
    * Will only get cached objects, will not get objects from the server.
    *
    * This is not a public method mostly so there's no ambiguity over using getXXX
-   * or _getObject.  getXXX typically has an option to load the resource, which this
+   * or getObject.  getXXX typically has an option to load the resource, which this
    * does not.
    *
-   * @method _getObject
-   * @protected
+   * @method getObject
    * @param  {string} id - Message, Conversation or Query id
+   * @param  {boolean} [canLoad=false] - Pass true to allow loading a object from
+   *                                     the server if not found (not supported for all objects)
    * @return {layer.Message|layer.Conversation|layer.Query}
    */
-  _getObject(id) {
+  getObject(id, canLoad = false) {
     switch (Util.typeFromID(id)) {
       case 'messages':
       case 'announcements':
-        return this.getMessage(id);
+        return this.getMessage(id, canLoad);
       case 'conversations':
-        return this.getConversation(id);
+        return this.getConversation(id, canLoad);
+      case 'channels':
+        return this.getChannel(id, canLoad);
       case 'queries':
         return this.getQuery(id);
       case 'identities':
-        return this.getIdentity(id);
+        return this.getIdentity(id, canLoad);
+      case 'members':
+        return this.getMember(id, canLoad);
     }
     return null;
   }
@@ -643,23 +235,48 @@ class Client extends ClientAuth {
    * @param  {Object} obj - Plain javascript object representing a Message or Conversation
    */
   _createObject(obj) {
-    const item = this._getObject(obj.id);
+    const item = this.getObject(obj.id);
     if (item) {
       item._populateFromServer(obj);
       return item;
     } else {
       switch (Util.typeFromID(obj.id)) {
         case 'messages':
-          return Message._createFromServer(obj, this);
+          if (obj.conversation) {
+            return ConversationMessage._createFromServer(obj, this);
+          } else if (obj.channel) {
+            return ChannelMessage._createFromServer(obj, this);
+          }
+          break;
         case 'announcements':
           return Announcement._createFromServer(obj, this);
         case 'conversations':
           return Conversation._createFromServer(obj, this);
+        case 'channels':
+          return Channel._createFromServer(obj, this);
         case 'identities':
           return Identity._createFromServer(obj, this);
+        case 'members':
+          return Membership._createFromServer(obj, this);
       }
     }
     return null;
+  }
+
+  /**
+   * When a layer.Container's ID changes, we need to update
+   * a variety of things and trigger events.
+   *
+   * @method _updateContainerId
+   * @param {layer.Container} container
+   * @param {String} oldId
+   */
+  _updateContainerId(container, oldId) {
+    if (container instanceof Conversation) {
+      this._updateConversationId(container, oldId);
+    } else {
+      this._updateChannelId(container, oldId);
+    }
   }
 
   /**
@@ -675,19 +292,19 @@ class Client extends ClientAuth {
   _processDelayedTriggers() {
     if (this.isDestroyed) return;
 
-    const addConversations = this._delayedTriggers.filter((evt) => evt[0] === 'conversations:add');
-    const removeConversations = this._delayedTriggers.filter((evt) => evt[0] === 'conversations:remove');
+    const addConversations = this._delayedTriggers.filter(evt => evt[0] === 'conversations:add');
+    const removeConversations = this._delayedTriggers.filter(evt => evt[0] === 'conversations:remove');
     this._foldEvents(addConversations, 'conversations', this);
     this._foldEvents(removeConversations, 'conversations', this);
 
-    const addMessages = this._delayedTriggers.filter((evt) => evt[0] === 'messages:add');
-    const removeMessages = this._delayedTriggers.filter((evt) => evt[0] === 'messages:remove');
+    const addMessages = this._delayedTriggers.filter(evt => evt[0] === 'messages:add');
+    const removeMessages = this._delayedTriggers.filter(evt => evt[0] === 'messages:remove');
 
     this._foldEvents(addMessages, 'messages', this);
     this._foldEvents(removeMessages, 'messages', this);
 
-    const addIdentities = this._delayedTriggers.filter((evt) => evt[0] === 'identities:add');
-    const removeIdentities = this._delayedTriggers.filter((evt) => evt[0] === 'identities:remove');
+    const addIdentities = this._delayedTriggers.filter(evt => evt[0] === 'identities:add');
+    const removeIdentities = this._delayedTriggers.filter(evt => evt[0] === 'identities:remove');
 
     this._foldEvents(addIdentities, 'identities', this);
     this._foldEvents(removeIdentities, 'identities', this);
@@ -721,10 +338,13 @@ class Client extends ClientAuth {
       } else {
         let text = '';
         if (evt) {
+          // If the triggered event has these messages, use a simpler way of rendering info about them
           if (evt.message) text = evt.message.id;
           if (evt.messages) text = evt.messages.length + ' messages';
           if (evt.conversation) text = evt.conversation.id;
           if (evt.conversations) text = evt.conversations.length + ' conversations';
+          if (evt.channel) text = evt.channel.id;
+          if (evt.channels) text = evt.channels.length + ' channels';
         }
         logger.info(`Client Event: ${eventName} ${text}`);
       }
@@ -735,38 +355,6 @@ class Client extends ClientAuth {
   }
 
   /**
-   * Searches locally cached conversations for a matching conversation.
-   *
-   * Iterates over conversations calling a matching function until
-   * the conversation is found or all conversations tested.
-   *
-   *      var c = client.findConversation(function(conversation) {
-   *          if (conversation.participants.indexOf('a') != -1) return true;
-   *      });
-   *
-   * @method findCachedConversation
-   * @param  {Function} f - Function to call until we find a match
-   * @param  {layer.Conversation} f.conversation - A conversation to test
-   * @param  {boolean} f.return - Return true if the conversation is a match
-   * @param  {Object} [context] - Optional context for the *this* object
-   * @return {layer.Conversation}
-   *
-   * @deprecated
-   * This should be replaced by iterating over your layer.Query data.
-   */
-  findCachedConversation(func, context) {
-    const test = context ? func.bind(context) : func;
-    const list = Object.keys(this._conversationsHash);
-    const len = list.length;
-    for (let index = 0; index < len; index++) {
-      const key = list[index];
-      const conversation = this._conversationsHash[key];
-      if (test(conversation, index)) return conversation;
-    }
-    return null;
-  }
-
-  /**
    * If the session has been reset, dump all data.
    *
    * @method _resetSession
@@ -774,165 +362,10 @@ class Client extends ClientAuth {
    */
   _resetSession() {
     this._cleanup();
-    this._conversationsHash = {};
-    this._messagesHash = {};
-    this._queriesHash = {};
-    this._identitiesHash = {};
+    this._runMixins('reset', []);
     return super._resetSession();
   }
 
-
-
-  /**
-   * This method is recommended way to create a Conversation.
-   *
-   * There are a few ways to invoke it; note that the default behavior is to create a Distinct Conversation
-   * unless otherwise stated via the layer.Conversation.distinct property.
-   *
-   *         client.createConversation({participants: ['a', 'b']});
-   *         client.createConversation({participants: [userIdentityA, userIdentityB]});
-   *
-   *         client.createConversation({
-   *             participants: ['a', 'b'],
-   *             distinct: false
-   *         });
-   *
-   *         client.createConversation({
-   *             participants: ['a', 'b'],
-   *             metadata: {
-   *                 title: 'I am a title'
-   *             }
-   *         });
-   *
-   * If you try to create a Distinct Conversation that already exists,
-   * you will get back an existing Conversation, and any requested metadata
-   * will NOT be set; you will get whatever metadata the matching Conversation
-   * already had.
-   *
-   * The default value for distinct is `true`.
-   *
-   * Whether the Conversation already exists or not, a 'conversations:sent' event
-   * will be triggered asynchronously and the Conversation object will be ready
-   * at that time.  Further, the event will provide details on the result:
-   *
-   *       var conversation = client.createConversation({
-   *          participants: ['a', 'b'],
-   *          metadata: {
-   *            title: 'I am a title'
-   *          }
-   *       });
-   *       conversation.on('conversations:sent', function(evt) {
-   *           switch(evt.result) {
-   *               case Conversation.CREATED:
-   *                   alert(conversation.id + ' was created');
-   *                   break;
-   *               case Conversation.FOUND:
-   *                   alert(conversation.id + ' was found');
-   *                   break;
-   *               case Conversation.FOUND_WITHOUT_REQUESTED_METADATA:
-   *                   alert(conversation.id + ' was found but it already has a title so your requested title was not set');
-   *                   break;
-   *            }
-   *       });
-   *
-   * Warning: This method will throw an error if called when you are not (or are no longer) an authenticated user.
-   * That means if authentication has expired, and you have not yet reauthenticated the user, this will throw an error.
-   *
-   *
-   * @method createConversation
-   * @param  {Object} options
-   * @param {string[]/layer.Identity[]} participants - Array of UserIDs or UserIdentities
-   * @param {Boolean} [options.distinct=true] Is this a distinct Converation?
-   * @param {Object} [options.metadata={}] Metadata for your Conversation
-   * @return {layer.Conversation}
-   */
-  createConversation(options) {
-    // If we aren't authenticated, then we don't yet have a UserID, and won't create the correct Conversation
-    if (!this.isAuthenticated) throw new Error(ErrorDictionary.clientMustBeReady);
-    if (!('distinct' in options)) options.distinct = true;
-    options.client = this;
-    return Conversation.create(options);
-  }
-
-  /**
-   * Retrieve the query by query id.
-   *
-   * Useful for finding a Query when you only have the ID
-   *
-   * @method getQuery
-   * @param  {string} id              - layer:///messages/uuid
-   * @return {layer.Query}
-   */
-  getQuery(id) {
-    if (typeof id !== 'string') throw new Error(ErrorDictionary.idParamRequired);
-    return this._queriesHash[id] || null;
-  }
-
-  /**
-   * There are two options to create a new layer.Query instance.
-   *
-   * The direct way:
-   *
-   *     var query = client.createQuery({
-   *         model: layer.Query.Message,
-   *         predicate: 'conversation.id = '' + conv.id + ''',
-   *         paginationWindow: 50
-   *     });
-   *
-   * A Builder approach that allows for a simpler syntax:
-   *
-   *     var qBuilder = QueryBuilder
-   *      .messages()
-   *      .forConversation('layer:///conversations/ffffffff-ffff-ffff-ffff-ffffffffffff')
-   *      .paginationWindow(100);
-   *     var query = client.createQuery(qBuilder);
-   *
-   * @method createQuery
-   * @param  {layer.QueryBuilder|Object} options - Either a layer.QueryBuilder instance, or parameters for the layer.Query constructor
-   * @return {layer.Query}
-   */
-  createQuery(options) {
-    let query;
-    if (typeof options.build === 'function') {
-      query = new Query(this, options);
-    } else {
-      options.client = this;
-      query = new Query(options);
-    }
-    this._addQuery(query);
-    return query;
-  }
-
-  /**
-   * Register the layer.Query.
-   *
-   * @method _addQuery
-   * @private
-   * @param  {layer.Query} query
-   */
-  _addQuery(query) {
-    this._queriesHash[query.id] = query;
-  }
-
-  /**
-   * Deregister the layer.Query.
-   *
-   * @method _removeQuery
-   * @private
-   * @param  {layer.Query} query [description]
-   */
-  _removeQuery(query) {
-    if (query) {
-      delete this._queriesHash[query.id];
-      if (!this._inCleanup) {
-        const data = query.data
-          .map(obj => this._getObject(obj.id))
-          .filter(obj => obj);
-        this._checkAndPurgeCache(data);
-      }
-      this.off(null, null, query);
-    }
-  }
 
   /**
    * Check to see if the specified objects can safely be removed from cache.
@@ -944,9 +377,9 @@ class Client extends ClientAuth {
    * @param  {layer.Root[]} objects - Array of Messages or Conversations
    */
   _checkAndPurgeCache(objects) {
-    objects.forEach(obj => {
+    objects.forEach((obj) => {
       if (!obj.isDestroyed && !this._isCachedObject(obj)) {
-        if (obj instanceof Root === false) obj = this._getObject(obj.id);
+        if (obj instanceof Root === false) obj = this.getObject(obj.id);
         if (obj) obj.destroy();
       }
     });
@@ -998,9 +431,9 @@ class Client extends ClientAuth {
    * @return {Boolean}
    */
   _isCachedObject(obj) {
-    const list = Object.keys(this._queriesHash);
+    const list = Object.keys(this._models.queries);
     for (let i = 0; i < list.length; i++) {
-      const query = this._queriesHash[list[i]];
+      const query = this._models.queries[list[i]];
       if (query._getItem(obj.id)) return true;
     }
     return false;
@@ -1023,23 +456,12 @@ class Client extends ClientAuth {
       logger.debug('Client Connection Restored; Resetting all Queries');
       this.dbManager.deleteTables(() => {
         this.dbManager._open();
-        Object.keys(this._queriesHash).forEach(id => {
-          const query = this._queriesHash[id];
+        Object.keys(this._models.queries).forEach((id) => {
+          const query = this._models.queries[id];
           if (query) query.reset();
         });
       });
     }
-  }
-
-  /**
-   * Remove the specified object from cache
-   *
-   * @method _removeObject
-   * @private
-   * @param  {layer.Root}  obj - A Message or Conversation Instance
-   */
-  _removeObject(obj) {
-    if (obj) obj.destroy();
   }
 
   /**
@@ -1058,7 +480,6 @@ class Client extends ClientAuth {
    * @return {layer.TypingIndicators.TypingListener}
    */
   createTypingListener(inputNode) {
-    const TypingListener = require('./typing-indicators/typing-listener');
     return new TypingListener({
       clientId: this.appId,
       input: inputNode,
@@ -1089,7 +510,6 @@ class Client extends ClientAuth {
    * @return {layer.TypingIndicators.TypingPublisher}
    */
   createTypingPublisher() {
-    const TypingPublisher = require('./typing-indicators/typing-publisher');
     return new TypingPublisher({
       clientId: this.appId,
     });
@@ -1125,72 +545,7 @@ class Client extends ClientAuth {
   static destroyAllClients() {
     ClientRegistry.getAll().forEach(client => client.destroy());
   }
-
-  /*
-   * Registers a plugin which can add capabilities to the Client.
-   *
-   * Capabilities must be triggered by Events/Event Listeners.
-   *
-   * This concept is a bit premature and unused/untested...
-   * As implemented, it provides for a plugin that will be
-   * instantiated by the Client and passed the Client as its parameter.
-   * This allows for a library of plugins that can be shared among
-   * different companies/projects but that are outside of the core
-   * app logic.
-   *
-   *      // Define the plugin
-   *      function MyPlugin(client) {
-   *          this.client = client;
-   *          client.on('messages:add', this.onMessagesAdd, this);
-   *      }
-   *
-   *      MyPlugin.prototype.onMessagesAdd = function(event) {
-   *          var messages = event.messages;
-   *          alert('You now have ' + messages.length  + ' messages');
-   *      }
-   *
-   *      // Register the Plugin
-   *      Client.registerPlugin('myPlugin34', MyPlugin);
-   *
-   *      var client = new Client({appId: 'layer:///apps/staging/uuid'});
-   *
-   *      // Trigger the plugin's behavior
-   *      client.myPlugin34.addMessages({messages:[]});
-   *
-   * @method registerPlugin
-   * @static
-   * @param  {string} name     [description]
-   * @param  {Function} classDef [description]
-   */
-  static registerPlugin(name, classDef) {
-    Client.plugins[name] = classDef;
-  }
-
 }
-
-/**
- * Hash of layer.Conversation objects for quick lookup by id
- *
- * @private
- * @property {Object}
- */
-Client.prototype._conversationsHash = null;
-
-/**
- * Hash of layer.Message objects for quick lookup by id
- *
- * @private
- * @type {Object}
- */
-Client.prototype._messagesHash = null;
-
-/**
- * Hash of layer.Query objects for quick lookup by id
- *
- * @private
- * @type {Object}
- */
-Client.prototype._queriesHash = null;
 
 /**
  * Array of items to be checked to see if they can be uncached.
@@ -1234,388 +589,6 @@ Client._ignoredEvents = [
 ];
 
 Client._supportedEvents = [
-
-  /**
-   * One or more layer.Conversation objects have been added to the client.
-   *
-   * They may have been added via the websocket, or via the user creating
-   * a new Conversation locally.
-   *
-   *      client.on('conversations:add', function(evt) {
-   *          evt.conversations.forEach(function(conversation) {
-   *              myView.addConversation(conversation);
-   *          });
-   *      });
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Conversation[]} evt.conversations - Array of conversations added
-   */
-  'conversations:add',
-
-  /**
-   * One or more layer.Conversation objects have been removed.
-   *
-   * A removed Conversation is not necessarily deleted, its just
-   * no longer being held in local memory.
-   *
-   * Note that typically you will want the conversations:delete event
-   * rather than conversations:remove.
-   *
-   *      client.on('conversations:remove', function(evt) {
-   *          evt.conversations.forEach(function(conversation) {
-   *              myView.removeConversation(conversation);
-   *          });
-   *      });
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Conversation[]} evt.conversations - Array of conversations removed
-   */
-  'conversations:remove',
-
-  /**
-   * The conversation is now on the server.
-   *
-   * Called after creating the conversation
-   * on the server.  The Result property is one of:
-   *
-   * * layer.Conversation.CREATED: A new Conversation has been created
-   * * layer.Conversation.FOUND: A matching Distinct Conversation has been found
-   * * layer.Conversation.FOUND_WITHOUT_REQUESTED_METADATA: A matching Distinct Conversation has been found
-   *                       but note that the metadata is NOT what you requested.
-   *
-   * All of these results will also mean that the updated property values have been
-   * copied into your Conversation object.  That means your metadata property may no
-   * longer be its initial value; it will be the value found on the server.
-   *
-   *      client.on('conversations:sent', function(evt) {
-   *          switch(evt.result) {
-   *              case Conversation.CREATED:
-   *                  alert(evt.target.id + ' Created!');
-   *                  break;
-   *              case Conversation.FOUND:
-   *                  alert(evt.target.id + ' Found!');
-   *                  break;
-   *              case Conversation.FOUND_WITHOUT_REQUESTED_METADATA:
-   *                  alert(evt.target.id + ' Found, but does not have the requested metadata!');
-   *                  break;
-   *          }
-   *      });
-   *
-   * @event
-   * @param {layer.LayerEvent} event
-   * @param {string} event.result
-   * @param {layer.Conversation} target
-   */
-  'conversations:sent',
-
-  /**
-   * A conversation failed to load or create on the server.
-   *
-   *      client.on('conversations:sent-error', function(evt) {
-   *          alert(evt.data.message);
-   *      });
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.LayerError} evt.data
-   * @param {layer.Conversation} target
-   */
-  'conversations:sent-error',
-
-  /**
-   * A conversation had a change in its properties.
-   *
-   * This change may have been delivered from a remote user
-   * or as a result of a local operation.
-   *
-   *      client.on('conversations:change', function(evt) {
-   *          var metadataChanges = evt.getChangesFor('metadata');
-   *          var participantChanges = evt.getChangesFor('participants');
-   *          if (metadataChanges.length) {
-   *              myView.renderTitle(evt.target.metadata.title);
-   *          }
-   *          if (participantChanges.length) {
-   *              myView.renderParticipants(evt.target.participants);
-   *          }
-   *      });
-   *
-   * NOTE: Typically such rendering is done using Events on layer.Query.
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Conversation} evt.target
-   * @param {Object[]} evt.changes
-   * @param {Mixed} evt.changes.newValue
-   * @param {Mixed} evt.changes.oldValue
-   * @param {string} evt.changes.property - Name of the property that has changed
-   */
-  'conversations:change',
-
-  /**
-   * A call to layer.Conversation.load has completed successfully
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Conversation} evt.target
-   */
-  'conversations:loaded',
-
-  /**
-   * A new message has been received for which a notification may be suitable.
-   *
-   * This event is triggered for messages that are:
-   *
-   * 1. Added via websocket rather than other IO
-   * 2. Not yet been marked as read
-   * 3. Not sent by this user
-   *
-          client.on('messages:notify', function(evt) {
-              myNotify(evt.message);
-          })
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Message} evt.Message
-   */
-  'messages:notify',
-
-  /**
-   * Messages have been added to a conversation.
-   *
-   * May also fire when new Announcements are received.
-   *
-   * This event is triggered on
-   *
-   * * creating/sending a new message
-   * * Receiving a new layer.Message or layer.Announcement via websocket
-   * * Querying/downloading a set of Messages
-   *
-          client.on('messages:add', function(evt) {
-              evt.messages.forEach(function(message) {
-                  myView.addMessage(message);
-              });
-          });
-   *
-   * NOTE: Such rendering would typically be done using events on layer.Query.
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Message[]} evt.messages
-   */
-  'messages:add',
-
-  /**
-   * A message has been removed from a conversation.
-   *
-   * A removed Message is not necessarily deleted,
-   * just no longer being held in memory.
-   *
-   * Note that typically you will want the messages:delete event
-   * rather than messages:remove.
-   *
-   *      client.on('messages:remove', function(evt) {
-   *          evt.messages.forEach(function(message) {
-   *              myView.removeMessage(message);
-   *          });
-   *      });
-   *
-   * NOTE: Such rendering would typically be done using events on layer.Query.
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Message} evt.message
-   */
-  'messages:remove',
-
-  /**
-   * A message has been sent.
-   *
-   *      client.on('messages:sent', function(evt) {
-   *          alert(evt.target.getText() + ' has been sent');
-   *      });
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Message} evt.target
-   */
-  'messages:sent',
-
-  /**
-   * A message is about to be sent.
-   *
-   * Useful if you want to
-   * add parts to the message before it goes out.
-   *
-   *      client.on('messages:sending', function(evt) {
-   *          evt.target.addPart({
-   *              mimeType: 'text/plain',
-   *              body: 'this is just a test'
-   *          });
-   *      });
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Message} evt.target
-   */
-  'messages:sending',
-
-  /**
-   * Server failed to receive a Message.
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.LayerError} evt.error
-   */
-  'messages:sent-error',
-
-  /**
-   * A message has had a change in its properties.
-   *
-   * This change may have been delivered from a remote user
-   * or as a result of a local operation.
-   *
-   *      client.on('messages:change', function(evt) {
-   *          var recpientStatusChanges = evt.getChangesFor('recipientStatus');
-   *          if (recpientStatusChanges.length) {
-   *              myView.renderStatus(evt.target);
-   *          }
-   *      });
-   *
-   * NOTE: Such rendering would typically be done using events on layer.Query.
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Message} evt.target
-   * @param {Object[]} evt.changes
-   * @param {Mixed} evt.changes.newValue
-   * @param {Mixed} evt.changes.oldValue
-   * @param {string} evt.changes.property - Name of the property that has changed
-   */
-  'messages:change',
-
-
-  /**
-   * A call to layer.Message.load has completed successfully
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Message} evt.target
-   */
-  'messages:loaded',
-
-  /**
-   * A Conversation has been deleted from the server.
-   *
-   * Caused by either a successful call to layer.Conversation.delete() on the Conversation
-   * or by a remote user.
-   *
-   *      client.on('conversations:delete', function(evt) {
-   *          myView.removeConversation(evt.target);
-   *      });
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Conversation} evt.target
-   */
-  'conversations:delete',
-
-  /**
-   * A Message has been deleted from the server.
-   *
-   * Caused by either a successful call to layer.Message.delete() on the Message
-   * or by a remote user.
-   *
-   *      client.on('messages:delete', function(evt) {
-   *          myView.removeMessage(evt.target);
-   *      });
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Message} evt.target
-   */
-  'messages:delete',
-
-  /**
-   * A call to layer.Identity.load has completed successfully
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Message} evt.target
-   */
-  'identities:loaded',
-
-  /**
-   * An Identity has had a change in its properties.
-   *
-   * Changes occur when new data arrives from the server.
-   *
-   *      client.on('identities:change', function(evt) {
-   *          var displayNameChanges = evt.getChangesFor('displayName');
-   *          if (displayNameChanges.length) {
-   *              myView.renderStatus(evt.target);
-   *          }
-   *      });
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Message} evt.target
-   * @param {Object[]} evt.changes
-   * @param {Mixed} evt.changes.newValue
-   * @param {Mixed} evt.changes.oldValue
-   * @param {string} evt.changes.property - Name of the property that has changed
-   */
-  'identities:change',
-
-  /**
-   * Identities have been added to the Client.
-   *
-   * This event is triggered whenever a new layer.Identity (Full identity or not)
-   * has been received by the Client.
-   *
-          client.on('identities:add', function(evt) {
-              evt.identities.forEach(function(identity) {
-                  myView.addIdentity(identity);
-              });
-          });
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Identity[]} evt.identities
-   */
-  'identities:add',
-
-  /**
-   * Identities have been removed from the Client.
-   *
-   * This does not typically occur.
-   *
-          client.on('identities:remove', function(evt) {
-              evt.identities.forEach(function(identity) {
-                  myView.addIdentity(identity);
-              });
-          });
-   *
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Identity[]} evt.identities
-   */
-  'identities:remove',
-
-  /**
-   * An Identity has been unfollowed or deleted.
-   *
-   * We do not delete such Identities entirely from the Client as
-   * there are still Messages from these Identities to be rendered,
-   * but we do downgrade them from Full Identity to Basic Identity.
-   * @event
-   * @param {layer.LayerEvent} evt
-   * @param {layer.Identity} evt.target
-   */
-  'identities:unfollow',
-
-
   /**
    * A Typing Indicator state has changed.
    *
@@ -1641,8 +614,14 @@ Client._supportedEvents = [
 
 ].concat(ClientAuth._supportedEvents);
 
-Client.plugins = {};
-
+Client.mixins = [
+  require('./mixins/client-queries'),
+  require('./mixins/client-identities'),
+  require('./mixins/client-members'),
+  require('./mixins/client-conversations'),
+  require('./mixins/client-channels'),
+  require('./mixins/client-messages'),
+];
 Root.initClass.apply(Client, [Client, 'Client']);
 module.exports = Client;
 

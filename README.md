@@ -23,7 +23,7 @@ All examples below assume your using the CDN installation method; adapting instr
 Simplest approach to install the Web SDK is to add the following script tag:
 
 ```html
-<script src='//cdn.layer.com/sdk/3.0/layer-websdk.min.js'></script>
+<script src='//cdn.layer.com/sdk/3.1.0/layer-websdk.min.js'></script>
 ```
 
 * For stricter code control, use `//cdn.layer.com/sdk/3.0.n/layer-websdk.min.js` instead. (where `n` is the patch number for the desired release)

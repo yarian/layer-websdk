@@ -138,7 +138,7 @@ class TypingListener {
     if (this.lastKeyId) window.clearTimeout(this.lastKeyId);
     this.lastKeyId = window.setTimeout(() => {
       this.lastKeyId = 0;
-      const isEmpty = !Boolean(this.input.value);
+      const isEmpty = !this.input.value;
       this.send(isEmpty ? FINISHED : STARTED);
     }, 50);
   }

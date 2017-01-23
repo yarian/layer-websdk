@@ -57,7 +57,7 @@ function parseLinkHeaders(linkHeader) {
   const links = {};
 
   // Parse each part into a named link
-  parts.forEach(part => {
+  parts.forEach((part) => {
     const section = part.split(';');
     if (section.length !== 2) return;
     const url = section[0].replace(/<(.*)>/, '$1').trim();
@@ -163,7 +163,7 @@ module.exports = (request, callback) => {
   // for easy matching.
   const headersList = Object.keys(request.headers || {});
   const headers = {};
-  headersList.forEach(header => {
+  headersList.forEach((header) => {
     if (header.toLowerCase() === 'content-type') {
       headers['content-type'] = request.headers[header];
     } else {
@@ -182,7 +182,7 @@ module.exports = (request, callback) => {
     ) {
       data = typeof request.data === 'string' ? request.data : JSON.stringify(request.data);
     } else if (request.data && typeof request.data === 'object') {
-      Object.keys(request.data).forEach(name => {
+      Object.keys(request.data).forEach((name) => {
         if (data) data += '&';
         data += name + '=' + request.data[name];
       });
@@ -220,7 +220,5 @@ const listeners = [];
 module.exports.addConnectionListener = func => listeners.push(func);
 
 module.exports.trigger = (evt) => {
-  listeners.forEach(func => {
-    func(evt);
-  });
+  listeners.forEach(func => func(evt));
 };

@@ -120,12 +120,12 @@ class SocketManager extends Root {
 
     this._lastCounter = -1;
 
+    // Get the URL and connect to it
+    const url = `${this.client.websocketUrl}/?session_token=${this.client.sessionToken}`;
+
     // Load up our websocket component or shim
     /* istanbul ignore next */
     const WS = typeof WebSocket === 'undefined' ? require('websocket').w3cwebsocket : WebSocket;
-
-    // Get the URL and connect to it
-    const url = `${this.client.websocketUrl}/?session_token=${this.client.sessionToken}`;
 
     this._socket = new WS(url, WEBSOCKET_PROTOCOL);
 
@@ -278,8 +278,6 @@ class SocketManager extends Root {
     }
   }
 
-
-
   /**
    * Shortcut to sending a Counter.read request
    *
@@ -352,7 +350,6 @@ class SocketManager extends Root {
 
 
     if (success) {
-
       // If replay was completed, and no other requests for replay, then trigger synced;
       // we're done.
       if (!this._needsReplayFrom) {
@@ -572,7 +569,7 @@ class SocketManager extends Root {
     } else {
       this._lastValidateSessionRequest = Date.now();
       this.client.xhr({
-        url: '/?client=websdk' + this.client.constructor.version,
+        url: '/?action=validateConnectionForWebsocket&client=' + this.client.constructor.version,
         method: 'GET',
         sync: false,
       }, (result) => {

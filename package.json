@@ -1,6 +1,6 @@
 {
   "name": "layer-websdk",
-  "version": "3.0.3",
+  "version": "3.1.0",
   "description": "Layer Web SDK - JavaScript library for adding chat services to your web application.",
   "keywords": "layer,sdk,websdk,developers,communications,messaging,chat",
   "homepage": "https://developer.layer.com/docs/websdk",
@@ -35,6 +35,14 @@
   "devDependencies": {
     "babel-preset-es2015": "^6.3.13",
     "babelify": "^7.2.0",
+    "eslint": "^3.10.2",
+    "eslint-config-airbnb": "^13.0.0",
+    "eslint-config-airbnb-base": "^10.0.1",
+    "eslint-import-resolver-node": "^0.2.3",
+    "eslint-module-utils": "^2.0.0",
+    "eslint-plugin-import": "^2.2.0",
+    "eslint-plugin-jsx-a11y": "^2.2.3",
+    "eslint-plugin-react": "^6.7.1",
     "grunt": "^0.4.5",
     "grunt-babel": "^6.0.0",
     "grunt-browserify": "^4.0.1",

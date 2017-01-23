@@ -576,18 +576,15 @@ describe("Websocket tests", function() {
 
         it("Should delete a message", function() {
             // Setup
-            var m = new layer.Message({
-                fromServer: {
-                    sender: {user_id: "a"},
-                    id: messId1,
-                    position: 10,
-                    parts: [{mime_type: "text/plain", body: "hello"}],
-                    conversation: {
-                        id: c1.id,
-                        url: c1.url
-                    }
-                },
-                client: client
+            var m = client._createObject({
+                sender: {user_id: "a"},
+                id: messId1,
+                position: 10,
+                parts: [{mime_type: "text/plain", body: "hello"}],
+                conversation: {
+                    id: c1.id,
+                    url: c1.url
+                }
             });
 
             // Pretest
@@ -877,20 +874,16 @@ describe("Websocket tests", function() {
                 client: client
             });
 
-            var m = new layer.Message({
-                fromServer: {
-                    conversation: {
-                        id: c.id,
-                        url: c.url
-                    },
-                    sender: {user_id: "a", id: "layer:///identities/a"},
-                    parts: [{body: "hello", mime_type: "text/plain"}],
-                    id: m1.id,
-                    sent_at: new Date().toISOString()
+            var m = client._createObject({
+                conversation: {
+                    id: c.id,
+                    url: c.url
                 },
-                client: client
+                sender: {user_id: "a", id: "layer:///identities/a"},
+                parts: [{body: "hello", mime_type: "text/plain"}],
+                id: m1.id,
+                sent_at: new Date().toISOString()
             });
-
 
             c.__lastMessage = m;
 

@@ -839,7 +839,7 @@ describe("The SyncManager Class", function() {
         });
 
         it("Should call _xhrValidateIsOnline if validateOnlineAndRetry", function() {
-            spyOn(syncManager, "_xhrValidateIsOnline");
+            spyOn(syncManager, "_xhrHandleServerUnavailableError");
             spyOn(syncManager, "_getErrorState").and.returnValue("validateOnlineAndRetry");
             var result = {request: request};
 
@@ -847,7 +847,7 @@ describe("The SyncManager Class", function() {
             syncManager._xhrError(result);
 
             // Posttest
-            expect(syncManager._xhrValidateIsOnline).toHaveBeenCalledWith(request);
+            expect(syncManager._xhrHandleServerUnavailableError).toHaveBeenCalledWith(request);
         });
 
         it("Should call _xhrHandleServerUnavailableError if serverUnavailable", function() {

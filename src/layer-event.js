@@ -60,7 +60,7 @@ class LayerEvent {
 
     // Copy the args into either this Event object... or into the change object.
     // Wouldn't be needed if this inherited from Root.
-    Object.keys(args).forEach(name => {
+    Object.keys(args).forEach((name) => {
       // Even if we are copying properties into the change object, target remains
       // a property of LayerEvent.
       if (ptr !== this && name === 'target') {
