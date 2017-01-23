@@ -336,7 +336,7 @@ module.exports = function (grunt) {
       fileGroup.src.forEach(function(file, index) {
         var contents = grunt.file.read(file);
         var newContents = contents.replace(/Client\.version = (.*)$/m, "Client.version = '" + options.version + "';");
-        if (newContents != contents) grunt.file.write(fileGroup.dest, contents);
+        if (newContents != contents) grunt.file.write(fileGroup.dest, newContents);
       });
     }
 
