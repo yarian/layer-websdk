@@ -364,7 +364,7 @@ describe("The Conversation Class", function() {
         });
 
 
-        it("Should update the lastMessage position property to higher position the more time has passed", function(done) {
+        it("Should update the lastMessage position property incrementally", function() {
           jasmine.clock().uninstall();
 
           mOld = conversation.createMessage({
@@ -381,18 +381,11 @@ describe("The Conversation Class", function() {
           });
 
           // Run
-          conversation.send(m);
-          var position1 = m.position;
+          m.presend();
+          expect(m.position).toEqual(6);
 
-          // Reset
-          conversation.lastMessage = mOld;
-
-          // Retest on m2
-          setTimeout(function() {
-            conversation.send(m2);
-            expect(m2.position > position1).toBe(true, (m2.position + " | " + position1));
-            done();
-          }, 100);
+          m2.presend();
+          expect(m2.position).toEqual(7);
         });
 
         it("Should set the lastMessage position property to 0 if no prior message", function() {
@@ -418,29 +411,6 @@ describe("The Conversation Class", function() {
             conversation.send();
 
             expect(conversation._setSyncing).not.toHaveBeenCalled();
-        });
-
-        it("Should fail with 1 participant if it is the current user", function() {
-            // Setup
-            conversation.participants = [client.user];
-            conversation.syncState = layer.Constants.SYNC_STATE.NEW;
-
-            // Run
-            expect(function() {
-                conversation.send();
-            }).toThrowError(layer.LayerError.dictionary.moreParticipantsRequired);
-            expect(layer.LayerError.dictionary.moreParticipantsRequired).toEqual(jasmine.any(String));
-        });
-
-        it("Should fail with 0 participants", function() {
-            conversation.participants = [];
-            conversation.syncState = layer.Constants.SYNC_STATE.NEW;
-
-            // Run
-            expect(function() {
-                conversation.send();
-            }).toThrowError(layer.LayerError.dictionary.moreParticipantsRequired);
-
         });
 
         it("Should succeed with 1 participant if it is NOT the current user", function() {
@@ -671,6 +641,7 @@ describe("The Conversation Class", function() {
             client._models.conversations = {};
             var conv1 = JSON.parse(JSON.stringify(responses.conversation1));
             conv1.last_message = null;
+            conversation.lastMessage = null
 
             // Run
             conversation._createSuccess(conv1);
@@ -775,6 +746,22 @@ describe("The Conversation Class", function() {
             expect(client._models.messages[conversation.lastMessage.id]).toEqual(jasmine.any(layer.Message));
             expect(conversation.lastMessage).toEqual(jasmine.any(layer.Message));
             expect(conversation.lastMessage.parts[0].body).toEqual(c.last_message.parts[0].body);
+        });
+
+        it("Should keep lastMessage even if the server doesnt yet recognize it", function() {
+            // Setup
+            client._messagesHash = {};
+            var message = new layer.Message({
+                client: client
+            });
+            conversation.lastMessage = message;
+            c.last_message = null;
+
+            // Run
+            conversation._populateFromServer(c);
+
+            // Posttest
+            expect(conversation.lastMessage).toBe(message);
         });
 
         it("Should setup lastMessage from string", function() {
@@ -1040,7 +1027,10 @@ describe("The Conversation Class", function() {
         it("Should reload the Conversation on error", function() {
           spyOn(conversation, "_load");
           spyOn(conversation, "_xhr").and.callFake(function(args, callback) {
-            callback({success: false});
+            callback({
+                success: false,
+                data: {id: "frodo"}
+            });
           });
 
           // Run
@@ -1506,7 +1496,10 @@ describe("The Conversation Class", function() {
         it("Should reload the Conversation on error", function() {
           spyOn(conversation, "_load");
           spyOn(conversation, "_xhr").and.callFake(function(args, callback) {
-            callback({success: false});
+            callback({
+                success: false,
+                data: {id: "frodo"}
+            });
           });
 
           // Run
@@ -1628,7 +1621,10 @@ describe("The Conversation Class", function() {
         it("Should reload the Conversation on error", function() {
           spyOn(conversation, "_load");
           spyOn(conversation, "_xhr").and.callFake(function(args, callback) {
-            callback({success: false});
+            callback({
+                success: false,
+                data: {id: "frodo"}
+            });
           });
 
           // Run

@@ -992,7 +992,28 @@ describe("The MessagesQuery Class", function() {
 
         it("Should trigger change event if new values", function() {
             var data = query.data = [];
-            spyOn(query, "_triggerChange");
+            var count = 0;
+            spyOn(query, "_triggerChange").and.callFake(function(evt) {
+                if (count === 0) {
+                    expect(evt).toEqual({
+                        type: 'insert',
+                        index: 0,
+                        target: message1.toObject(),
+                        query: query
+                    });
+                    expect(query.data).toEqual([message1.toObject()]);
+                    count++;
+                } else if (count === 1) {
+                    expect(evt).toEqual({
+                        type: 'insert',
+                        index: 0,
+                        target: message2.toObject(),
+                        query: query
+                    });
+                    expect(query.data).toEqual([message2.toObject(), message1.toObject()]);
+                    count++;
+                }
+            });
 
             // Run
             query._handleAddEvent('messages', {
@@ -1000,18 +1021,7 @@ describe("The MessagesQuery Class", function() {
             });
 
             // Posttest
-            expect(query._triggerChange).toHaveBeenCalledWith({
-                type: 'insert',
-                index: 1,
-                target: message1.toObject(),
-                query: query
-            });
-            expect(query._triggerChange).toHaveBeenCalledWith({
-                type: 'insert',
-                index: 0,
-                target: message2.toObject(),
-                query: query
-            });
+            expect(count).toEqual(2);
         });
 
         it("Should not trigger change event if no new values", function() {

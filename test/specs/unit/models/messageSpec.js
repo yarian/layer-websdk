@@ -1196,6 +1196,74 @@ describe("The Message class", function() {
         });
     });
 
+    describe("The presend() method", function() {
+        var m;
+        beforeEach(function() {
+            m = conversation.createMessage("hello");
+        });
+
+        afterEach(function() {
+            m.destroy();
+        });
+
+        it("Should fail if there is no  client", function() {
+            delete m.clientId;
+
+            // Run
+            expect(function() {
+                m.presend();
+            }).toThrowError(layer.LayerError.dictionary.clientMissing);
+        });
+
+        it("Should fail if conversationId is missing", function() {
+            delete m.conversationId;
+
+            // Run
+            expect(function() {
+                m.presend();
+            }).toThrowError(layer.LayerError.dictionary.conversationMissing);
+        });
+
+
+        it("Should fail if its sending or sent", function() {
+            m._setSyncing();
+            expect(function() {
+                m.presend();
+            }).toThrowError(layer.LayerError.dictionary.alreadySent);
+
+            m._setSynced();
+            expect(function() {
+                m.presend();
+            }).toThrowError(layer.LayerError.dictionary.alreadySent);
+        });
+
+
+        it("Should not call _setSyncing", function() {
+            spyOn(m, "_setSyncing");
+            m.presend();
+            expect(m._setSyncing).not.toHaveBeenCalledWith();
+        });
+
+        it("Should register the message after readAllBlobs completes", function() {
+            // Setup
+            var isRegistered = false;
+            spyOn(m, "_readAllBlobs").and.callThrough();
+            spyOn(client, "_addMessage");
+
+            // Run
+            m.presend();
+
+            // Posttest
+            expect(client._addMessage).toHaveBeenCalledWith(m);
+            expect(m._readAllBlobs).toHaveBeenCalledWith(jasmine.any(Function));
+        });
+
+        it("Should call conversation._setupMessage", function() {
+            spyOn(conversation, "_setupMessage");
+            m.presend();
+            expect(conversation._setupMessage).toHaveBeenCalledWith(m);
+        });
+    });
 
 
     describe("The send() method", function() {

@@ -183,7 +183,7 @@ describe("The Query Class", function() {
             });
 
             var dataChanged = false;
-            query.on('change:data', function() {
+            query.on('change:reset', function() {
                 dataChanged = true;
             });
 
@@ -471,7 +471,7 @@ describe("The Query Class", function() {
                 paginationWindow: 15,
                 predicate: 'conversation.id = "' + conversation.id + '"'
             });
-            requestUrl = client.url + "/" + query._firingRequest;
+            requestUrl = query._firingRequest;
             query._firingRequest = requestUrl;
             query.isFiring = true;
         });
@@ -495,7 +495,7 @@ describe("The Query Class", function() {
         it("Should set isFiring to false if failure", function() {
             query._processRunResults({
                 success: false,
-                data: [],
+                data: new layer.LayerError({}),
                 xhr: {
                     getResponseHeader: function() {return 6;},
                 }
@@ -525,7 +525,7 @@ describe("The Query Class", function() {
         it("Should leave isFiring as true if still syncing", function() {
            query._processRunResults({
                success: false,
-               data: [],
+               data: new layer.LayerError({}),
                xhr: {
                    getResponseHeader: function(name) {
                        if (name == 'Layout-Count') return 6;
@@ -592,6 +592,52 @@ describe("The Query Class", function() {
             jasmine.clock().tick(10000);
             expect(query._run).toHaveBeenCalled();
             query.data = [];
+        });
+
+        it("Should use exponential backoff if results are not up to date", function() {
+            var tmp = layer.Util.getExponentialBackoffSeconds;
+            var lastDelay;
+            conversation.lastMessage = null;
+
+            function processResults() {
+                query._processRunResults({
+                success: true,
+                data: [responses.message1, responses.message1, responses.message1, responses.message1, responses.message1, responses.message1, responses.message1],
+                xhr: {
+                    getResponseHeader: function(name) {
+                        if (name == 'Layout-Count') return 6;
+                        if (name == 'Layer-Conversation-Is-Syncing') return 'true';
+                    }
+                }
+                }, requestUrl, 10);
+            }
+            spyOn(layer.Util, "getExponentialBackoffSeconds").and.callFake(function(maxSeconds, counter) {
+                lastDelay = tmp(maxSeconds, counter);
+                return lastDelay;
+            });
+
+            spyOn(query, "_run").and.callThrough();
+            //spyOn(query, "_appendResults");
+            query.paginationWindow = 15;
+            query.data = [];
+
+            for (var i = 0; i < 9; i++) {
+                processResults();
+                expect(layer.Util.getExponentialBackoffSeconds).toHaveBeenCalledWith(30, i);
+                jasmine.clock().tick(Math.floor(lastDelay * 1000) + 1);
+                expect(query._run).toHaveBeenCalled();
+                expect(query.data).toEqual([]);
+                query._run.calls.reset();
+            }
+
+            processResults();
+            jasmine.clock().tick(Math.floor(lastDelay * 1000) + 1);
+            expect(query._run).not.toHaveBeenCalled();
+            expect(query.data).not.toEqual([]);
+
+            // Cleanup
+            query.data = [];
+            layer.Util.getExponentialBackoffSeconds = tmp;
         });
 
 
@@ -664,6 +710,24 @@ describe("The Query Class", function() {
                 }
             }, requestUrl, 4);
             expect(query.pagedToEnd).toBe(true);
+        });
+
+        it("Should refire on client ready if it failed due to authentication", function() {
+            client.off();
+            debugger;
+            query._processRunResults({
+                success: false,
+                status: 401,
+                data: new layer.LayerError({data: {nonce: "fred"}}),
+                xhr: {
+                    getResponseHeader: function() {return 6;},
+                }
+            }, requestUrl, 4);
+            spyOn(query, "_run");
+            client.trigger('ready');
+            expect(query._run).toHaveBeenCalledWith();
+            client.trigger('ready');
+            expect(query._run.calls.count()).toEqual(1);
         });
     });
 

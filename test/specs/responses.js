@@ -285,3 +285,58 @@ var responseTest =  function(a, b) {
             return true;
         }
 };
+
+var isDbEnabled = undefined;
+var testDbEnabled = function(callback) {
+    if (isDbEnabled !== undefined) return callback(isDbEnabled);
+    var db;
+    function deleteTables(callback) {
+        try {
+            var request = window.indexedDB.deleteDatabase('layer-test');
+            request.onsuccess = request.onerror = callback;
+        } catch(e) {
+            callback();
+        }
+    }
+
+    function createTable(callback) {
+        const request = window.indexedDB.open('layer-test', 1);
+        request.onupgradeneeded = function(evt) {
+            db = event.target.result;
+            try {
+                const store = db.createObjectStore('test-table', { keyPath: 'id' });
+                store.createIndex('my-index', ['a', 'b'], { unique: false });
+                store.transaction.oncomplete = callback;
+            } catch (e) {
+                callback();
+            }
+        }
+    }
+
+    function queryTable(callback) {
+        try {
+            const query = window.IDBKeyRange.bound(['', 0], ['', 1000]);
+            var trans = db.transaction(['test-table'], 'readonly');
+            trans.objectStore('test-table')
+            .index('my-index')
+            .openCursor(query, 'prev')
+            .onsuccess = function(evt) {
+                callback(true);
+            };
+            trans.onerror = function(evt) {
+                callback(false);
+            }
+        } catch(e) {
+            callback(false);
+        }
+    }
+
+    deleteTables(function() {
+        createTable(function() {
+            queryTable(function(result) {
+                isDbEnabled = result;
+                callback(result);
+            });
+        });
+    });
+};

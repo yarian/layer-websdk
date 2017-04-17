@@ -987,7 +987,7 @@ describe("The ConversationsQuery Class", function() {
             // Posttest
             expect(query.trigger).toHaveBeenCalledWith("change", {
                 type: 'insert',
-                index: 1,
+                index: 0,
                 target: conversation.toObject(),
                 query: query
             });

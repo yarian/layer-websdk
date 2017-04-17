@@ -187,6 +187,58 @@ describe("The Channel Class", function() {
       });
     });
 
+    describe("The _createResultConflict() method", function() {
+      it("Should call _createSuccess if given a channel", function() {
+        var returnedChannel = {};
+        channel = new layer.Channel({client: client});
+        spyOn(channel, "trigger");
+        spyOn(channel, "_createSuccess");
+        channel._createResultConflict({data: returnedChannel});
+        expect(channel._createSuccess).toHaveBeenCalledWith(returnedChannel);
+        expect(channel.trigger).not.toHaveBeenCalled();
+      });
+
+      it("Should trigger sent-error and mark it as NEW if not given a channel", function() {
+        channel = new layer.Channel({client: client});
+        spyOn(channel, "trigger");
+        spyOn(channel, "_createSuccess");
+        channel._createResultConflict({data: null});
+        expect(channel.trigger).toHaveBeenCalledWith('channels:sent-error', {error: {data: null}});
+        expect(channel._createSuccess).not.toHaveBeenCalled();
+        expect(channel.isNew()).toBe(true);
+      });
+    });
+
+    describe("The name property", function() {
+      it("Should be setable if new", function() {
+        channel = new layer.Channel({client: client});
+        channel.name = "fred";
+        expect(channel.name).toEqual("fred");
+      });
+
+      it("Should throw error if setting it when not new", function() {
+        channel = new layer.Channel({client: client});
+        channel.syncState = layer.Constants.SYNC_STATE.SYNCED;
+        expect(function() {
+          channel.name = "fred";
+        }).toThrowError(layer.LayerError.dictionary.permissionDenied);
+        expect(layer.LayerError.dictionary.permissionDenied).toEqual(jasmine.any(String));
+        expect(channel.name).not.toEqual("fred");
+      });
+
+      it("Should trigger change events when set", function() {
+        channel = new layer.Channel({client: client});
+        spyOn(channel, "_triggerAsync");
+
+        channel.name = "fred";
+        expect(channel._triggerAsync).toHaveBeenCalledWith('channels:change', {
+          property: 'name',
+          oldValue: '',
+          newValue: 'fred'
+        });
+      });
+    });
+
     describe("The _populateFromServer() method", function() {
         var channel, c;
         beforeEach(function() {

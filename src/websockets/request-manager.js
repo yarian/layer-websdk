@@ -44,6 +44,19 @@ class WebsocketRequestManager {
   }
 
   /**
+   * This is an imprecise method; it will cancel ALL requests of a given type.
+   *
+   * @method cancelOperation
+   * @param {String} methodName    `Message.create`, `Event.sync`, etc...
+   */
+  cancelOperation(methodName) {
+    Object.keys(this._requestCallbacks).forEach((key) => {
+      const requestConfig = this._requestCallbacks[key];
+      if (requestConfig.method === methodName) delete this._requestCallbacks[key];
+    });
+  }
+
+  /**
    * Handle a response to a request.
    *
    * @method _handleResponse
@@ -54,35 +67,88 @@ class WebsocketRequestManager {
     if (evt.data.type === 'response') {
       const msg = evt.data.body;
       const requestId = msg.request_id;
-      const data = msg.success ? msg.data : new LayerError(msg.data);
       logger.debug(`Websocket response ${requestId} ${msg.success ? 'Successful' : 'Failed'}`);
+
       if (requestId && this._requestCallbacks[requestId]) {
-        this._requestCallbacks[requestId].callback({
-          success: msg.success,
-          fullData: evt.data,
-          data,
-        });
-        delete this._requestCallbacks[requestId];
+        this._processResponse(requestId, evt);
       }
     }
+  }
+
+  /**
+   * Process a response to a request; used by _handleResponse.
+   *
+   * Refactored out of _handleResponse so that unit tests can easily
+   * use it to trigger completion of a request.
+   *
+   * @method _processResponse
+   * @private
+   * @param {String} requestId
+   * @param {Object} evt   Data from the server
+   */
+  _processResponse(requestId, evt) {
+    const request = this._requestCallbacks[requestId];
+    const msg = evt.data.body;
+    const data = (msg.success ? msg.data : new LayerError(msg.data)) || {};
+
+    if (msg.success) {
+      if (request.isChangesArray) {
+        this._handleChangesArray(data.changes);
+      }
+      if ('batch' in data) {
+        request.batchTotal = data.batch.count;
+        request.batchIndex = data.batch.index;
+        if (request.isChangesArray) {
+          request.results = request.results.concat(data.changes);
+        } else if ('results' in data && Array.isArray(data.results)) {
+          request.results = request.results.concat(data.results);
+        }
+        if (data.batch.index < data.batch.count - 1) return;
+      }
+    }
+    request.callback({
+      success: msg.success,
+      fullData: 'batch' in data ? request.results : evt.data,
+      data,
+    });
+    delete this._requestCallbacks[requestId];
+  }
+
+  /**
+   * Any request that contains an array of changes should deliver each change
+   * to the socketChangeManager.
+   *
+   * @method _handleChangesArray
+   * @private
+   * @param {Object[]} changes   "create", "update", and "delete" requests from server.
+   */
+  _handleChangesArray(changes) {
+    changes.forEach(change => this.client.socketChangeManager._processChange(change));
   }
 
   /**
    * Shortcut for sending a request; builds in handling for callbacks
    *
    *    manager.sendRequest({
-   *      operation: "delete",
-   *      object: {id: "layer:///conversations/uuid"},
-   *      data: {deletion_mode: "all_participants"}
-   *    }, function(result) {
+   *      data: {
+   *        operation: "delete",
+   *        object: {id: "layer:///conversations/uuid"},
+   *        data: {deletion_mode: "all_participants"}
+   *      },
+   *      callback: function(result) {
    *        alert(result.success ? "Yay" : "Boo");
+   *      },
+   *      isChangesArray: false
    *    });
    *
    * @method sendRequest
-   * @param  {Object} data - Data to send to the server
-   * @param  {Function} callback - Handler for success/failure callback
+   * @param  {Object} options
+   * @param  {Object} otions.data                     Data to send to the server
+   * @param  {Function} [options.callback=null]       Handler for success/failure callback
+   * @param  {Boolean} [options.isChangesArray=false] Response contains a changes array that can be fed directly to change-manager.
+   * @returns the request callback object if there is one; primarily for use in testing.
    */
-  sendRequest(data, callback) {
+  sendRequest({ data, callback, isChangesArray = false }) {
     if (!this._isOpen()) {
       return !callback ? undefined : callback(new LayerError({
         success: false,
@@ -94,8 +160,14 @@ class WebsocketRequestManager {
     logger.debug(`Request ${body.request_id} is sending`);
     if (callback) {
       this._requestCallbacks[body.request_id] = {
+        request_id: body.request_id,
         date: Date.now(),
         callback,
+        isChangesArray,
+        method: data.method,
+        batchIndex: -1,
+        batchTotal: -1,
+        results: [],
       };
     }
 
@@ -104,6 +176,7 @@ class WebsocketRequestManager {
       body,
     });
     this._scheduleCallbackCleanup();
+    if (body.request_id) return this._requestCallbacks[body.request_id];
   }
 
   /**

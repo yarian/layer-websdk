@@ -275,8 +275,11 @@ class SyncManager extends Root {
       logger.debug(`Sync Manager Websocket Request Firing ${requestEvt.operation} on target ${requestEvt.target}`,
         requestEvt.toObject());
       requestEvt.isFiring = true;
-      this.requestManager.sendRequest(requestEvt._getRequestData(this.client),
-          result => this._xhrResult(result, requestEvt));
+      this.requestManager.sendRequest({
+        data: requestEvt._getRequestData(this.client),
+        callback: result => this._xhrResult(result, requestEvt),
+        isChangesArray: requestEvt.returnChangesArray,
+      });
     } else {
       logger.debug('Sync Manager Websocket Request skipped; socket closed');
     }

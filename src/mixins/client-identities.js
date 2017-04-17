@@ -6,6 +6,8 @@
 
 const Identity = require('../models/identity');
 const ErrorDictionary = require('../layer-error').dictionary;
+const Util = require('../client-utils');
+const { WebsocketSyncEvent } = require('../sync-event');
 
 module.exports = {
   events: [
@@ -90,6 +92,7 @@ module.exports = {
   lifecycle: {
     constructor(options) {
       this._models.identities = {};
+      this._loadPresenceIds = [];
     },
     cleanup() {
       Object.keys(this._models.identities).forEach((id) => {
@@ -167,6 +170,16 @@ module.exports = {
         // Register the Identity
         this._models.identities[id] = identity;
         this._triggerAsync('identities:add', { identities: [identity] });
+
+        /* Bot messages from SAPI 1.0 generate an Identity that has no `id` */
+        if (identity.id && identity._presence.status === null && !identity.sessionOwner) {
+          this._loadPresenceIds.push(id);
+          if (this._loadPresenceIds.length === 1) {
+            setTimeout(() => {
+              if (!this.isDestroyed) this._loadPresence();
+            }, 150);
+          }
+        }
       }
     },
 
@@ -237,6 +250,32 @@ module.exports = {
       }
       identity.unfollow();
       return identity;
+    },
+
+    /**
+     * Load presence data for a batch of Idenity IDs.
+     *
+     * TODO: This uses the syncManager to request presence because the syncManager
+     *   knows how to wait until the websocket is connected, and retry until the request completes.
+     *   BUT: this is not ideal, because it must wait if there are any other requests already queued;
+     *   this is a READ not a WRITE and should not have to wait.
+     *
+     * @method _loadPresence
+     * @private
+     */
+    _loadPresence() {
+      const ids = this._loadPresenceIds;
+      this._loadPresenceIds = [];
+      this.syncManager.request(new WebsocketSyncEvent({
+        data: {
+          method: 'Presence.sync',
+          data: { ids },
+        },
+        returnChangesArray: true,
+        operation: 'READ',
+        target: null,
+        depends: [],
+      }));
     },
   },
 };

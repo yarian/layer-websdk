@@ -310,31 +310,31 @@ describe("The Websocket Socket Manager Class", function() {
             expect(websocketManager.trigger).toHaveBeenCalledWith("connected");
         });
 
-        it("Should call replayEvents if there is a lastCounter", function() {
+        it("Should call resync if there is a lastCounter", function() {
             spyOn(websocketManager, "_isOpen").and.returnValue(true);
             websocketManager._hasCounter = true;
             websocketManager._lastTimestamp = Date.now();
-            spyOn(websocketManager, "replayEvents");
+            spyOn(websocketManager, "resync");
 
             // Run
             websocketManager._onOpen();
 
             // Posttest
-            expect(websocketManager.replayEvents).toHaveBeenCalledWith(websocketManager._lastTimestamp, true);
+            expect(websocketManager.resync).toHaveBeenCalledWith(websocketManager._lastTimestamp);
         });
 
-        it("Should skip replayEvents and call if there is not a lastCounter", function() {
+        it("Should skip resync and call if there is not a lastCounter", function() {
             spyOn(websocketManager, "_isOpen").and.returnValue(true);
             websocketManager._hasCounter = false;
             websocketManager._lastTimestamp = Date.now();
-            spyOn(websocketManager, "replayEvents");
+            spyOn(websocketManager, "resync");
             spyOn(websocketManager, "_reschedulePing");
 
             // Run
             websocketManager._onOpen();
 
             // Posttest
-            expect(websocketManager.replayEvents).not.toHaveBeenCalled();
+            expect(websocketManager.resync).not.toHaveBeenCalled();
             expect(websocketManager._reschedulePing).toHaveBeenCalledWith();
         });
 
@@ -481,15 +481,19 @@ describe("The Websocket Socket Manager Class", function() {
             spyOn(client.socketRequestManager, "sendRequest");
             websocketManager.getCounter();
             expect(client.socketRequestManager.sendRequest).toHaveBeenCalledWith({
-                method: "Counter.read"
-            }, jasmine.any(Function));
+                data: {
+                    method: "Counter.read"
+                },
+                callback: jasmine.any(Function),
+                isChangesArray: false
+            });
         });
 
 
         it("Should call the callback", function() {
             var spy = jasmine.createSpy('spy');
-            spyOn(client.socketRequestManager, "sendRequest").and.callFake(function(body, callback) {
-                callback({
+            spyOn(client.socketRequestManager, "sendRequest").and.callFake(function(options) {
+                options.callback({
                     success: true,
                     data: {counter: 5},
                     fullData: {counter: 4, data: {counter: 5}}
@@ -502,9 +506,141 @@ describe("The Websocket Socket Manager Class", function() {
             // Posttest
             expect(spy).toHaveBeenCalledWith(true, 5, 4);
         });
+
+        it("Should only call once per second, and ignore more than one additional request", function() {
+           spyOn(client.socketRequestManager, "sendRequest");
+
+           // Run test
+           websocketManager.getCounter();
+           websocketManager.getCounter();
+           websocketManager.getCounter();
+           websocketManager.getCounter();
+           websocketManager.getCounter();
+
+           // Posttest
+           var presenceSyncCount = client.socketRequestManager.sendRequest.calls.allArgs().filter(function(request) {
+               return request[0].data.method === "Presence.sync";
+            }).length;
+           expect(presenceSyncCount).toEqual(0);
+
+           jasmine.clock().tick(1000);
+           presenceSyncCount = client.socketRequestManager.sendRequest.calls.allArgs().filter(function(request) {
+               return request[0].data.method === "Presence.sync";
+            }).length;
+           expect(presenceSyncCount).toEqual(1);
+
+           jasmine.clock().tick(10000);
+           presenceSyncCount = client.socketRequestManager.sendRequest.calls.allArgs().filter(function(request) {
+               return request[0].data.method === "Presence.sync";
+            }).length;
+           expect(presenceSyncCount).toEqual(1);
+       });
     });
 
-    describe("The replayEvents() method", function() {
+    describe("The resync() method", function() {
+        var timestamp;
+        beforeEach(function() {
+            timestamp = new Date();
+            timestamp.setHours(timestamp.getHours() - 1);
+        });
+
+        it("Should require a timestamp", function() {
+            expect(function() {
+                websocketManager.resync(false);
+            }).toThrowError(layer.LayerError.dictionary.valueNotSupported);
+
+            expect(function() {
+                websocketManager.resync();
+            }).toThrowError(layer.LayerError.dictionary.valueNotSupported);
+
+            expect(function() {
+                websocketManager.resync(new Date().toISOString());
+            }).not.toThrow();
+
+            expect(function() {
+                websocketManager.resync(new Date().getTime());
+            }).not.toThrow();
+        });
+
+        it("Should call _replayEvents", function() {
+            spyOn(websocketManager, "_replayEvents");
+            websocketManager.resync(timestamp);
+            expect(websocketManager._replayEvents).toHaveBeenCalledWith(timestamp, jasmine.any(Function));
+        });
+
+        it("Should call _enablePresence", function() {
+            spyOn(websocketManager, "_enablePresence")
+            spyOn(websocketManager, "_replayEvents").and.callFake(function(timestamp, callback) {
+                callback();
+            });
+            websocketManager.resync(timestamp);
+            expect(websocketManager._enablePresence).toHaveBeenCalledWith(timestamp, jasmine.any(Function));
+        });
+
+        it("Should trigger 'synced'", function() {
+            spyOn(websocketManager, "trigger");
+            spyOn(websocketManager, "_enablePresence").and.callFake(function(timestamp, callback) {
+                callback();
+            });
+            spyOn(websocketManager, "_replayEvents").and.callFake(function(timestamp, callback) {
+                callback();
+            });
+            websocketManager.resync(timestamp);
+            expect(websocketManager.trigger).toHaveBeenCalledWith("synced");
+        });
+
+        it("Should call callback", function() {
+            client.socketRequestManager._reset();
+            var spy = jasmine.createSpy('callback');
+            websocketManager.resync(timestamp, spy);
+
+            var requests = client.socketRequestManager._requestCallbacks;
+            var request, requestId;
+
+            // Handle the call to _replayEvents
+            Object.keys(requests).forEach(function(key) {
+                request = requests[key];
+                requestId = key;
+            });
+            client.socketRequestManager._processResponse(requestId, {
+                data: {
+                    body: {
+                        success: true,
+                        data: {
+                            message: "hey ho"
+                        }
+                    }
+                }
+            });
+
+            // Handle the call to _enablePresence
+            Object.keys(requests).forEach(function(key) {
+                request = requests[key];
+                requestId = key;
+            });
+            client.socketRequestManager._processResponse(requestId, {
+                data: {
+                    body: {
+                        success: true,
+                        data: {
+                            changes: []
+                        }
+                    }
+                }
+            });
+
+            expect(spy).toHaveBeenCalledWith();
+        });
+
+        it("Should cancel any/all resync operations currently inflight", function() {
+            spyOn(client.socketRequestManager, "cancelOperation");
+            websocketManager.resync(timestamp);
+            expect(client.socketRequestManager.cancelOperation).toHaveBeenCalledWith("Event.replay");
+            expect(client.socketRequestManager.cancelOperation).toHaveBeenCalledWith("Presence.sync");
+        });
+    });
+
+    describe("The _replayEvents() method", function() {
         var timestamp, nexttimestamp;
         beforeEach(function() {
             timestamp = new Date();
@@ -513,75 +649,74 @@ describe("The Websocket Socket Manager Class", function() {
             nexttimestamp.setHours(nexttimestamp.getHours() + 1);
         });
 
-        it("Should set _inReplay if _inReplay isn't set", function() {
-            spyOn(websocketManager, "_isOpen").and.returnValue(true);
-            websocketManager._inReplay = false;
-            websocketManager._socket.readyState = WebSocket.OPEN;
-            websocketManager.replayEvents(timestamp);
-            expect(websocketManager._inReplay).toBe(true);
-        });
-
-        it("Should update _needsReplayFrom if _inReplay is true, and _needsReplayFrom unset", function() {
-            spyOn(websocketManager, "_isOpen").and.returnValue(true);
-            websocketManager._inReplay = true;
+        it("Should update _needsReplayFrom if socket is closed and _needsReplayFrom unset", function() {
+            spyOn(websocketManager, "_isOpen").and.returnValue(false);
             websocketManager._needsReplayFrom = null;
-            websocketManager.replayEvents(timestamp);
-            expect(websocketManager._inReplay).toEqual(true);
+            websocketManager._replayEvents(timestamp);
             expect(websocketManager._needsReplayFrom).toBe(timestamp);
         });
 
-        it("Should NOT update _needsReplayFrom if _inReplay is true, and _needsReplayFrom is set", function() {
+        it("Should NOT update _needsReplayFrom if socket is open and _needsReplayFrom unset", function() {
             spyOn(websocketManager, "_isOpen").and.returnValue(true);
-            websocketManager._inReplay = true;
+            websocketManager._needsReplayFrom = null;
+            websocketManager._replayEvents(timestamp);
+            expect(websocketManager._needsReplayFrom).toBe(null);
+        });
+
+        it("Should NOT update _needsReplayFrom if socket is open and _needsReplayFrom is set", function() {
+            spyOn(websocketManager, "_isOpen").and.returnValue(true);
             websocketManager._needsReplayFrom = nexttimestamp;
-            websocketManager.replayEvents(timestamp);
+            websocketManager._replayEvents(timestamp);
             expect(websocketManager._needsReplayFrom).toEqual(nexttimestamp);
-
         });
 
-        it("Should NOT call sendRequest if _inReplay is true", function() {
+        it("Should send Event.replay", function() {
             spyOn(websocketManager, "_isOpen").and.returnValue(true);
             spyOn(client.socketRequestManager, "sendRequest");
-            websocketManager._inReplay = true;
-            websocketManager.replayEvents(timestamp);
-            expect(client.socketRequestManager.sendRequest).not.toHaveBeenCalled();
-        });
-
-        it("Should ignore _inReplay", function() {
-            spyOn(websocketManager, "_isOpen").and.returnValue(true);
-            spyOn(client.socketRequestManager, "sendRequest");
-            websocketManager._inReplay = true;
-            websocketManager.replayEvents(timestamp, true);
-            expect(client.socketRequestManager.sendRequest).toHaveBeenCalled();
+            websocketManager._replayEvents(timestamp, true);
+            expect(client.socketRequestManager.sendRequest).toHaveBeenCalledWith({
+                data: {
+                    method: 'Event.replay',
+                    data: {
+                        from_timestamp: timestamp
+                    }
+                },
+                callback: jasmine.any(Function),
+                isChangesArray: false
+            });
         });
 
         it("Should call sendRequest", function() {
             spyOn(websocketManager, "_isOpen").and.returnValue(true);
             spyOn(client.socketRequestManager, "sendRequest");
             websocketManager._inReplay = false;
-            websocketManager.replayEvents(timestamp.toISOString());
+            websocketManager._replayEvents(timestamp.toISOString());
             expect(client.socketRequestManager.sendRequest).toHaveBeenCalledWith({
-                method: "Event.replay",
-                data: {from_timestamp: timestamp.toISOString()}
-            }, jasmine.any(Function));
+                data: {
+                    method: "Event.replay",
+                    data: {from_timestamp: timestamp.toISOString()}
+                },
+                callback: jasmine.any(Function),
+                isChangesArray: false
+            });
         });
 
         it("Should call _replayEventsComplete", function() {
             spyOn(websocketManager, "_isOpen").and.returnValue(true);
             var spy = jasmine.createSpy('callback');
-            spyOn(client.socketRequestManager, "sendRequest").and.callFake(function(body, callback) {
-                callback({success: true});
+            spyOn(client.socketRequestManager, "sendRequest").and.callFake(function(request) {
+                request.callback({success: true});
             });
             spyOn(websocketManager, "_replayEventsComplete");
             websocketManager._inReplay = false;
-            websocketManager.replayEvents(timestamp, false, spy);
+            websocketManager._replayEvents(timestamp, spy);
             expect(websocketManager._replayEventsComplete).toHaveBeenCalledWith(timestamp, spy, true);
         });
 
         it("Should just update _needsReplayFrom if offline", function() {
           spyOn(websocketManager, "_isOpen").and.returnValue(false);
           expect(websocketManager._needsReplayFrom).toBe(null);
-          websocketManager.replayEvents(timestamp, false);
+          websocketManager._replayEvents(timestamp, false);
           expect(websocketManager._needsReplayFrom).toEqual(timestamp);
         });
     });
@@ -597,29 +732,20 @@ describe("The Websocket Socket Manager Class", function() {
             callback = jasmine.createSpy('callback');
         });
 
-        it("Should clear _inReplay", function() {
-            spyOn(websocketManager, "replayEvents"); // prevent replayEvents from resetting _inReplay
-            websocketManager._inReplay = true;
-            websocketManager._replayEventsComplete(timestamp, callback, false);
-            expect(websocketManager._inReplay).toEqual(false);
-        });
-
-        it("Should trigger synced and call callback if completely done", function() {
+        it("Should call callback if completely done", function() {
             websocketManager._needsReplayFrom = null;
-            spyOn(websocketManager, "trigger");
 
             // Run
             websocketManager._replayEventsComplete(timestamp, callback, true);
 
             // Posttest
-            expect(websocketManager.trigger).toHaveBeenCalledWith("synced");
             expect(callback).toHaveBeenCalledWith();
         });
 
-        it("Should recall replayEvents if another round was requested", function() {
+        it("Should recall _replayEvents if another round was requested", function() {
             websocketManager._needsReplayFrom = nexttimestamp;
             spyOn(websocketManager, "trigger");
-            spyOn(websocketManager, "replayEvents");
+            spyOn(websocketManager, "_replayEvents");
 
             // Run
             websocketManager._replayEventsComplete(timestamp, callback, true);
@@ -627,30 +753,30 @@ describe("The Websocket Socket Manager Class", function() {
             // Posttest
             expect(websocketManager.trigger).not.toHaveBeenCalled();
             expect(callback).not.toHaveBeenCalled();
-            expect(websocketManager.replayEvents).toHaveBeenCalledWith(nexttimestamp);
+            expect(websocketManager._replayEvents).toHaveBeenCalledWith(nexttimestamp);
         });
 
-        it("Should schedule retry replayEvents if it failed", function() {
+        it("Should schedule retry _replayEvents if it failed", function() {
             websocketManager._needsReplayFrom = nexttimestamp;
             spyOn(websocketManager, "trigger");
-            spyOn(websocketManager, "replayEvents");
+            spyOn(websocketManager, "_replayEvents");
 
             // Run
             websocketManager._replayEventsComplete(timestamp, callback, false);
-            expect(websocketManager.replayEvents).not.toHaveBeenCalledWith(timestamp);
+            expect(websocketManager._replayEvents).not.toHaveBeenCalledWith(timestamp);
 
             // Posttest
             jasmine.clock().tick(1000);
             expect(websocketManager.trigger).not.toHaveBeenCalled();
             expect(callback).not.toHaveBeenCalled();
-            expect(websocketManager.replayEvents).toHaveBeenCalledWith(timestamp);
+            expect(websocketManager._replayEvents).toHaveBeenCalledWith(timestamp);
         });
 
 
-        it("Should stop scheduling retry replayEvents after repeated failure", function() {
+        it("Should stop scheduling retry _replayEvents after repeated failure", function() {
             websocketManager._needsReplayFrom = nexttimestamp;
             spyOn(websocketManager, "trigger");
-            spyOn(websocketManager, "replayEvents").and.callFake(function() {
+            spyOn(websocketManager, "_replayEvents").and.callFake(function() {
                 websocketManager._replayEventsComplete(timestamp, callback, false);
             });
 
@@ -659,13 +785,109 @@ describe("The Websocket Socket Manager Class", function() {
             jasmine.clock().tick(100000000);
 
             // Posttest
-            expect(websocketManager.replayEvents.calls.count() < 20).toBe(true);
+            expect(websocketManager._replayEvents.calls.count() < 20).toBe(true);
+        });
+    });
+
+    describe("The syncPresence() method", function() {
+        it("Should call Presence.sync with your timestamp", function() {
+            var d = new Date();
+            var spy = jasmine.createSpy('callback');
+            spyOn(client.socketRequestManager, "sendRequest");
+            websocketManager.syncPresence(d.toISOString(), spy);
+            expect(client.socketRequestManager.sendRequest).toHaveBeenCalledWith({
+                data: {
+                    method: 'Presence.sync',
+                    data: {
+                        since: d.toISOString(),
+                    },
+                },
+                callback: spy,
+                isChangesArray: true
+            });
+        });
+
+        it("Should call callback if invoked with your timestamp", function() {
+            var d = new Date();
+            var spy = jasmine.createSpy("callback");
+            var request = websocketManager.syncPresence(d.toISOString(), spy);
+            var response = {
+                data: {
+                    body: {
+                        success: true,
+                        data: {
+                            changes: []
+                        }
+                    }
+                }
+            };
+            client.socketRequestManager._processResponse(request.request_id, response);
+            expect(spy).toHaveBeenCalledWith({
+                success: true,
+                fullData: response.data,
+                data: response.data.body.data
+            });
+        });
+    });
+
+    describe("The _enablePresence() method", function() {
+        it("Should subscribe to presence", function() {
+            spyOn(client.socketRequestManager, "sendRequest");
+            websocketManager._enablePresence();
+            expect(client.socketRequestManager.sendRequest).toHaveBeenCalledWith({
+                data: {
+                    method: 'Presence.subscribe'
+                },
+                callback: null,
+                isChangesArray: false
+            });
+        });
+
+        it("Should send auto status", function() {
+            spyOn(client.socketRequestManager, "sendRequest");
+            websocketManager._enablePresence();
+            expect(client.socketRequestManager.sendRequest).toHaveBeenCalledWith({
+                data: {
+                    method: 'Presence.update',
+                    data: [
+                        { operation: 'set', property: 'status', value: 'auto' },
+                    ]
+                },
+                callback: null,
+                isChangesArray: false
+            });
+
+            client.socketRequestManager.sendRequest.calls.reset();
+            client.isPresenceEnabled = false;
+            websocketManager._enablePresence();
+            expect(client.socketRequestManager.sendRequest).not.toHaveBeenCalledWith({
+                data: {
+                    method: 'Presence.update',
+                    data: [
+                        { operation: 'set', property: 'status', value: 'auto' },
+                    ],
+                },
+                callback: null,
+                isChangesArray: false
+            });
+        });
+
+        it("Should call syncPresence", function() {
+            spyOn(websocketManager, "syncPresence");
+            var time = new Date().toISOString();
+            var spy = jasmine.createSpy('callback');
+            websocketManager._enablePresence(time, spy);
+            expect(websocketManager.syncPresence).toHaveBeenCalledWith(time, spy);
+
+            websocketManager.syncPresence.calls.reset();
+            websocketManager._enablePresence(null, spy);
+            expect(websocketManager.syncPresence).not.toHaveBeenCalled();
         });
     });
 
     describe("The _onMessage() method", function() {
         beforeEach(function() {
-            spyOn(websocketManager, "replayEvents");
+            spyOn(websocketManager, "resync");
 
             websocketManager._lastCounter = 5;
         });
@@ -693,19 +915,19 @@ describe("The Websocket Socket Manager Class", function() {
             expect(websocketManager._lastCounter).toEqual(6);
         });
 
-        it("Should NOT call replayEvents if counter is one greater than _lastCounter", function() {
+        it("Should NOT call resync if counter is one greater than _lastCounter", function() {
             websocketManager._onMessage({data: JSON.stringify({
                 counter: 6
             })});
-            expect(websocketManager.replayEvents).not.toHaveBeenCalled();
+            expect(websocketManager.resync).not.toHaveBeenCalled();
         });
 
-        it("Should call replayEvents if counter is more than one greater than _lastCounter", function() {
+        it("Should call resync if counter is more than one greater than _lastCounter", function() {
             websocketManager._lastTimestamp = "fred";
             websocketManager._onMessage({data: JSON.stringify({
                 counter: 7
             })});
-            expect(websocketManager.replayEvents).toHaveBeenCalledWith("fred");
+            expect(websocketManager.resync).toHaveBeenCalledWith("fred");
         });
 
         it("Should update _lastTimestamp", function() {

@@ -322,4 +322,9 @@ class WebsocketSyncEvent extends SyncEvent {
   }
 }
 
+/**
+ * Does this websocket request return a changes array to be processed by the request-manager?
+ */
+WebsocketSyncEvent.prototype.returnChangesArray = false;
+
 module.exports = { SyncEvent, XHRSyncEvent, WebsocketSyncEvent };

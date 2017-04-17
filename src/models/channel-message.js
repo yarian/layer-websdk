@@ -1,4 +1,4 @@
-/*
+/**
  * For purposes of API consistency across SDKs, this class is not exposed.
  * Instead, customers will see only the layer.Message class.
  *
@@ -68,7 +68,9 @@ class ChannelMessage extends Message {
       url: '',
       method: 'DELETE',
     }, (result) => {
-      if (!result.success && (!result.data || result.data.id !== 'not_found')) Message.load(id, client);
+      if (!result.success && (!result.data || (result.data.id !== 'not_found' && result.data.id !== 'authentication_required'))) {
+        Message.load(id, client);
+      }
     });
 
     this._deleted();
@@ -88,7 +90,7 @@ class ChannelMessage extends Message {
   }
 
 
-  /*
+  /**
    * Creates a message from the server's representation of a message.
    *
    * Similar to _populateFromServer, however, this method takes a

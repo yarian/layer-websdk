@@ -1,5 +1,26 @@
-/* Feature is tested but not available on server
+/**
  * Query class for running a Query on Channel Members
+ *
+ *      var membersQuery = client.createQuery({
+ *        client: client,
+ *        model: layer.Query.Membership,
+ *        predicate: 'channel.id = "layer:///channels/UUID"'
+ *      });
+ *
+ * You can change the data selected by your query any time you want using:
+ *
+ *      query.update({
+ *        predicate: 'channel.id = "layer:///channels/UUID2"'
+ *      });
+ *
+ * You can release data held in memory by your queries when done with them:
+ *
+ *      query.destroy();
+ *
+ * #### predicate
+ *
+ * Note that the `predicate` property is only supported for Messages and Membership, and only supports
+ * querying by Channel.
  *
  * @class  layer.MembersQuery
  * @extends layer.Query
@@ -26,7 +47,7 @@ class MembersQuery extends Query {
     }
   }
 
-   /**
+  /**
    * Get the Channel UUID from the predicate property.
    *
    * Extract the Channel's UUID from the predicate... or returned the cached value.
@@ -57,7 +78,7 @@ class MembersQuery extends Query {
 
     // Do nothing if we don't have a conversation to query on
     if (!predicateIds) {
-      if (!this.predicate.match(/['"]/)) {
+      if (this.predicate && !this.predicate.match(/['"]/)) {
         Logger.error('This query may need to quote its value');
       }
       return;

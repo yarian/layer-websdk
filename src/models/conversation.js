@@ -80,7 +80,6 @@ class Conversation extends Container {
   constructor(options = {}) {
     // Setup default values
     if (!options.participants) options.participants = [];
-    if (!options.metadata) options.metadata = {};
     super(options);
     this.isInitializing = true;
     const client = this.getClient();
@@ -146,6 +145,24 @@ class Conversation extends Container {
   }
 
 
+  _setupMessage(message) {
+    // Setting a position is required if its going to get sorted correctly by query.
+    // The correct position will be written by _populateFromServer when the object
+    // is returned from the server.
+    // NOTE: We have a special case where messages are sent from multiple tabs, written to indexedDB, but not yet sent,
+    // they will have conflicting positions.
+    // Attempts to fix this by offsetting the position by time resulted in unexpected behaviors
+    // as multiple messages end up with positions greater than returned by the server.
+    let position;
+    if (this.lastMessage) {
+      position = this.lastMessage.position + 1;
+    } else {
+      position = 0;
+    }
+    message.position = position;
+    this.lastMessage = message;
+  }
+
   /**
    * Create this Conversation on the server.
    *
@@ -181,39 +198,17 @@ class Conversation extends Container {
     const wasLocalDistinct = Boolean(this._sendDistinctEvent);
     if (this._sendDistinctEvent) this._handleLocalDistinctConversation();
 
-    // If a message is passed in, then that message is being sent, and is our
-    // new lastMessage (until the websocket tells us otherwise)
-    if (message) {
-      // Setting a position is required if its going to get sorted correctly by query.
-      // The correct position will be written by _populateFromServer when the object
-      // is returned from the server.  We increment the position by the time since the prior lastMessage was sent
-      // so that if multiple tabs are sending messages and writing them to indexedDB, they will have positions in correct chronological order.
-      // WARNING: The query will NOT be resorted using the server's position value.
-      let position;
-      if (this.lastMessage) {
-        position = (this.lastMessage.position + Date.now()) - this.lastMessage.sentAt.getTime();
-        if (position === this.lastMessage.position) position++;
-      } else {
-        position = 0;
-      }
-      message.position = position;
-      this.lastMessage = message;
-    }
-
     // If the Conversation is already on the server, don't send.
-    if (wasLocalDistinct || this.syncState !== Constants.SYNC_STATE.NEW) return this;
+    if (wasLocalDistinct || this.syncState !== Constants.SYNC_STATE.NEW) {
+      if (message) this._setupMessage(message);
+      return this;
+    }
 
     // Make sure this user is a participant (server does this for us, but
     // this insures the local copy is correct until we get a response from
     // the server
     if (this.participants.indexOf(client.user) === -1) {
       this.participants.push(client.user);
-    }
-
-    // If there is only one participant, its client.user.userId.  Not enough
-    // for us to have a good Conversation on the server.  Abort.
-    if (this.participants.length === 1) {
-      throw new Error(LayerError.dictionary.moreParticipantsRequired);
     }
 
     return super.send(message);
@@ -291,8 +286,6 @@ class Conversation extends Container {
       this.lastMessage = client.getMessage(conversation.last_message);
     } else if (conversation.last_message) {
       this.lastMessage = client._createObject(conversation.last_message);
-    } else {
-      this.lastMessage = null;
     }
     this._register();
 
@@ -432,7 +425,7 @@ class Conversation extends Container {
         'content-type': 'application/vnd.layer-patch+json',
       },
     }, (result) => {
-      if (!result.success) this._load();
+      if (!result.success && result.data.id !== 'authentication_required') this._load();
     });
   }
 
@@ -515,7 +508,7 @@ class Conversation extends Container {
     this._delete(queryStr);
   }
 
-    /**
+  /**
    * LayerPatch will call this after changing any properties.
    *
    * Trigger any cleanup or events needed after these changes.
@@ -535,14 +528,14 @@ class Conversation extends Container {
     try {
       const events = this._disableEvents;
       this._disableEvents = false;
-      if (paths[0].indexOf('metadata') === 0) {
-        this.__updateMetadata(newValue, oldValue, paths);
-      } else if (paths[0] === 'participants') {
+      if (paths[0] === 'participants') {
         const client = this.getClient();
         // oldValue/newValue come as a Basic Identity POJO; lets deliver events with actual instances
         oldValue = oldValue.map(identity => client.getIdentity(identity.id));
         newValue = newValue.map(identity => client.getIdentity(identity.id));
         this.__updateParticipants(newValue, oldValue);
+      } else {
+        super._handlePatchEvent(newValue, oldValue, paths);
       }
       this._disableEvents = events;
     } catch (err) {
@@ -568,165 +561,12 @@ class Conversation extends Container {
     return change;
   }
 
-  /**
-   * Updates specified metadata keys.
-   *
-   * Updates the local object's metadata and syncs the change to the server.
-   *
-   *      conversation.setMetadataProperties({
-   *          'title': 'I am a title',
-   *          'colors.background': 'red',
-   *          'colors.text': {
-   *              'fill': 'blue',
-   *              'shadow': 'black'
-   *           },
-   *           'colors.title.fill': 'red'
-   *      });
-   *
-   * Use setMetadataProperties to specify the path to a property, and a new value for that property.
-   * Multiple properties can be changed this way.  Whatever value was there before is
-   * replaced with the new value; so in the above example, whatever other keys may have
-   * existed under `colors.text` have been replaced by the new object `{fill: 'blue', shadow: 'black'}`.
-   *
-   * Note also that only string and subobjects are accepted as values.
-   *
-   * Keys with '.' will update a field of an object (and create an object if it wasn't there):
-   *
-   * Initial metadata: {}
-   *
-   *      conversation.setMetadataProperties({
-   *          'colors.background': 'red',
-   *      });
-   *
-   * Metadata is now: `{colors: {background: 'red'}}`
-   *
-   *      conversation.setMetadataProperties({
-   *          'colors.foreground': 'black',
-   *      });
-   *
-   * Metadata is now: `{colors: {background: 'red', foreground: 'black'}}`
-   *
-   * Executes as follows:
-   *
-   * 1. Updates the metadata property of the local object
-   * 2. Triggers a conversations:change event
-   * 3. Submits a request to be sent to the server to update the server's object
-   * 4. If there is an error, no errors are fired except by layer.SyncManager, but another
-   *    conversations:change event is fired as the change is rolled back.
-   *
-   * @method setMetadataProperties
-   * @param  {Object} properties
-   * @return {layer.Conversation} this
-   *
-   */
-  setMetadataProperties(props) {
-    const layerPatchOperations = [];
-    Object.keys(props).forEach((name) => {
-      let fullName = name;
-      if (name) {
-        if (name !== 'metadata' && name.indexOf('metadata.') !== 0) {
-          fullName = 'metadata.' + name;
-        }
-        layerPatchOperations.push({
-          operation: 'set',
-          property: fullName,
-          value: props[name],
-        });
-      }
-    });
-
-    this._inLayerParser = true;
-
-    // Do this before setSyncing as if there are any errors, we should never even
-    // start setting up a request.
-    Util.layerParse({
-      object: this,
-      type: 'Conversation',
-      operations: layerPatchOperations,
-      client: this.getClient(),
-    });
-    this._inLayerParser = false;
-
-    this._xhr({
-      url: '',
-      method: 'PATCH',
-      data: JSON.stringify(layerPatchOperations),
-      headers: {
-        'content-type': 'application/vnd.layer-patch+json',
-      },
-    }, (result) => {
-      if (!result.success && !this.isDestroyed) this._load();
-    });
-
-    return this;
-  }
-
-
-  /**
-   * Deletes specified metadata keys.
-   *
-   * Updates the local object's metadata and syncs the change to the server.
-   *
-   *      conversation.deleteMetadataProperties(
-   *          ['title', 'colors.background', 'colors.title.fill']
-   *      );
-   *
-   * Use deleteMetadataProperties to specify paths to properties to be deleted.
-   * Multiple properties can be deleted.
-   *
-   * Executes as follows:
-   *
-   * 1. Updates the metadata property of the local object
-   * 2. Triggers a conversations:change event
-   * 3. Submits a request to be sent to the server to update the server's object
-   * 4. If there is an error, no errors are fired except by layer.SyncManager, but another
-   *    conversations:change event is fired as the change is rolled back.
-   *
-   * @method deleteMetadataProperties
-   * @param  {string[]} properties
-   * @return {layer.Conversation} this
-   */
-  deleteMetadataProperties(props) {
-    const layerPatchOperations = [];
-    props.forEach((property) => {
-      if (property !== 'metadata' && property.indexOf('metadata.') !== 0) {
-        property = 'metadata.' + property;
-      }
-      layerPatchOperations.push({
-        operation: 'delete',
-        property,
-      });
-    }, this);
-
-    this._inLayerParser = true;
-
-    // Do this before setSyncing as if there are any errors, we should never even
-    // start setting up a request.
-    Util.layerParse({
-      object: this,
-      type: 'Conversation',
-      operations: layerPatchOperations,
-      client: this.getClient(),
-    });
-    this._inLayerParser = false;
-
-    this._xhr({
-      url: '',
-      method: 'PATCH',
-      data: JSON.stringify(layerPatchOperations),
-      headers: {
-        'content-type': 'application/vnd.layer-patch+json',
-      },
-    }, (result) => {
-      if (!result.success) this._load();
-    });
-
-    return this;
-  }
 
   _deleteResult(result, id) {
     const client = this.getClient();
-    if (!result.success && (!result.data || result.data.id !== 'not_found')) Conversation.load(id, client);
+    if (!result.success && (!result.data || (result.data.id !== 'not_found' && result.data.id !== 'authentication_required'))) {
+      Conversation.load(id, client);
+    }
   }
 
 

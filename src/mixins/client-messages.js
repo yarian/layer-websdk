@@ -5,6 +5,7 @@
  */
 
 const Syncable = require('../models/syncable');
+const Message = require('../models/message');
 const ErrorDictionary = require('../layer-error').dictionary;
 
 module.exports = {
@@ -214,6 +215,11 @@ module.exports = {
      */
     getMessage(id, canLoad) {
       if (typeof id !== 'string') throw new Error(ErrorDictionary.idParamRequired);
+
+      // NOTE: This could be an announcement
+      if (id.indexOf('layer:///') !== 0) {
+        id = Message.prefixUUID + id;
+      }
 
       if (this._models.messages[id]) {
         return this._models.messages[id];

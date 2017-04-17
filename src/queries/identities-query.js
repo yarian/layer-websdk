@@ -1,6 +1,22 @@
 /**
  * Query class for running a Query on Identities
  *
+ *      var identityQuery = client.createQuery({
+ *        client: client,
+ *        model: layer.Query.Identity
+ *      });
+ *
+ *
+ * You can change the `paginationWindow` property at any time using:
+ *
+ *      query.update({
+ *        paginationWindow: 200
+ *      });
+ *
+ * You can release data held in memory by your queries when done with them:
+ *
+ *      query.destroy();
+ *
  * @class  layer.IdentitiesQuery
  * @extends layer.Query
  */

@@ -18,9 +18,12 @@
         "classes": [
           "layer.Identity",
           "layer.Conversation",
-          "layer.ConversationMessage",
+          "layer.Channel",
+          "layer.Message.ConversationMessage",
+          "layer.Message.ChannelMessage",
           "layer.Announcement",
           "layer.MessagePart",
+          "layer.Membership",
           "layer.Query"
         ]
       },
@@ -38,9 +41,11 @@
         "name": "Query Builder",
         "classes": [
           "layer.QueryBuilder.ConversationsQuery",
+          "layer.QueryBuilder.ChannelsQuery",
           "layer.QueryBuilder.MessagesQuery",
           "layer.QueryBuilder.AnnouncementsQuery",
-          "layer.QueryBuilder.IdentitiesQuery"
+          "layer.QueryBuilder.IdentitiesQuery",
+          "layer.QueryBuilder.MembersQuery"
         ]
       }
     ]

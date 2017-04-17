@@ -185,6 +185,10 @@ exports.defer = defer;
  *
  * Copied from https://github.com/auth0-blog/angular-token-auth, but
  * appears in many places on the web.
+ *
+ * @method decode
+ * @param {String} str   base64 string
+ * @return str   Decoded string
  */
 /* istanbul ignore next */
 exports.decode = (str) => {
@@ -373,6 +377,9 @@ function createParser(request) {
       Conversation: {
         unreadMessageCount: 'unreadCount',
       },
+      Identity: {
+        presence: '_presence',
+      },
     },
     changeCallbacks: {
       Message: {
@@ -381,6 +388,16 @@ function createParser(request) {
         },
       },
       Conversation: {
+        all: (updateObject, newValue, oldValue, paths) => {
+          updateObject._handlePatchEvent(newValue, oldValue, paths);
+        },
+      },
+      Channel: {
+        all: (updateObject, newValue, oldValue, paths) => {
+          updateObject._handlePatchEvent(newValue, oldValue, paths);
+        },
+      },
+      Identity: {
         all: (updateObject, newValue, oldValue, paths) => {
           updateObject._handlePatchEvent(newValue, oldValue, paths);
         },
@@ -484,16 +501,16 @@ exports.asciiInit = (version) => {
 
   return `
     /hNMMMMMMMMMMMMMMMMMMMms.
-  hMMy+/////////////////omMN-        'oo.
-  MMN                    oMMo        .MM/
-  MMN                    oMMo        .MM/              ....                       ....            ...
-  MMN       Web SDK      oMMo        .MM/           ohdddddddo' +md.      smy  -sddddddho.   hmosddmm.
-  MMM-                   oMMo        .MM/           ::.'  '.mM+ 'hMd'    +Mm. +Nm/'   .+Nm-  mMNs-'.
-  MMMy      v${line1}oMMo        .MM/             .-:/+yNMs  .mMs   /MN: .MMs///////dMh  mMy
-  MMMMo     ${line2}oMMo        .MM/          .ymhyso+:hMs   :MM/ -NM/  :MMsooooooooo+  mM+
-  MMMMMy.                oMMo        .MM/          dMy'    'dMs    +MN:mM+   'NMo            mM+
-  MMMMMMNy:'             oMMo        .MMy++++++++: sMm/---/dNMs     yMMMs     -dMd+:-:/smy'  mM+
-  NMMMMMMMMmy+:-.'      'yMM/        'yyyyyyyyyyyo  :shhhys:+y/     .MMh       '-oyhhhys:'   sy:
-  :dMMMMMMMMMMMMNNNNNNNNNMNs                                        hMd'
-   -/+++++++++++++++++++:'                                      sNmdo'`;
+  hMMy+/////////////////omMN-
+  MMN                    oMMo
+  MMN        Layer       oMMo
+  MMN       Web SDK      oMMo
+  MMM-                   oMMo
+  MMMy      v${line1}oMMo
+  MMMMo     ${line2}oMMo
+  MMMMMy.                oMMo
+  MMMMMMNy:'             oMMo
+  NMMMMMMMMmy+:-.'      'yMM/
+  :dMMMMMMMMMMMMNNNNNNNNNMNs
+   -/+++++++++++++++++++:'`;
 };

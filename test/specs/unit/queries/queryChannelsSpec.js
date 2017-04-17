@@ -606,7 +606,7 @@ describe("The ChannelsQuery Class", function() {
             // Posttest
             expect(query.trigger).toHaveBeenCalledWith("change", {
                 type: 'insert',
-                index: 1,
+                index: 0,
                 target: channel.toObject(),
                 query: query
             });

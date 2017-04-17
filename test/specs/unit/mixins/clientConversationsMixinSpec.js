@@ -121,6 +121,14 @@ describe("The Client Conversation Mixin", function() {
             }).toThrowError(layer.LayerError.dictionary.idParamRequired);
             expect(layer.LayerError.dictionary.idParamRequired.length > 0).toBe(true);
         });
+
+        it("Should not load if not ready", function() {
+            client.isReady = false;
+            requests.reset();
+            expect(function() {
+                client.getConversation(cid1, true);
+            }).toThrowError(layer.LayerError.dictionary.clientMustBeReady);
+        });
     });
 
     describe("The _addConversation() method", function() {
@@ -293,11 +301,11 @@ describe("The Client Conversation Mixin", function() {
             var c1id = c1.id;
 
             // Run
-            c1.id = "fred";
+            c1.id = "layer:///conversations/fred";
             client._updateConversationId(c1, c1id);
 
             // Posttest
-            expect(client.getConversation("fred")).toBe(c1);
+            expect(client.getConversation("layer:///conversations/fred")).toBe(c1);
         });
 
         it("Should delete the old id", function() {
@@ -312,7 +320,7 @@ describe("The Client Conversation Mixin", function() {
             expect(client.getConversation(c1id)).toBe(c1);
 
             // Run
-            c1.id = "fred";
+            c1.id = "layer:///conversations/fred";
             client._updateConversationId(c1, c1id);
 
             // Posttest
@@ -335,12 +343,12 @@ describe("The Client Conversation Mixin", function() {
             expect(m2.conversationId).toEqual(c1id);
 
             // Run
-            c1.id = "fred";
+            c1.id = "layer:///conversations/fred";
             client._updateConversationId(c1, c1id);
 
             // Posttest
-            expect(m1.conversationId).toEqual("fred");
-            expect(m2.conversationId).toEqual("fred");
+            expect(m1.conversationId).toEqual("layer:///conversations/fred");
+            expect(m2.conversationId).toEqual("layer:///conversations/fred");
         });
     });
 

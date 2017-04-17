@@ -1,4 +1,4 @@
-/* Feature is tested but not available on server
+/**
  * A Channel object represents a dialog amongst a large set
  * of participants.
  *
@@ -45,10 +45,10 @@
  * Finally, to access a list of Messages in a Channel, see layer.Query.
  *
  * @class  layer.Channel
+ * @experimental This feature is incomplete, and available as Preview only.
  * @extends layer.Container
  * @author  Michael Kantor
  */
-
 const Root = require('../root');
 const Syncable = require('./syncable');
 const Container = require('./container');
@@ -111,27 +111,9 @@ class Channel extends Container {
     return new ChannelMessage(messageConfig);
   }
 
-
-  /**
-   * Create this Conversation on the server.
-   *
-   * Called my layer.Message.send to insure its Conversation exists
-   * on the server.
-   *
-   * @method send
-   * @param {layer.Message.ChannelMessage} [message] Tells the Conversation what its last_message will be
-   * @return {layer.Conversation} this
-   */
-  send(message) {
-    // Conversations can just check the lastMessage position and increment it.
-    // Channels must do a hackier calculation that sets the next position to a number larger than the server
-    // could ever deliver, and then increment that floating point position by a large enough increment
-    // that we need not worry about Floating point rounding errors.  Lots of guesswork here.
-    if (message) {
-      message.position = Channel.nextPosition;
-      Channel.nextPosition += 8192;
-    }
-    return super.send(message);
+  _setupMessage(message) {
+    message.position = Channel.nextPosition;
+    Channel.nextPosition += 8192;
   }
 
   /**
@@ -162,6 +144,8 @@ class Channel extends Container {
 
 
   _populateFromServer(channel) {
+    this._inPopulateFromServer = true;
+
     // Disable events if creating a new Conversation
     // We still want property change events for anything that DOES change
     this._disableEvents = (this.syncState === Constants.SYNC_STATE.NEW);
@@ -178,7 +162,21 @@ class Channel extends Container {
   }
 
   _createResultConflict(data) {
-    this._createSuccess(data.data);
+    const channel = data.data;
+    if (channel) {
+      this._createSuccess(channel);
+    } else {
+      this.syncState = Constants.SYNC_STATE.NEW;
+      this._syncCounter = 0;
+      this.trigger('channels:sent-error', { error: data });
+    }
+
+    this._inPopulateFromServer = false;
+  }
+
+  __adjustName(newValue) {
+    if (this._inPopulateFromServer || this._inLayerParser || this.isNew() || this.isLoading) return;
+    throw new Error(LayerError.dictionary.permissionDenied);
   }
 
   /**
@@ -193,7 +191,6 @@ class Channel extends Container {
    * @param  {string} oldValue
    */
   __updateName(newValue, oldValue) {
-    if (this._inLayerParser) return;
     this._triggerAsync('channels:change', {
       property: 'name',
       oldValue,
@@ -344,6 +341,36 @@ class Channel extends Container {
   }
 
   /**
+   * LayerPatch will call this after changing any properties.
+   *
+   * Trigger any cleanup or events needed after these changes.
+   *
+   * TODO: Move this to layer.Container
+   *
+   * @method _handlePatchEvent
+   * @private
+   * @param  {Mixed} newValue - New value of the property
+   * @param  {Mixed} oldValue - Prior value of the property
+   * @param  {string[]} paths - Array of paths specifically modified: ['participants'], ['metadata.keyA', 'metadata.keyB']
+   */
+  _handlePatchEvent(newValue, oldValue, paths) {
+    // Certain types of __update handlers are disabled while values are being set by
+    // layer patch parser because the difference between setting a value (triggers an event)
+    // and change a property of a value (triggers only this callback) result in inconsistent
+    // behaviors.  Enable them long enough to allow __update calls to be made
+    this._inLayerParser = false;
+    try {
+      const events = this._disableEvents;
+      this._disableEvents = false;
+      super._handlePatchEvent(newValue, oldValue, paths);
+      this._disableEvents = events;
+    } catch (err) {
+      // do nothing
+    }
+    this._inLayerParser = true;
+  }
+
+  /**
    * Register this Channel with the Client
    *
    * @method _register
@@ -356,7 +383,9 @@ class Channel extends Container {
 
   _deleteResult(result, id) {
     const client = this.getClient();
-    if (!result.success && (!result.data || result.data.id !== 'not_found')) Channel.load(id, client);
+    if (!result.success && (!result.data || (result.data.id !== 'not_found' && result.data.id !== 'authentication_required'))) {
+      Channel.load(id, client);
+    }
   }
 
   /**

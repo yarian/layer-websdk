@@ -1,4 +1,4 @@
-/* Feature is tested but not available on server
+/**
  * Adds Channel handling to the layer.Client.
  *
  * @class layer.mixins.ClientChannels
@@ -198,6 +198,9 @@ module.exports = {
      */
     getChannel(id, canLoad) {
       if (typeof id !== 'string') throw new Error(ErrorDictionary.idParamRequired);
+      if (!Channel.isValidId(id)) {
+        id = Channel.prefixUUID + id;
+      }
       if (this._models.channels[id]) {
         return this._models.channels[id];
       } else if (canLoad) {

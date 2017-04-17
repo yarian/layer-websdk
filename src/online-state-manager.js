@@ -36,14 +36,12 @@ class OnlineStateManager extends Root {
    * An Application is expected to only have one of these.
    *
    *      var onlineStateManager = new layer.OnlineStateManager({
-   *          socketManager: socketManager,
-   *          testUrl: 'https://api.layer.com/nonces'
+   *          socketManager: socketManager
    *      });
    *
    * @method constructor
    * @param  {Object} options
    * @param  {layer.Websockets.SocketManager} options.socketManager - A websocket manager to monitor for messages
-   * @param  {string} options.testUrl - A url to send requests to when testing if we are online
    */
   constructor(options) {
     super(options);
@@ -258,12 +256,6 @@ class OnlineStateManager extends Root {
 OnlineStateManager.prototype.isClientReady = false;
 
 /**
- * URL To fire when testing to see if we are online.
- * @type {String}
- */
-OnlineStateManager.prototype.testUrl = '';
-
-/**
  * A Websocket manager whose 'message' event we will listen to
  * in order to know that we are still online.
  * @type {layer.Websockets.SocketManager}
@@ -271,7 +263,7 @@ OnlineStateManager.prototype.testUrl = '';
 OnlineStateManager.prototype.socketManager = null;
 
 /**
- * Number of testUrl requests we've been offline for.
+ * Number of test requests we've been offline for.
  *
  * Will stop growing once the number is suitably large (10-20).
  * @type {Number}

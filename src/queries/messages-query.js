@@ -1,6 +1,30 @@
 /**
  * Query class for running a Query on Messages
  *
+ *      var messageQuery = client.createQuery({
+ *        client: client,
+ *        model: layer.Query.Message,
+ *        predicate: 'conversation.id = "layer:///conversations/UUID"'
+ *      });
+ *
+ * You can change the data selected by your query any time you want using:
+ *
+ *      query.update({
+ *        predicate: 'channel.id = "layer:///channels/UUID2"'
+ *      });
+ *
+ * You can release data held in memory by your queries when done with them:
+ *
+ *      query.destroy();
+ *
+ * #### predicate
+ *
+ * Note that the `predicate` property is only supported for Messages and layer.Membership, and only supports
+ * querying by Conversation or Channel:
+ *
+ * * `conversation.id = 'layer:///conversations/UUIUD'`
+ * * `channel.id = 'layer:///channels/UUIUD'`
+ *
  * @class  layer.MessagesQuery
  * @extends layer.Query
  */
@@ -39,7 +63,7 @@ class MessagesQuery extends Query {
 
     // Do nothing if we don't have a conversation to query on
     if (!predicateIds) {
-      if (!this.predicate.match(/['"]/)) {
+      if (this.predicate && !this.predicate.match(/['"]/)) {
         Logger.error('This query may need to quote its value');
       }
       return;
@@ -304,6 +328,21 @@ class MessagesQuery extends Query {
     }
   }
 
+  /*
+   * Note: Earlier versions of this iterated over each item, inserted it and when all items were inserted,
+   * triggered events indicating the index at which they were inserted.
+   *
+   * This caused the following problem:
+   *
+   * 1. Insert messages newest message at position 0 and second newest message at position 1
+   * 2. Trigger events in the order they arrive: second newest gets inserted at index 1, newest gets inserted at index 0
+   * 3. UI on receiving the second newest event does yet have the newest event, and on inserting it at position 1
+   *    is actually inserting it at the wrong place because position 0 is occupied by an older message at this time.
+   *
+   * Solution: We must iterate over all items, and process them entirely one at a time.
+   * Drawback: After an Event.replay we may get a lot of add events, we may need a way to do an event that inserts a set of messages
+   * instead of triggering lots of individual rendering-causing events
+   */
   _handleAddEvent(name, evt) {
     // Only use added messages that are part of this Conversation
     // and not already in our result set
@@ -329,18 +368,15 @@ class MessagesQuery extends Query {
       list.forEach((item) => {
         const index = this._getInsertIndex(item, data);
         data.splice(index, 0, item);
-      });
+        if (index !== 0) Logger.warn('Index of ' + item.id + ' is ' + index + '; position is ' + item.position + '; compared to ' + data[0].position);
 
-      this.totalSize += list.length;
+        this.totalSize += 1;
 
-      // Index calculated above may shift after additional insertions.  This has
-      // to be done after the above insertions have completed.
-      list.forEach((item) => {
         this._triggerChange({
           type: 'insert',
-          index: this.data.indexOf(item),
           target: item,
           query: this,
+          index,
         });
       });
     }

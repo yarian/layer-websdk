@@ -1,5 +1,21 @@
-/* Feature is tested but not available on server
+/**
  * Query class for running a Query on Channels
+ *
+ *      var channelQuery = client.createQuery({
+ *        client: client,
+ *        model: layer.Query.Channel
+ *      });
+ *
+ *
+ * You can change the `paginationWindow` property at any time using:
+ *
+ *      query.update({
+ *        paginationWindow: 200
+ *      });
+ *
+ * You can release data held in memory by your queries when done with them:
+ *
+ *      query.destroy();
  *
  * @class  layer.ChannelsQuery
  * @extends layer.Query
@@ -173,24 +189,22 @@ class ChannelsQuery extends ConversationsQuery {
 
     if (list.length) {
       const data = this.data;
+
+      // typically bulk inserts happen via _appendResults(); so this array typically iterates over an array of length 1
       list.forEach((channel) => {
         const newIndex = this._getInsertIndex(channel, data);
         data.splice(newIndex, 0, this._getData(channel));
-      });
 
-      // Whether sorting by last_message or created_at, new results go at the top of the list
-      if (this.dataType === Query.ObjectDataType) {
-        this.data = [].concat(data);
-      }
-      this.totalSize += list.length;
+        // Typically this loop only iterates once; but each iteration is gaurenteed a unique object if needed
+        if (this.dataType === Query.ObjectDataType) {
+          this.data = [].concat(data);
+        }
+        this.totalSize += 1;
 
-      // Trigger an 'insert' event for each item added;
-      // typically bulk inserts happen via _appendResults().
-      list.forEach((channel) => {
         const item = this._getData(channel);
         this._triggerChange({
           type: 'insert',
-          index: this.data.indexOf(item),
+          index: newIndex,
           target: item,
           query: this,
         });

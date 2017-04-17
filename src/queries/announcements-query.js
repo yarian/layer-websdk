@@ -1,6 +1,22 @@
 /**
  * Query class for running a Query on Announcements
  *
+ *      var announcementQuery = client.createQuery({
+ *        client: client,
+ *        model: layer.Query.Announcement
+ *      });
+ *
+ *
+ * You can change the `paginationWindow` property at any time using:
+ *
+ *      query.update({
+ *        paginationWindow: 200
+ *      });
+ *
+ * You can release data held in memory by your queries when done with them:
+ *
+ *      query.destroy();
+ *
  * @class  layer.AnnouncementsQuery
  * @extends layer.Query
  */

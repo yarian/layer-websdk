@@ -1,4 +1,4 @@
-/* Feature is tested but not available on server
+/**
  * Adds Channel Membership handling to the layer.Client.
  *
  * @class layer.mixins.ClientMembership
@@ -44,12 +44,12 @@ module.exports = {
     /**
      * A new Member has been added to the Client.
      *
-     * This event is triggered whenever a new layer.Membership (Full identity or not)
+     * This event is triggered whenever a new layer.Membership
      * has been received by the Client.
      *
             client.on('members:add', function(evt) {
-                evt.membership.forEach(function(identity) {
-                    myView.addIdentity(identity);
+                evt.membership.forEach(function(member) {
+                    myView.addMember(member);
                 });
             });
     *
@@ -65,8 +65,8 @@ module.exports = {
      * This does not typically occur.
      *
             client.on('members:remove', function(evt) {
-                evt.membership.forEach(function(identity) {
-                    myView.addIdentity(identity);
+                evt.membership.forEach(function(member) {
+                    myView.addMember(member);
                 });
             });
     *

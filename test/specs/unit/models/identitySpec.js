@@ -37,11 +37,11 @@ function deleteTables(done) {
             isTrustedDevice: true
         });
         client.sessionToken = "sessionToken";
-        client.userId = "Frodo";
+        var userId = "Frodo";
         client.user = new layer.Identity({
             clientId: client.appId,
-            userId: client.userId,
-            id: "layer:///identities/" + client.userId,
+            userId: userId,
+            id: "layer:///identities/" + userId,
             firstName: "first",
             lastName: "last",
             phoneNumber: "phone",
@@ -174,6 +174,23 @@ function deleteTables(done) {
           expect(oldIdentity.id).toEqual('');
           expect(client._models.identities[oldIdentity.id]).toBe(undefined);
         });
+
+        it("Should always initialize the presence object", function() {
+          var i1 = new layer.Identity({client: client});
+          expect(i1._presence).toEqual({
+            status: null,
+            lastSeenAt: null
+          });
+
+          var i2 = layer.Identity._createFromServer(responses.useridentity, client);
+          expect(i2._presence).toEqual({
+            status: null,
+            lastSeenAt: null
+          });
+
+          expect(i1.status).toEqual('offline');
+          expect(i2.status).toEqual('offline');
+        });
       });
 
       describe("The _populateFromServer() method", function() {
@@ -215,6 +232,7 @@ function deleteTables(done) {
         });
 
         it("Should trigger change events for changed properties", function() {
+          var lastSeenAt = new Date();
           identity.lastName = "c";
           identity.emailAddress = "e";
           spyOn(identity, "_triggerAsync");
@@ -378,6 +396,121 @@ function deleteTables(done) {
         });
       });
 
+      describe("The _handlePatchEvent", function() {
+        it("Should update lastSeenAt and status and trigger change events", function() {
+          spyOn(identity, "_triggerAsync");
+          identity._presence.status = 'available';
+          identity._presence.last_seen_at = new Date('2020-01-01');
+          identity._handlePatchEvent(
+            {status: "available", last_seen_at: "2010-01-01"},
+            {status: "away", lastSeenAt: new Date("2020-01-01")},
+            ['presence.status', 'presence.last_seen_at']);
+            expect(identity._presence.status).toEqual('available'); // not updated
+            expect(identity._presence.lastSeenAt.toISOString().substring(0, 10)).toEqual('2010-01-01'); // updated
+          expect(identity._triggerAsync).toHaveBeenCalledWith('identities:change', {
+            property: 'status',
+            oldValue: 'away',
+            newValue: 'available'
+          });
+          expect(identity._triggerAsync).toHaveBeenCalledWith('identities:change', {
+            property: 'lastSeenAt',
+            oldValue: new Date('2020-01-01'),
+            newValue: new Date('2010-01-01')
+          });
+        });
+      });
+
+      describe("The setStatus() method", function() {
+        it("Should reject invalid status values", function() {
+          expect(function() {
+            client.user.setStatus("afraid");
+          }).toThrowError(layer.LayerError.dictionary.valueNotSupported);
+
+          expect(function() {
+            client.user.setStatus("");
+          }).toThrowError(layer.LayerError.dictionary.valueNotSupported);
+
+          expect(function() {
+            client.user.setStatus(null);
+          }).toThrowError(layer.LayerError.dictionary.valueNotSupported);
+        });
+
+        it("Should send the specified presence update", function() {
+          spyOn(client, "sendSocketRequest");
+          client.user.setStatus("AWAY");
+          expect(client.sendSocketRequest).toHaveBeenCalledWith({
+            method: 'PATCH',
+            body: {
+              method: 'Presence.update',
+              data: [{operation: 'set', property: 'status', value: 'away'}]
+            },
+            sync: {
+              depends: [client.user.id],
+              target: client.user.id
+            }
+          },
+          jasmine.any(Function));
+        });
+
+        it("call _updateValue with the new status", function() {
+          expect(client.user._presence.status).not.toEqual("AWAY");
+          spyOn(client.user, "_updateValue").and.callThrough();;
+          client.user.setStatus("AWAY");
+          expect(client.user._updateValue).toHaveBeenCalledWith(['_presence', 'status'], 'away');
+          expect(client.user._presence.status).toEqual("away");
+        });
+
+        it("Should roll back the value on server error", function() {
+          client.user._presence.status = "available";
+          spyOn(client.user, "_updateValue").and.callThrough();;
+          spyOn(client, "sendSocketRequest").and.callFake(function(args, callback) {
+            callback({
+              success: false,
+              data: {id: "frodo"}
+            });
+          });
+
+          client.user.setStatus("AWAY");
+          expect(client.user._updateValue).toHaveBeenCalledWith(['_presence', 'status'], 'available');
+        });
+
+        it("Should send offline and set invisible if setting to invisible", function() {
+          client.user._presence.status = "available";
+          spyOn(client, "sendSocketRequest")
+          client.user.setStatus(layer.Identity.STATUS.INVISIBLE);
+          expect(client.user.status).toEqual(layer.Identity.STATUS.INVISIBLE);
+          expect(client.sendSocketRequest).toHaveBeenCalledWith({
+            method: 'PATCH',
+            body: {
+              method: 'Presence.update',
+              data: [{operation: 'set', property: 'status', value: 'offline'}]
+            },
+            sync: {
+              depends: [client.user.id],
+              target: client.user.id
+            }
+          }, jasmine.any(Function));
+        });
+
+        it("Should send offline and set invisible if setting to offline", function() {
+          client.user._presence.status = "available";
+          spyOn(client, "sendSocketRequest")
+          client.user.setStatus(layer.Identity.STATUS.OFFLINE);
+          expect(client.user.status).toEqual(layer.Identity.STATUS.INVISIBLE);
+          expect(client.sendSocketRequest).toHaveBeenCalledWith({
+            method: 'PATCH',
+            body: {
+              method: 'Presence.update',
+              data: [{operation: 'set', property: 'status', value: 'offline'}]
+            },
+            sync: {
+              depends: [client.user.id],
+              target: client.user.id
+            }
+          }, jasmine.any(Function));
+        });
+      });
+
       describe("The follow() method", function() {
         beforeEach(function() {
           spyOn(client.dbManager, "writeSyncEvents").and.callFake(function(evts, callback) {callback(true);});
@@ -405,6 +538,11 @@ function deleteTables(done) {
               status: 204
           });
           expect(basicIdentity._load).toHaveBeenCalledWith();
+        });
+
+        it("Should leave syncState as LOADING", function() {
+          basicIdentity.follow();
+          expect(basicIdentity.syncState).toEqual(layer.Constants.SYNC_STATE.LOADING);
         });
       });
 
@@ -452,6 +590,31 @@ function deleteTables(done) {
         it("Should return a new Identity", function() {
           expect(layer.Identity._createFromServer(responses.useridentity, client)).toEqual(jasmine.any(layer.Identity));
           expect(layer.Identity._createFromServer(responses.useridentity, client).userId).toEqual(responses.useridentity.user_id);
+        });
+      });
+
+      describe("The _updateValue() method", function() {
+        it("Should update a standard value", function() {
+          spyOn(identity, '_triggerAsync');
+          identity._updateValue(['firstName'], 'They call me First Name');
+          expect(identity.firstName).toEqual('They call me First Name');
+          expect(identity._triggerAsync).toHaveBeenCalledWith('identities:change', {
+            property: 'firstName',
+            oldValue: 'first',
+            newValue: 'They call me First Name'
+          });
+        });
+
+        it("Should update an embedded value", function() {
+          identity._presence.status = 'away';
+          spyOn(identity, '_triggerAsync');
+          identity._updateValue(['_presence', 'status'], 'annoyed');
+          expect(identity._presence.status).toEqual('annoyed');
+          expect(identity._triggerAsync).toHaveBeenCalledWith('identities:change', {
+            property: 'status',
+            oldValue: 'away',
+            newValue: 'annoyed'
+          });
         });
       });
 

@@ -127,9 +127,6 @@ class TypingListener {
   /**
    * Whenever the key is pressed, send a "started" or "finished" event.
    *
-   * If its a "start" event, schedule a pause-test that will send
-   * a "pause" event if typing stops.
-   *
    * @method _handleKeyPress
    * @private
    * @param  {KeyboardEvent} evt

@@ -4,12 +4,16 @@ describe("The Client Authenticator Class", function() {
     var appId = "layer:///apps/staging/ffffffff-ffff-ffff-ffff-ffffffffffff";
     var userId = "93c83ec4-b508-4a60-8550-099f9c42ec1a";
     var identityToken = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImN0eSI6ImxheWVyLWVpdDt2PTEiLCJraWQiOiIyOWUzN2ZhZS02MDdlLTExZTQtYTQ2OS00MTBiMDAwMDAyZjgifQ.eyJpc3MiOiI4YmY1MTQ2MC02MDY5LTExZTQtODhkYi00MTBiMDAwMDAwZTYiLCJwcm4iOiI5M2M4M2VjNC1iNTA4LTRhNjAtODU1MC0wOTlmOWM0MmVjMWEiLCJpYXQiOjE0MTcwMjU0NTQsImV4cCI6MTQxODIzNTA1NCwibmNlIjoiRFZPVFZzcDk0ZU9lNUNzZDdmaWVlWFBvUXB3RDl5SjRpQ0EvVHJSMUVJT25BSEdTcE5Mcno0Yk9YbEN2VDVkWVdEdy9zU1EreVBkZmEydVlBekgrNmc9PSIsImRpc3BsYXlfbmFtZSI6IlRlc3QgVXNlciIsImF2YXRhcl91cmwiOiJodHRwczovL2dvb2dsZS5jb20vSW52YWxpZEltYWdlLnBuZyIsImlkIjoibGF5ZXI6Ly8vaWRlbnRpdGllcy85M2M4M2VjNC1iNTA4LTRhNjAtODU1MC0wOTlmOWM0MmVjMWEifQ==";
-
+    var dbIsEnabled = true;
     var client, requests;
     var userId = '93c83ec4-b508-4a60-8550-099f9c42ec1a', userIdentity;
-    beforeAll(function() {
+    beforeAll(function(done) {
         jasmine.addCustomEqualityTester(mostRecentEqualityTest);
         jasmine.addCustomEqualityTester(responseTest);
+        testDbEnabled(function(result) {
+            dbIsEnabled = result;
+            done();
+        });
     });
 
     beforeEach(function() {
@@ -114,6 +118,7 @@ describe("The Client Authenticator Class", function() {
         it("Should setup the onlineManager", function() {
             client._initComponents();
             client.isAuthenticated = true;
+            client._wantsToBeAuthenticated = true;
             spyOn(client.socketManager, "connect");
             client.onlineManager.trigger("connected");
             expect(client.socketManager.connect).toHaveBeenCalled();
@@ -497,6 +502,16 @@ describe("The Client Authenticator Class", function() {
                 // Posttest
                 expect(client._sessionTokenRestored).toHaveBeenCalledWith();
             });
+
+            it("Should setup the expected state", function() {
+                client._lastChallengeTime = 10;
+                expect(client._wantsToBeAuthenticated).toEqual(false);
+                client.isConnected = true;
+                client.connect();
+                expect(client._lastChallengeTime).toEqual(0);
+                expect(client._wantsToBeAuthenticated).toEqual(true);
+                expect(client.isConnected).toEqual(false);
+            });
         });
 
         describe("The connectWithSession() method", function () {
@@ -656,6 +671,24 @@ describe("The Client Authenticator Class", function() {
             it("Should chain", function () {
                 expect(client.connectWithSession('userId', 'sessionToken')).toBe(client);
             });
+
+            it("Should setup the expected state", function() {
+                client._lastChallengeTime = 10;
+                expect(client._wantsToBeAuthenticated).toEqual(false);
+                client.connectWithSession('userId', 'sessionToken');
+                expect(client._lastChallengeTime).toEqual(0);
+                expect(client._wantsToBeAuthenticated).toEqual(true);
+            });
+
+            it("Should allow reauthentication", function() {
+                client.isReady = client.isAuthenticated = client._wantsToBeAuthenticated = client.isConnected = true;
+                client.sessionToken = "Fred";
+                client.connectWithSession('userId', 'sessionToken');
+                jasmine.clock().tick(10);
+
+                expect(client.sessionToken).toEqual('sessionToken');
+                expect(client.isReady === client.isAuthenticated === client.isConnected === true).toBe(true);
+            });
         });
 
         describe("The _connectionResponse() method", function () {
@@ -754,6 +787,12 @@ describe("The Client Authenticator Class", function() {
                     nonce: "mynonce",
                     callback: jasmine.any(Function)
                 });
+            });
+
+            it("Should setup the _lastChallengeTime property", function() {
+                client._lastChallengeTime = 0;
+                client._authenticate("");
+                expect(client._lastChallengeTime).not.toEqual(0);
             });
         });
 
@@ -1036,6 +1075,7 @@ describe("The Client Authenticator Class", function() {
             });
 
             it("Should initialize the dbManager to all disabled if not isTrustedDevice and isPersitenceEnabled", function () {
+                if (!dbIsEnabled) return expect(true).toBe(true);
                 // Setup
                 client.isTrustedDevice = false;
                 client.isPersistenceEnabled = true;
@@ -1052,6 +1092,8 @@ describe("The Client Authenticator Class", function() {
 
 
             it("Should initialize the dbManager to all disabled if not isTrustedDevice and persistenceFeatures provided", function () {
+                if (!dbIsEnabled) return expect(true).toBe(true);
+
                 // Setup
                 client.isTrustedDevice = false;
                 client.persistenceFeatures = {
@@ -1074,6 +1116,8 @@ describe("The Client Authenticator Class", function() {
             });
 
             it("Should initialize the dbManager to false if isTrustedDevice but isPersistenceEnabled is false and no persistenceFeatures specified", function () {
+                if (!dbIsEnabled) return expect(true).toBe(true);
+
                 // Setup
                 client.isTrustedDevice = true;
                 client.isPersistenceEnabled = false;
@@ -1090,6 +1134,8 @@ describe("The Client Authenticator Class", function() {
 
 
             it("Should initialize the dbManager to custom values if isTrustedDevice and persistenceFeatures provided", function () {
+                if (!dbIsEnabled) return expect(true).toBe(true);
+
                 // Setup
                 client.isTrustedDevice = true;
                 client.isPersistenceEnabled = true;
@@ -1113,6 +1159,8 @@ describe("The Client Authenticator Class", function() {
             });
 
             it("Should initialize the dbManager to custom values if isTrustedDevice and persistenceFeatures provided but not persistenceEnabled", function () {
+                if (!dbIsEnabled) return expect(true).toBe(true);
+
                 // Setup
                 client.isTrustedDevice = true;
                 client.isPersistenceEnabled = false;
@@ -1445,6 +1493,13 @@ describe("The Client Authenticator Class", function() {
                 client._clearStoredData.calls.allArgs()[0][0]();
                 expect(spy).toHaveBeenCalled();
             });
+
+            it("Should reset _wantsToBeAuthenticated", function() {
+                client._wantsToBeAuthenticated = true;
+                client.logout();
+                expect(client._wantsToBeAuthenticated).toBe(false);
+
+            });
         });
 
         describe("The _clearStoredData() method", function () {
@@ -1547,6 +1602,7 @@ describe("The Client Authenticator Class", function() {
         describe("The _handleOnlineChange() method", function () {
             it("Should trigger online: false if disconnected", function () {
                 client.isAuthenticated = true;
+                client._wantsToBeAuthenticated = true;
                 spyOn(client, "trigger");
                 client._handleOnlineChange({
                     eventName: 'disconnected'
@@ -1557,6 +1613,7 @@ describe("The Client Authenticator Class", function() {
 
             it("Should trigger online: true if connected", function () {
                 client.isAuthenticated = true;
+                client._wantsToBeAuthenticated = true;
                 spyOn(client, "trigger");
                 client._handleOnlineChange({
                     eventName: 'connected',
@@ -1568,6 +1625,7 @@ describe("The Client Authenticator Class", function() {
 
             it("Should trigger reset: true if connected after 30 hours offline", function () {
                 client.isAuthenticated = true;
+                client._wantsToBeAuthenticated = true;
                 spyOn(client, "trigger");
                 client._handleOnlineChange({
                     eventName: 'connected',
@@ -1577,16 +1635,38 @@ describe("The Client Authenticator Class", function() {
                 expect(client.trigger).toHaveBeenCalledWith('online', { isOnline: true, reset: true });
             });
 
-            it("Should not trigger if not authenticated", function () {
+
+            it("Should call _connect() if not authenticated but wants to authenticate", function() {
                 client.isAuthenticated = false;
-                spyOn(client, "trigger");
+                client._wantsToBeAuthenticated = true;
+                spyOn(client, "_connect");
+
+                // Test 1
                 client._handleOnlineChange({
                     eventName: 'connected',
-                    offlineDuration: 1000 * 60 * 60 * 31
+                    offlineDuration: 500
                 });
+                expect(client._connect).toHaveBeenCalled();
+                client._connect.calls.reset();
 
-                expect(client.trigger).not.toHaveBeenCalled();
+                // Test 2
+                client._wantsToBeAuthenticated = false;
+                client._handleOnlineChange({
+                    eventName: 'connected',
+                    offlineDuration: 500
+                });
+                expect(client._connect).not.toHaveBeenCalled();
+                client._connect.calls.reset();
 
+                // Test 3
+                client._wantsToBeAuthenticated = true;
+                client.isAuthenticated = true;
+                client._handleOnlineChange({
+                    eventName: 'connected',
+                    offlineDuration: 500
+                });
+                expect(client._connect).not.toHaveBeenCalled();
+                client._connect.calls.reset();
             });
         });
 

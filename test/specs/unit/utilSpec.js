@@ -471,6 +471,21 @@ describe("The Util Library", function() {
                 "layer:///identities/c": "read"
             });
         });
+
+        it("Should updated identity presence", function() {
+            expect(client.user._presence.status).not.toEqual("crazed and dazed");
+            layer.Util.layerParse({
+                client: client,
+                object: client.user,
+                type: "Identity",
+                operations: [
+                    {operation: "set", property: "presence.status", value: "crazed and dazed"}
+                ]
+            });
+
+            // Posttest
+            expect(client.user.status).toEqual("crazed and dazed");
+        });
     });
 
     describe("The base64ToBlob() method", function() {
@@ -526,52 +541,52 @@ describe("The Util Library", function() {
       it("Should return ASCII Layer logo with version 1.0.0", function() {
         expect(layer.Util.asciiInit('1.0.0')).toEqual(
         '\n    /hNMMMMMMMMMMMMMMMMMMMms.' +
-        '\n  hMMy+/////////////////omMN-        \'oo.' +
-        '\n  MMN                    oMMo        .MM/' +
-        '\n  MMN                    oMMo        .MM/              ....                       ....            ...' +
-        '\n  MMN       Web SDK      oMMo        .MM/           ohdddddddo\' +md.      smy  -sddddddho.   hmosddmm.' +
-        '\n  MMM-                   oMMo        .MM/           ::.\'  \'.mM+ \'hMd\'    +Mm. +Nm/\'   .+Nm-  mMNs-\'.' +
-        '\n  MMMy      v1.0.0       oMMo        .MM/             .-:/+yNMs  .mMs   /MN: .MMs///////dMh  mMy' +
-        '\n  MMMMo                  oMMo        .MM/          .ymhyso+:hMs   :MM/ -NM/  :MMsooooooooo+  mM+' +
-        '\n  MMMMMy.                oMMo        .MM/          dMy\'    \'dMs    +MN:mM+   \'NMo            mM+' +
-        '\n  MMMMMMNy:\'             oMMo        .MMy++++++++: sMm/---/dNMs     yMMMs     -dMd+:-:/smy\'  mM+' +
-        '\n  NMMMMMMMMmy+:-.\'      \'yMM/        \'yyyyyyyyyyyo  :shhhys:+y/     .MMh       \'-oyhhhys:\'   sy:' +
-        '\n  :dMMMMMMMMMMMMNNNNNNNNNMNs                                        hMd\'' +
-        '\n   -/+++++++++++++++++++:\'                                      sNmdo\'');
+        '\n  hMMy+/////////////////omMN-' +
+        '\n  MMN                    oMMo' +
+        '\n  MMN        Layer       oMMo' +
+        '\n  MMN       Web SDK      oMMo' +
+        '\n  MMM-                   oMMo' +
+        '\n  MMMy      v1.0.0       oMMo' +
+        '\n  MMMMo                  oMMo' +
+        '\n  MMMMMy.                oMMo' +
+        '\n  MMMMMMNy:\'             oMMo' +
+        '\n  NMMMMMMMMmy+:-.\'      \'yMM/' +
+        '\n  :dMMMMMMMMMMMMNNNNNNNNNMNs' +
+        '\n   -/+++++++++++++++++++:\'');
       });
 
       it("Should return ASCII Layer logo with version 2.10.37", function() {
         expect(layer.Util.asciiInit('2.10.37')).toEqual(
           '\n    /hNMMMMMMMMMMMMMMMMMMMms.' +
-          '\n  hMMy+/////////////////omMN-        \'oo.' +
-          '\n  MMN                    oMMo        .MM/' +
-          '\n  MMN                    oMMo        .MM/              ....                       ....            ...' +
-          '\n  MMN       Web SDK      oMMo        .MM/           ohdddddddo\' +md.      smy  -sddddddho.   hmosddmm.' +
-          '\n  MMM-                   oMMo        .MM/           ::.\'  \'.mM+ \'hMd\'    +Mm. +Nm/\'   .+Nm-  mMNs-\'.' +
-          '\n  MMMy      v2.10.37     oMMo        .MM/             .-:/+yNMs  .mMs   /MN: .MMs///////dMh  mMy' +
-          '\n  MMMMo                  oMMo        .MM/          .ymhyso+:hMs   :MM/ -NM/  :MMsooooooooo+  mM+' +
-          '\n  MMMMMy.                oMMo        .MM/          dMy\'    \'dMs    +MN:mM+   \'NMo            mM+' +
-          '\n  MMMMMMNy:\'             oMMo        .MMy++++++++: sMm/---/dNMs     yMMMs     -dMd+:-:/smy\'  mM+' +
-          '\n  NMMMMMMMMmy+:-.\'      \'yMM/        \'yyyyyyyyyyyo  :shhhys:+y/     .MMh       \'-oyhhhys:\'   sy:' +
-          '\n  :dMMMMMMMMMMMMNNNNNNNNNMNs                                        hMd\'' +
-          '\n   -/+++++++++++++++++++:\'                                      sNmdo\'');
+        '\n  hMMy+/////////////////omMN-' +
+        '\n  MMN                    oMMo' +
+        '\n  MMN        Layer       oMMo' +
+        '\n  MMN       Web SDK      oMMo' +
+        '\n  MMM-                   oMMo' +
+        '\n  MMMy      v2.10.37     oMMo' +
+        '\n  MMMMo                  oMMo' +
+        '\n  MMMMMy.                oMMo' +
+        '\n  MMMMMMNy:\'             oMMo' +
+        '\n  NMMMMMMMMmy+:-.\'      \'yMM/' +
+        '\n  :dMMMMMMMMMMMMNNNNNNNNNMNs' +
+        '\n   -/+++++++++++++++++++:\'');
       });
 
       it("Should return ASCII Layer logo with version 2.0.0-beta.3", function() {
         expect(layer.Util.asciiInit('2.0.0-beta.3')).toEqual(
           '\n    /hNMMMMMMMMMMMMMMMMMMMms.' +
-          '\n  hMMy+/////////////////omMN-        \'oo.' +
-          '\n  MMN                    oMMo        .MM/' +
-          '\n  MMN                    oMMo        .MM/              ....                       ....            ...' +
-          '\n  MMN       Web SDK      oMMo        .MM/           ohdddddddo\' +md.      smy  -sddddddho.   hmosddmm.' +
-          '\n  MMM-                   oMMo        .MM/           ::.\'  \'.mM+ \'hMd\'    +Mm. +Nm/\'   .+Nm-  mMNs-\'.' +
-          '\n  MMMy      v2.0.0       oMMo        .MM/             .-:/+yNMs  .mMs   /MN: .MMs///////dMh  mMy' +
-          '\n  MMMMo     beta.3       oMMo        .MM/          .ymhyso+:hMs   :MM/ -NM/  :MMsooooooooo+  mM+' +
-          '\n  MMMMMy.                oMMo        .MM/          dMy\'    \'dMs    +MN:mM+   \'NMo            mM+' +
-          '\n  MMMMMMNy:\'             oMMo        .MMy++++++++: sMm/---/dNMs     yMMMs     -dMd+:-:/smy\'  mM+' +
-          '\n  NMMMMMMMMmy+:-.\'      \'yMM/        \'yyyyyyyyyyyo  :shhhys:+y/     .MMh       \'-oyhhhys:\'   sy:' +
-          '\n  :dMMMMMMMMMMMMNNNNNNNNNMNs                                        hMd\'' +
-          '\n   -/+++++++++++++++++++:\'                                      sNmdo\'');
+        '\n  hMMy+/////////////////omMN-' +
+        '\n  MMN                    oMMo' +
+        '\n  MMN        Layer       oMMo' +
+        '\n  MMN       Web SDK      oMMo' +
+        '\n  MMM-                   oMMo' +
+        '\n  MMMy      v2.0.0       oMMo' +
+        '\n  MMMMo     beta.3       oMMo' +
+        '\n  MMMMMy.                oMMo' +
+        '\n  MMMMMMNy:\'             oMMo' +
+        '\n  NMMMMMMMMmy+:-.\'      \'yMM/' +
+        '\n  :dMMMMMMMMMMMMNNNNNNNNNMNs' +
+        '\n   -/+++++++++++++++++++:\'');
       });
     });
 });

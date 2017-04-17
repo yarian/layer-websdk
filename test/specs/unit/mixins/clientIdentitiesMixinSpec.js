@@ -142,6 +142,10 @@ describe("The Client Identities Mixin", function() {
   });
 
   describe("The _addIdentity() method", function() {
+      beforeEach(function() {
+        client._loadPresenceIds = [];
+      });
+
       it("Should not add a UserIdentity that already exists", function() {
           // Setup
           client._models.identities = {};
@@ -190,6 +194,60 @@ describe("The Client Identities Mixin", function() {
           expect(client._models.identities).toEqual({});
       });
 
+      it("Should queue up the Identity in _loadPresenceIds", function() {
+        userIdentity  = new layer.Identity({
+              client: client,
+              fromServer: {
+                  id: "layer:///identities/fred",
+                  display_name: "Fred"
+              }
+          });
+          expect(client._loadPresenceIds).toEqual([userIdentity.id]);
+      });
+
+      it("Should schedule call to _loadPresence if _loadPresenceIds is empty", function() {
+        spyOn(client, "_loadPresence");
+        expect(client._loadPresenceIds).toEqual([]);
+        userIdentity  = new layer.Identity({
+              client: client,
+              fromServer: {
+                  display_name: "Fred"
+              }
+          });
+        expect(client._loadPresence).not.toHaveBeenCalled();
+        jasmine.clock().tick(1000);
+        expect(client._loadPresence).toHaveBeenCalledWith();
+        expect(client._loadPresence.calls.count()).toEqual(1);
+      });
+
+      it("Should schedule not call to _loadPresence if _loadPresenceIds is not empty", function() {
+        spyOn(client, "_loadPresence");
+        expect(client._loadPresenceIds).toEqual([]);
+        userIdentity  = new layer.Identity({
+            client: client,
+            fromServer: {
+                display_name: "Fred"
+            }
+        });
+        jasmine.clock().tick(10);
+        var userIdentity2  = new layer.Identity({
+            client: client,
+            fromServer: {
+                display_name: "Fred2"
+            }
+        });
+        jasmine.clock().tick(10);
+        var userIdentity2  = new layer.Identity({
+            client: client,
+            fromServer: {
+                display_name: "Fred3"
+            }
+        });
+        expect(client._loadPresence).not.toHaveBeenCalled();
+        jasmine.clock().tick(1000);
+        expect(client._loadPresence).toHaveBeenCalledWith();
+        expect(client._loadPresence.calls.count()).toEqual(1);
+      });
   });
 
   describe("The _removeIdentity() method", function() {
@@ -228,6 +286,29 @@ describe("The Client Identities Mixin", function() {
           expect(client._models.identities).toEqual(endTest);
           expect(client._triggerAsync).toHaveBeenCalledWith('identities:remove', {identities: [userIdentity]});
       });
+  });
+
+  describe("The _loadPresence() method", function() {
+    it("Should clear _loadPresenceIds", function() {
+        client._loadPresenceIds = ['a','b','c'];
+        client._loadPresence();
+        expect(client._loadPresenceIds).toEqual([]);
+    });
+
+    it("Should request all queued ids", function() {
+        spyOn(client.syncManager, 'request');
+        client._loadPresenceIds = ['a','b','c'];
+        client._loadPresence();
+        expect(client.syncManager.request).toHaveBeenCalledWith(jasmine.any(layer.WebsocketSyncEvent));
+        var syncEvent = client.syncManager.request.calls.allArgs()[0][0];
+        expect(syncEvent.returnChangesArray).toBe(true);
+        expect(syncEvent.data).toEqual({
+            method: 'Presence.sync',
+            data: {
+                ids: ['a','b','c']
+            }
+        });
+    });
   });
 
 

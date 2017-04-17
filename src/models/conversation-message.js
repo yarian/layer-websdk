@@ -353,7 +353,9 @@ class ConversationMessage extends Message {
       url: '?' + queryStr,
       method: 'DELETE',
     }, (result) => {
-      if (!result.success && (!result.data || result.data.id !== 'not_found')) Message.load(id, client);
+      if (!result.success && (!result.data || (result.data.id !== 'not_found' && result.data.id !== 'authentication_required'))) {
+        Message.load(id, client);
+      }
     });
 
     this._deleted();

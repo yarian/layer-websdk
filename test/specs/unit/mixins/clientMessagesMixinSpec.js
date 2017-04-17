@@ -126,6 +126,15 @@ describe("The Client Message Mixin", function() {
             }).toThrowError(layer.LayerError.dictionary.idParamRequired);
             expect(layer.LayerError.dictionary.idParamRequired.length > 0).toBe(true);
         });
+
+        it("Should not load if not ready", function() {
+            requests.reset();
+            client.isReady = false;
+            var newId = message.id + "a";
+            expect(function() {
+                client.getMessage(newId, true);
+            }).toThrowError(layer.LayerError.dictionary.clientMustBeReady);
+        });
     });
 
     describe("The _addMessage() method", function() {

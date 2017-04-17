@@ -42,7 +42,7 @@ describe("SyncManager Integration Tests", function() {
             requestManager: client.socketRequestManager
         });
         client.onlineManager.isOnline = true;
-        client.socketManager._socket = {
+       client.socketManager._socket = {
             send: function() {},
             addEventListener: function() {},
             removeEventListener: function() {},

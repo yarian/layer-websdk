@@ -41,24 +41,36 @@ class WebsocketChangeManager {
    */
   _handleChange(evt) {
     if (evt.data.type === 'change') {
-      const msg = evt.data.body;
-      switch (msg.operation) {
-        case 'create':
-          logger.info(`Websocket Change Event: Create ${msg.object.type} ${msg.object.id}`);
-          logger.debug(msg.data);
-          this._handleCreate(msg);
-          break;
-        case 'delete':
-          logger.info(`Websocket Change Event: Delete ${msg.object.type} ${msg.object.id}`);
-          logger.debug(msg.data);
-          this._handleDelete(msg);
-          break;
-        case 'update':
-          logger.info(`Websocket Change Event: Patch ${msg.object.type} ${msg.object.id}: ${msg.data.map(op => op.property).join(', ')}`);
-          logger.debug(msg.data);
-          this._handlePatch(msg);
-          break;
-      }
+      this._processChange(evt.data.body);
+    }
+  }
+
+  /**
+   * Process changes from a change packet.
+   *
+   * Called both by _handleChange, and by the requestManager on getting a changes array.
+   *
+   * @method _processChanage
+   * @private
+   * @param {Object} msg
+   */
+  _processChange(msg) {
+    switch (msg.operation) {
+      case 'create':
+        logger.info(`Websocket Change Event: Create ${msg.object.type} ${msg.object.id}`);
+        logger.debug(msg.data);
+        this._handleCreate(msg);
+        break;
+      case 'delete':
+        logger.info(`Websocket Change Event: Delete ${msg.object.type} ${msg.object.id}`);
+        logger.debug(msg.data);
+        this._handleDelete(msg);
+        break;
+      case 'update':
+        logger.info(`Websocket Change Event: Patch ${msg.object.type} ${msg.object.id}: ${msg.data.map(op => op.property).join(', ')}`);
+        logger.debug(msg.data);
+        this._handlePatch(msg);
+        break;
     }
   }
 

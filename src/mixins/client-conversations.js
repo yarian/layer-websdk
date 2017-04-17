@@ -201,6 +201,9 @@ module.exports = {
      */
     getConversation(id, canLoad) {
       if (typeof id !== 'string') throw new Error(ErrorDictionary.idParamRequired);
+      if (!Conversation.isValidId(id)) {
+        id = Conversation.prefixUUID + id;
+      }
       if (this._models.conversations[id]) {
         return this._models.conversations[id];
       } else if (canLoad) {

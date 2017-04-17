@@ -420,7 +420,7 @@ class Root extends EventClass {
     Events.trigger.apply(this, computedArgs);
 
     const parentProp = this.constructor.bubbleEventParent;
-    if (parentProp) {
+    if (parentProp && args[0] !== 'destroy') {
       let parentValue = this[parentProp];
       parentValue = (typeof parentValue === 'function') ? parentValue.apply(this) : parentValue;
       if (parentValue) parentValue.trigger(...computedArgs);
@@ -611,7 +611,6 @@ class Root extends EventClass {
 function defineProperty(newClass, propertyName) {
   const pKey = '__' + propertyName;
   const camel = propertyName.substring(0, 1).toUpperCase() + propertyName.substring(1);
-
   const hasDefinitions = newClass.prototype['__adjust' + camel] || newClass.prototype['__update' + camel] ||
     newClass.prototype['__get' + camel];
   if (hasDefinitions) {

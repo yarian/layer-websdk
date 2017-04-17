@@ -19,24 +19,18 @@ function fixBrowserifyForIstanbul(file) {
     function end () {
       var lines = data.split(/\n/);
 
-      if (file.match(/\/user.js$/)) {
-        lines = lines.map(function(line) {
-          if (line.match(/^\s*\*/)) return line;
-          return "/* istanbul ignore next */ " + line;
-        });
-      } else {
-        for (var i = 0; i < lines.length; i++) {
-          if (lines[i].match(/\/\*\*/)) {
-            break;
-          }
 
-          lines[i] = lines[i].replace(/\sfunction/g, "/* istanbul ignore next */ function");
-          lines[i] = lines[i].replace(/\(function/g, "/* istanbul ignore next */ (function");
-          lines[i] = lines[i].replace(/(\{|\}) if /g, "$1 /* istanbul ignore next */ if ");
-          lines[i] = lines[i].replace(/; if /g, "; /* istanbul ignore next */ if ");
-          lines[i] = lines[i].replace(/(\{|\}) for /g, "$1 /* istanbul ignore next */ for ");
-          lines[i] = lines[i].replace(/; for /g, "; /* istanbul ignore next */ for ");
+      for (var i = 0; i < lines.length; i++) {
+        if (lines[i].match(/\/\*\*/)) {
+          break;
         }
+
+        lines[i] = lines[i].replace(/\sfunction/g, "/* istanbul ignore next */ function");
+        lines[i] = lines[i].replace(/\(function/g, "/* istanbul ignore next */ (function");
+        lines[i] = lines[i].replace(/(\{|\}) if /g, "$1 /* istanbul ignore next */ if ");
+        lines[i] = lines[i].replace(/; if /g, "; /* istanbul ignore next */ if ");
+        lines[i] = lines[i].replace(/(\{|\}) for /g, "$1 /* istanbul ignore next */ for ");
+        lines[i] = lines[i].replace(/; for /g, "; /* istanbul ignore next */ for ");
       }
 
        this.queue(lines.join('\n'));
@@ -225,7 +219,7 @@ module.exports = function (grunt) {
     },
     watch: {
       debug: {
-        files: ['src/**', "Gruntfile.js"],
+        files: ['package.json', 'src/**', "Gruntfile.js"],
         tasks: ['debug', 'prepublish']
       }
     },
@@ -309,9 +303,14 @@ module.exports = function (grunt) {
 
     // Saucelabs Tests
     connect: {
-			server: {
+			saucelabs: {
         options: {
             port: 9023
+        }
+      },
+      develop: {
+        options: {
+          port: 8001
         }
       }
     },
@@ -346,7 +345,7 @@ module.exports = function (grunt) {
     });
   });
 
-  grunt.registerMultiTask('jsduckfixes', 'Building Web Components', function() {
+  grunt.registerMultiTask('jsduckfixes', 'Fixing Docs', function() {
     var options = this.options();
 
     this.files.forEach(function(fileGroup) {
@@ -394,5 +393,6 @@ module.exports = function (grunt) {
   // Saucelabs Tests
   grunt.loadNpmTasks('grunt-saucelabs');
   grunt.loadNpmTasks('grunt-contrib-connect');
-  grunt.registerTask('sauce', ['connect', 'saucelabs-jasmine']);
+  grunt.registerTask('sauce', ['connect:saucelabs', 'saucelabs-jasmine']);
+  grunt.registerTask("develop", ["connect:develop", "watch"]);
 };

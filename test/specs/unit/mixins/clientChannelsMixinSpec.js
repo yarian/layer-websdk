@@ -290,11 +290,11 @@ describe("The Client Channel Mixin", function() {
             var c1id = c1.id;
 
             // Run
-            c1.id = "fred";
+            c1.id = "layer:///channels/fred";
             client._updateChannelId(c1, c1id);
 
             // Posttest
-            expect(client.getChannel("fred")).toBe(c1);
+            expect(client.getChannel("layer:///channels/fred")).toBe(c1);
         });
 
         it("Should delete the old id", function() {
@@ -309,7 +309,7 @@ describe("The Client Channel Mixin", function() {
             expect(client.getChannel(c1id)).toBe(c1);
 
             // Run
-            c1.id = "fred";
+            c1.id = "layer:///channels/fred";
             client._updateChannelId(c1, c1id);
 
             // Posttest
@@ -332,12 +332,12 @@ describe("The Client Channel Mixin", function() {
             expect(m2.conversationId).toEqual(c1id);
 
             // Run
-            c1.id = "fred";
+            c1.id = "layer:///channels/fred";
             client._updateChannelId(c1, c1id);
 
             // Posttest
-            expect(m1.conversationId).toEqual("fred");
-            expect(m2.conversationId).toEqual("fred");
+            expect(m1.conversationId).toEqual("layer:///channels/fred");
+            expect(m2.conversationId).toEqual("layer:///channels/fred");
         });
     });
 

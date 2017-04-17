@@ -32,19 +32,19 @@
  *     queryBuilder.paginationWindow(200);
  *     query.update(queryBuilder);
  *
- * You can release Conversations and Messages held in memory by your queries when done with them:
+ * You can release data held in memory by your queries when done with them:
  *
  *      query.destroy();
  *
- * #### predicate
+ * #### Query Types
  *
- * Note that the `predicate` property is only supported for Messages, and only supports
- * querying by Conversation: `conversation.id = 'layer:///conversations/UUIUD'`
+ * For documentation on creating each of these types of queries, see the specified Query Subclass:
  *
- * #### sortBy
- *
- * Note that the `sortBy` property is only supported for Conversations at this time and only
- * supports "createdAt" and "lastMessage.sentAt" as sort fields.
+ * * layer.ConversationsQuery
+ * * layer.ChannelsQuery
+ * * layer.MessagesQuery
+ * * layer.IdentitiesQuery
+ * * layer.MembersQuery
  *
  * #### dataType
  *
@@ -206,6 +206,7 @@
 const Root = require('../root');
 const LayerError = require('../layer-error');
 const Logger = require('../logger');
+const Utils = require('../client-utils');
 
 class Query extends Root {
 
@@ -250,11 +251,8 @@ class Query extends Root {
   destroy() {
     this.data = [];
     this._triggerChange({
-      type: 'data',
-      target: this.client,
-      query: this,
-      isChange: false,
       data: [],
+      type: 'reset',
     });
     this.client.off(null, null, this);
     this.client._removeQuery(this);
@@ -366,6 +364,10 @@ class Query extends Root {
    * @private
    */
   _reset() {
+    if (this._isSyncingId) {
+      clearTimeout(this._isSyncingId);
+      this._isSyncingId = 0;
+    }
     this.totalSize = 0;
     const data = this.data;
     this.data = [];
@@ -375,6 +377,7 @@ class Query extends Root {
     this._nextDBFromId = '';
     this._nextServerFromId = '';
     this._isServerSyncing = false;
+    this._isSyncingCount = 0;
     this.pagedToEnd = false;
     this.paginationWindow = this._initialPaginationWindow;
     this._triggerChange({
@@ -389,10 +392,6 @@ class Query extends Root {
    * @method reset
    */
   reset() {
-    if (this._isSyncingId) {
-      clearTimeout(this._isSyncingId);
-      this._isSyncingId = 0;
-    }
     this._reset();
     this._run();
   }
@@ -455,25 +454,33 @@ class Query extends Root {
    */
   _processRunResults(results, requestUrl, pageSize) {
     if (requestUrl !== this._firingRequest || this.isDestroyed) return;
-    const isSyncing = results.xhr.getResponseHeader('Layer-Conversation-Is-Syncing') === 'true';
-
+    // _isSyncingCount == 9 means we've waited roughly 30 seconds; give up if we've waited longer, and report the results that we have.
+    const isSyncing = results.xhr.getResponseHeader('Layer-Conversation-Is-Syncing') === 'true' &&
+      this._isSyncingCount < 9;
 
     // isFiring is false... unless we are still syncing
     this.isFiring = isSyncing;
     this._firingRequest = '';
     if (results.success) {
       if (isSyncing) {
+        const duration = Utils.getExponentialBackoffSeconds(30, Math.min(10, this._isSyncingCount));
         this._isSyncingId = setTimeout(() => {
           this._isSyncingId = 0;
           this._run();
-        }, 1500);
+        }, Math.floor(duration * 1000));
+        this._isSyncingCount++;
       } else {
+        this._isSyncingCount = 0;
         this._isSyncingId = 0;
-        this._appendResults(results, false);
         this.totalSize = Number(results.xhr.getResponseHeader('Layer-Count'));
+        this._appendResults(results, false);
 
         if (results.data.length < pageSize) this.pagedToEnd = true;
       }
+    } else if (results.data.getNonce()) {
+      this.client.once('ready', () => {
+        this._run();
+      });
     } else {
       this.trigger('error', { error: results.data });
     }
@@ -644,16 +651,13 @@ class Query extends Root {
     // Add them to our result set and trigger an event for each one
     if (list.length) {
       const data = this.data = this.dataType === Query.ObjectDataType ? [].concat(this.data) : this.data;
-      list.forEach(item => data.push(item));
-
-      this.totalSize += list.length;
-
-      // Index calculated above may shift after additional insertions.  This has
-      // to be done after the above insertions have completed.
       list.forEach((item) => {
+        data.push(item);
+        this.totalSize += 1;
+
         this._triggerChange({
           type: 'insert',
-          index: this.data.indexOf(item),
+          index: data.length - 1,
           target: item,
           query: this,
         });
@@ -1043,6 +1047,14 @@ Query.prototype._nextServerFromId = '';
  */
 Query.prototype._nextDBFromId = '';
 
+/**
+ * Number of times we've gotten back an `is-syncing` response from the server implying results are incomplete
+ * and not properly ordered.
+ *
+ * @private {Number}
+ */
+Query.prototype._isSyncingCount = 0;
+
 
 Query._supportedEvents = [
   /**
@@ -1101,3 +1113,4 @@ Query._supportedEvents = [
 Root.initClass.apply(Query, [Query, 'Query']);
 
 module.exports = Query;
+

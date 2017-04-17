@@ -1,5 +1,46 @@
 # Web SDK Change Log
 
+## 3.2.0
+
+* Breaking Change (impacts few apps)
+  * On destroying a Query, it was triggering `change:data`; now it triggeres `change:reset`
+  * layer.SocketManager.replayEvents is now a private method; use layer.SocketManager.resync instead.
+
+* New Features:
+  * Adds `presence` property to Identity objects
+    * `identities:change` events are triggered whenever `presence.status` or `presense.lastSeenAt` changes.
+    * `layer.Client.isPresenceEnabled` is a new property that defaults to `true`; initialize your client with `false`
+      if presence is not something your user wants to expose.
+  * Adds Channels (Note: This feature is in preview mode and not ready for production applications)
+    * Channel instance is `layer.Channel`
+    * Channels are qisPresenceEnabledodel: layer.Query.Channel`
+    * Channels have `layer.Membership` objects representing members of the channel.
+    * Members are queried using `model: layer.Query.Membership`
+  * Adds `layer.Message.presend()` which allows a message that hasn't yet been sent to be added to Query results and rendered
+    in a Message List driven by that Query.
+* Fixes/Changes:
+  * Challenge events will now be triggered any time your authentication has expired and your client's internet connection is restored.  Prevent this by calling `client.logout()`.
+  * Better support for clients to reissue a `challenge` more than one time.
+  * Identity change events now trigger when receiving changes via websocket
+  * Prevents websocket server pings from thrashing multiple times per second
+  * Fixes error where `conversation.lastMessage` was reset
+  * Updates `query.totalSize` prior to triggering change events
+  * Unit tests no longer choke on browsers that reject dual key indexedDB tables
+  * layer.Websockets.RequestManager's `sendRequest` method now has only a single options argument
+  * if authentication expires/terminates, promptly resets `client.isAuthenticated` and `client.isConnected`
+  * You can now create a conversation with no participants
+  * `client.getXXX(id)` methods now mostly support UUID or full Layer ID as a parameter
+  * `client.connectWithSession` fixes allow it to be called to reauthenticate a Client
+  * Query fixes:
+    * Limits number of retries on a conversation that the server says is syncing
+    * Queries retry if auth fails and is re-established
+    * On destroying a Query, it was triggering `change:data`; now it triggeres `change:reset`
+    * Events that report on items added to the array have fixes to the `index` field of the event
+
+
+## 3.1.1
+
+* No noteworthy changes
 
 ## 3.1.0
 

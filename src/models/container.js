@@ -6,7 +6,6 @@
  * @extends layer.Syncable
  * @author  Michael Kantor
  */
-
 const Syncable = require('./syncable');
 const LayerError = require('../layer-error');
 const Util = require('../client-utils');
@@ -38,6 +37,7 @@ class Container extends Syncable {
 
     // Make sure we have an clientId property
     if (options.client) options.clientId = options.client.appId;
+    if (!options.metadata) options.metadata = {};
 
     super(options);
 
@@ -76,6 +76,7 @@ class Container extends Syncable {
         },
       }, result => this._createResult(result));
     }
+    if (message) this._setupMessage(message);
     return this;
   }
 
@@ -153,6 +154,164 @@ class Container extends Syncable {
       result: id === this.id ? Container.CREATED : Container.FOUND,
     });
   }
+
+
+  /**
+   * Updates specified metadata keys.
+   *
+   * Updates the local object's metadata and syncs the change to the server.
+   *
+   *      conversation.setMetadataProperties({
+   *          'title': 'I am a title',
+   *          'colors.background': 'red',
+   *          'colors.text': {
+   *              'fill': 'blue',
+   *              'shadow': 'black'
+   *           },
+   *           'colors.title.fill': 'red'
+   *      });
+   *
+   * Use setMetadataProperties to specify the path to a property, and a new value for that property.
+   * Multiple properties can be changed this way.  Whatever value was there before is
+   * replaced with the new value; so in the above example, whatever other keys may have
+   * existed under `colors.text` have been replaced by the new object `{fill: 'blue', shadow: 'black'}`.
+   *
+   * Note also that only string and subobjects are accepted as values.
+   *
+   * Keys with '.' will update a field of an object (and create an object if it wasn't there):
+   *
+   * Initial metadata: {}
+   *
+   *      conversation.setMetadataProperties({
+   *          'colors.background': 'red',
+   *      });
+   *
+   * Metadata is now: `{colors: {background: 'red'}}`
+   *
+   *      conversation.setMetadataProperties({
+   *          'colors.foreground': 'black',
+   *      });
+   *
+   * Metadata is now: `{colors: {background: 'red', foreground: 'black'}}`
+   *
+   * Executes as follows:
+   *
+   * 1. Updates the metadata property of the local object
+   * 2. Triggers a conversations:change event
+   * 3. Submits a request to be sent to the server to update the server's object
+   * 4. If there is an error, no errors are fired except by layer.SyncManager, but another
+   *    conversations:change event is fired as the change is rolled back.
+   *
+   * @method setMetadataProperties
+   * @param  {Object} properties
+   * @return {layer.Conversation} this
+   *
+   */
+  setMetadataProperties(props) {
+    const layerPatchOperations = [];
+    Object.keys(props).forEach((name) => {
+      let fullName = name;
+      if (name) {
+        if (name !== 'metadata' && name.indexOf('metadata.') !== 0) {
+          fullName = 'metadata.' + name;
+        }
+        layerPatchOperations.push({
+          operation: 'set',
+          property: fullName,
+          value: props[name],
+        });
+      }
+    });
+
+    this._inLayerParser = true;
+
+    // Do this before setSyncing as if there are any errors, we should never even
+    // start setting up a request.
+    Util.layerParse({
+      object: this,
+      type: 'Conversation',
+      operations: layerPatchOperations,
+      client: this.getClient(),
+    });
+    this._inLayerParser = false;
+
+    this._xhr({
+      url: '',
+      method: 'PATCH',
+      data: JSON.stringify(layerPatchOperations),
+      headers: {
+        'content-type': 'application/vnd.layer-patch+json',
+      },
+    }, (result) => {
+      if (!result.success && !this.isDestroyed && result.data.id !== 'authentication_required') this._load();
+    });
+
+    return this;
+  }
+
+
+  /**
+   * Deletes specified metadata keys.
+   *
+   * Updates the local object's metadata and syncs the change to the server.
+   *
+   *      conversation.deleteMetadataProperties(
+   *          ['title', 'colors.background', 'colors.title.fill']
+   *      );
+   *
+   * Use deleteMetadataProperties to specify paths to properties to be deleted.
+   * Multiple properties can be deleted.
+   *
+   * Executes as follows:
+   *
+   * 1. Updates the metadata property of the local object
+   * 2. Triggers a conversations:change event
+   * 3. Submits a request to be sent to the server to update the server's object
+   * 4. If there is an error, no errors are fired except by layer.SyncManager, but another
+   *    conversations:change event is fired as the change is rolled back.
+   *
+   * @method deleteMetadataProperties
+   * @param  {string[]} properties
+   * @return {layer.Conversation} this
+   */
+  deleteMetadataProperties(props) {
+    const layerPatchOperations = [];
+    props.forEach((property) => {
+      if (property !== 'metadata' && property.indexOf('metadata.') !== 0) {
+        property = 'metadata.' + property;
+      }
+      layerPatchOperations.push({
+        operation: 'delete',
+        property,
+      });
+    }, this);
+
+    this._inLayerParser = true;
+
+    // Do this before setSyncing as if there are any errors, we should never even
+    // start setting up a request.
+    Util.layerParse({
+      object: this,
+      type: 'Conversation',
+      operations: layerPatchOperations,
+      client: this.getClient(),
+    });
+    this._inLayerParser = false;
+
+    this._xhr({
+      url: '',
+      method: 'PATCH',
+      data: JSON.stringify(layerPatchOperations),
+      headers: {
+        'content-type': 'application/vnd.layer-patch+json',
+      },
+    }, (result) => {
+      if (!result.success && result.data.id !== 'authentication_required') this._load();
+    });
+
+    return this;
+  }
+
 
   /**
    * Delete the Conversation from the server (internal version).
@@ -255,6 +414,12 @@ class Container extends Syncable {
         oldValue,
         paths,
       });
+    }
+  }
+
+  _handlePatchEvent(newValue, oldValue, paths) {
+    if (paths[0].indexOf('metadata') === 0) {
+      this.__updateMetadata(newValue, oldValue, paths);
     }
   }
 

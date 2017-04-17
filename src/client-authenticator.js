@@ -107,7 +107,6 @@ class ClientAuthenticator extends Root {
 
     this.onlineManager = new OnlineManager({
       socketManager: this.socketManager,
-      testUrl: this.url + '/nonces?connection-test',
       connected: this._handleOnlineChange.bind(this),
       disconnected: this._handleOnlineChange.bind(this),
     });
@@ -171,7 +170,7 @@ class ClientAuthenticator extends Root {
     }
   }
 
-/**
+  /**
    * Restore the Identity for the session owner from localStorage.
    *
    * @method _restoreLastSession
@@ -212,6 +211,20 @@ class ClientAuthenticator extends Root {
   }
 
   /**
+   * Get a nonce and start the authentication process
+   *
+   * @method
+   * @private
+   */
+  _connect() {
+    this.xhr({
+      url: '/nonces',
+      method: 'POST',
+      sync: false,
+    }, result => this._connectionResponse(result));
+  }
+
+  /**
    * Initiates the connection.
    *
    * Called by constructor().
@@ -231,6 +244,8 @@ class ClientAuthenticator extends Root {
   connect(userId = '') {
     let user;
     this.isConnected = false;
+    this._lastChallengeTime = 0;
+    this._wantsToBeAuthenticated = true;
     this.user = null;
     this.onlineManager.start();
     if (!this.isTrustedDevice || !userId || this._isPersistedSessionsDisabled() || this._hasUserIdChanged(userId)) {
@@ -256,11 +271,7 @@ class ClientAuthenticator extends Root {
     if (this.sessionToken && this.user.userId) {
       this._sessionTokenRestored();
     } else {
-      this.xhr({
-        url: '/nonces',
-        method: 'POST',
-        sync: false,
-      }, result => this._connectionResponse(result));
+      this._connect();
     }
     return this;
   }
@@ -289,7 +300,10 @@ class ClientAuthenticator extends Root {
    */
   connectWithSession(userId, sessionToken) {
     let user;
+    this.isConnected = false;
     this.user = null;
+    this._lastChallengeTime = 0;
+    this._wantsToBeAuthenticated = true;
     if (!userId || !sessionToken) throw new Error(LayerError.dictionary.sessionAndUserRequired);
     if (!this.isTrustedDevice || this._isPersistedSessionsDisabled() || this._hasUserIdChanged(userId)) {
       this._clearStoredData();
@@ -311,7 +325,9 @@ class ClientAuthenticator extends Root {
     }
 
     this.isConnected = true;
-    setTimeout(() => this._authComplete({ session_token: sessionToken }, false), 1);
+    setTimeout(() => this._authComplete({
+      session_token: sessionToken,
+    }, false), 1);
     return this;
   }
 
@@ -385,6 +401,7 @@ class ClientAuthenticator extends Root {
    * @fires challenge
    */
   _authenticate(nonce) {
+    this._lastChallengeTime = Date.now();
     if (nonce) {
       this.trigger('challenge', {
         nonce,
@@ -413,6 +430,10 @@ class ClientAuthenticator extends Root {
     } else {
       const userData = Util.decode(identityToken.split('.')[1]);
       const identityObj = JSON.parse(userData);
+
+      if (!identityObj.prn) {
+        throw new Error('Your identity token prn (user id) is empty');
+      }
 
       if (this.user.userId && this.user.userId !== identityObj.prn) {
         throw new Error(LayerError.dictionary.invalidUserIdChange);
@@ -556,6 +577,7 @@ class ClientAuthenticator extends Root {
       this.dbManager = new DbManager({
         client: this,
         tables: this.persistenceFeatures,
+        enabled: this.isPersistenceEnabled,
       });
     }
 
@@ -580,18 +602,12 @@ class ClientAuthenticator extends Root {
     if (this.user.isFullIdentity) {
       this._clientReady();
     } else {
-      // load the user's full Identity and update localStorage
+      // load the user's full Identity so we have presence;
       this.user._load();
       this.user.once('identities:loaded', () => {
         if (!this._isPersistedSessionsDisabled()) {
-          try {
-            // Update the session data in localStorage with our full Identity.
-            const sessionData = JSON.parse(global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId]);
-            sessionData.user = DbManager.prototype._getIdentityData([this.user])[0];
-            global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId] = JSON.stringify(sessionData);
-          } catch (e) {
-            // no-op
-          }
+          this._writeSessionOwner();
+          this.user.on('identities:change', this._writeSessionOwner, this);
         }
         this._clientReady();
       })
@@ -599,6 +615,23 @@ class ClientAuthenticator extends Root {
         if (!this.user.displayName) this.user.displayName = this.defaultOwnerDisplayName;
         this._clientReady();
       });
+    }
+  }
+
+  /**
+   * Write the latest state of the Session's Identity object to localStorage
+   *
+   * @method _writeSessionOwner
+   * @private
+   */
+  _writeSessionOwner() {
+    try {
+      // Update the session data in localStorage with our full Identity.
+      const sessionData = JSON.parse(global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId]);
+      sessionData.user = DbManager.prototype._getIdentityData([this.user])[0];
+      global.localStorage[LOCALSTORAGE_KEYS.SESSIONDATA + this.appId] = JSON.stringify(sessionData);
+    } catch (e) {
+      // no-op
     }
   }
 
@@ -643,6 +676,7 @@ class ClientAuthenticator extends Root {
    * @return {layer.ClientAuthenticator} this
    */
   logout(callback) {
+    this._wantsToBeAuthenticated = false;
     let callbackCount = 1,
       counter = 0;
     if (this.isAuthenticated) {
@@ -688,6 +722,9 @@ class ClientAuthenticator extends Root {
    */
   _resetSession() {
     this.isReady = false;
+    this.isConnected = false;
+    this.isAuthenticated = false;
+
     if (this.sessionToken) {
       this.sessionToken = '';
       if (global.localStorage) {
@@ -695,13 +732,9 @@ class ClientAuthenticator extends Root {
       }
     }
 
-    this.isConnected = false;
-    this.isAuthenticated = false;
-
     this.trigger('deauthenticated');
     this.onlineManager.stop();
   }
-
 
   /**
    * Register your IOS device to receive notifications.
@@ -792,16 +825,16 @@ class ClientAuthenticator extends Root {
     if (this.isConnected) throw new Error(LayerError.dictionary.cantChangeIfConnected);
   }
 
- /**
-  * __ Methods are automatically called by property setters.
-  *
-  * Any attempt to execute `this.user = userIdentity` will cause an error to be thrown
-  * if the client is already connected.
-  *
-  * @private
-  * @method __adjustUser
-  * @param {string} user - new Identity object
-  */
+  /**
+   * __ Methods are automatically called by property setters.
+   *
+   * Any attempt to execute `this.user = userIdentity` will cause an error to be thrown
+   * if the client is already connected.
+   *
+   * @private
+   * @method __adjustUser
+   * @param {string} user - new Identity object
+   */
   __adjustUser(user) {
     if (this.isConnected) {
       throw new Error(LayerError.dictionary.cantChangeIfConnected);
@@ -817,24 +850,29 @@ class ClientAuthenticator extends Root {
 
 
   /* COMMUNICATIONS METHODS BEGIN */
-  sendSocketRequest(params, callback) {
-    if (params.sync) {
-      const target = params.sync.target;
-      let depends = params.sync.depends;
+  sendSocketRequest(data, callback) {
+    const isChangesArray = Boolean(data.isChangesArray);
+    if (this._wantsToBeAuthenticated && !this.isAuthenticated) this._connect();
+
+    if (data.sync) {
+      const target = data.sync.target;
+      let depends = data.sync.depends;
       if (target && !depends) depends = [target];
 
       this.syncManager.request(new WebsocketSyncEvent({
-        data: params.body,
-        operation: params.method,
+        data: data.body,
+        operation: data.method,
+        returnChangesArray: isChangesArray,
         target,
         depends,
         callback,
       }));
     } else {
-      if (typeof params.data === 'function') params.data = params.data();
-      this.socketRequestManager.sendRequest(params, callback);
+      if (typeof data.data === 'function') data.data = data.data();
+      this.socketRequestManager.sendRequest({ data, isChangesArray, callback });
     }
   }
+
 
   /**
    * This event handler receives events from the Online State Manager and generates an event for those subscribed
@@ -845,12 +883,15 @@ class ClientAuthenticator extends Root {
    * @param {layer.LayerEvent} evt
    */
   _handleOnlineChange(evt) {
-    if (!this.isAuthenticated) return;
+    if (!this._wantsToBeAuthenticated) return;
     const duration = evt.offlineDuration;
     const isOnline = evt.eventName === 'connected';
     const obj = { isOnline };
     if (isOnline) {
       obj.reset = duration > ClientAuthenticator.ResetAfterOfflineDuration;
+
+      // TODO: Use a cached nonce if it hasn't expired
+      if (!this.isAuthenticated) this._connect();
     }
     this.trigger('online', obj);
   }
@@ -904,6 +945,8 @@ class ClientAuthenticator extends Root {
    */
   _syncXhr(options, callback) {
     if (!options.sync) options.sync = {};
+    if (this._wantsToBeAuthenticated && !this.isAuthenticated) this._connect();
+
     const innerCallback = (result) => {
       this._xhrResult(result, callback);
     };
@@ -955,7 +998,7 @@ class ClientAuthenticator extends Root {
    */
   _xhrFixAuth(headers) {
     if (this.sessionToken && !headers.Authorization) {
-      headers.authorization = 'Layer session-token="' +  this.sessionToken + '"'; // eslint-disable-line
+      headers.authorization = 'Layer session-token="' + this.sessionToken + '"'; // eslint-disable-line
     }
   }
 
@@ -1026,12 +1069,19 @@ class ClientAuthenticator extends Root {
       // If its an authentication error, reauthenticate
       // don't call _resetSession as that wipes all data and screws with UIs, and the user
       // is still authenticated on the customer's app even if not on Layer.
-      if (result.status === 401 && this.isAuthenticated) {
-        logger.warn('SESSION EXPIRED!');
-        this.isAuthenticated = false;
-        if (global.localStorage) localStorage.removeItem(LOCALSTORAGE_KEYS.SESSIONDATA + this.appId);
-        this.trigger('deauthenticated');
-        this._authenticate(result.data.getNonce());
+      if (result.status === 401 && this._wantsToBeAuthenticated) {
+        if (this.isAuthenticated) {
+          logger.warn('SESSION EXPIRED!');
+          this.isAuthenticated = false;
+          this.isReady = false;
+          if (global.localStorage) localStorage.removeItem(LOCALSTORAGE_KEYS.SESSIONDATA + this.appId);
+          this.trigger('deauthenticated');
+          this._authenticate(result.data.getNonce());
+        }
+
+        else if (this._lastChallengeTime > Date.now() + ClientAuthenticator.TimeBetweenReauths) {
+          this._authenticate(result.data.getNonce());
+        }
       }
     }
     if (callback) callback(result);
@@ -1085,7 +1135,27 @@ ClientAuthenticator.prototype.isConnected = false;
 ClientAuthenticator.prototype.isReady = false;
 
 /**
- * Your Layer Application ID. This value can not be changed once connected.
+ * State variable; indicates if the WebSDK thinks that the app WANTS to be connected.
+ *
+ * An app wants to be connected if it has called `connect()` or `connectWithSession()`
+ * and has not called `logout()`.  A client that is connected will receive reauthentication
+ * events in the form of `challenge` events.
+ *
+ * @type {boolean}
+ * @readonly
+ */
+ClientAuthenticator.prototype._wantsToBeAuthenticated = false;
+
+/**
+ * If presence is enabled, then your presence can be set/restored.
+ *
+ * @type {Boolean} [isPresenceEnabled=true]
+ */
+ClientAuthenticator.prototype.isPresenceEnabled = true;
+
+/**
+ * Your Layer Application ID. Can not be changed once connected.
+ *
  * To find your Layer Application ID, see your Layer Developer Dashboard.
  *
  * @type {String}
@@ -1106,6 +1176,14 @@ ClientAuthenticator.prototype.user = null;
  * @readonly
  */
 ClientAuthenticator.prototype.sessionToken = '';
+
+/**
+ * Time that the last challenge was issued
+ *
+ * @type {Number}
+ * @private
+ */
+ClientAuthenticator.prototype._lastChallengeTime = 0;
 
 /**
  * URL to Layer's Web API server.
@@ -1131,7 +1209,7 @@ ClientAuthenticator.prototype.socketManager = null;
 
 /**
  * Web Socket Request Manager
-* @type {layer.Websockets.RequestManager}
+ * @type {layer.Websockets.RequestManager}
  */
 ClientAuthenticator.prototype.socketRequestManager = null;
 
@@ -1265,6 +1343,17 @@ Object.defineProperty(ClientAuthenticator.prototype, 'userId', {
  * @static
  */
 ClientAuthenticator.ResetAfterOfflineDuration = 1000 * 60 * 60 * 30;
+
+/**
+ * Number of miliseconds delay must pass before a subsequent challenge is issued.
+ *
+ * This value is here to insure apps don't get challenge requests while they are
+ * still processing the last challenge event.
+ *
+ * @property {Number}
+ * @static
+ */
+ClientAuthenticator.TimeBetweenReauths = 30 * 1000;
 
 /**
  * List of events supported by this class

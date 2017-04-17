@@ -8,7 +8,7 @@
  * delivered via `messages:add` events when an Announcement is provided via
  * websocket to the client, and `change` events on an Announcements Query.
  *
- * @class  layer.Message.Announcement
+ * @class  layer.Announcement
  * @extends layer.Message.ConversationMessage
  */
 
@@ -56,7 +56,9 @@ class Announcement extends ConversationMessage {
       url: '',
       method: 'DELETE',
     }, (result) => {
-      if (!result.success && (!result.data || result.data.id !== 'not_found')) Syncable.load(id, client);
+      if (!result.success && (!result.data || (result.data.id !== 'not_found' && result.data.id !== 'authentication_required'))) {
+        Syncable.load(id, client);
+      }
     });
 
     this._deleted();

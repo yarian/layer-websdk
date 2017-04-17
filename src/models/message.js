@@ -235,6 +235,56 @@ class Message extends Syncable {
   }
 
   /**
+   * Your unsent Message will show up in Query results and be rendered in Message Lists.
+   *
+   * This method is only needed for Messages that should show up in a Message List Widget that
+   * is driven by Query data, but where the layer.Message.send method has not yet been called.
+   *
+   * Once you have called `presend` your message should show up in your Message List.  However,
+   * typically you want to be able to edit and rerender that Message. After making changes to the Message,
+   * you can trigger change events:
+   *
+   * ```
+   * var message = conversation.createMessage({parts: [{mimeType: 'custom/card', body: null}]});
+   * message.presend();
+   *
+   * message.parts[0].body = 'Frodo is a Dodo';
+   * message.trigger('messages:change');
+   * ```
+   *
+   * Note that if using Layer UI for Web, the `messages:change` event will trigger an `onRerender` call,
+   * not an `onRender` call, so the capacity to handle editing of messages will require the ability to render
+   * all possible edits within `onRerender`.
+   *
+   * It is assumed that at some point either `send()` or `destroy()` will be called on this message
+   * to complete or cancel this process.
+   *
+   * @method presend
+   */
+  presend() {
+    const client = this.getClient();
+    if (!client) {
+      throw new Error(LayerError.dictionary.clientMissing);
+    }
+
+    const conversation = this.getConversation(false);
+
+    if (!conversation) {
+      throw new Error(LayerError.dictionary.conversationMissing);
+    }
+
+    if (this.syncState !== Constants.SYNC_STATE.NEW) {
+      throw new Error(LayerError.dictionary.alreadySent);
+    }
+    conversation._setupMessage(this);
+
+    // Make sure all data is in the right format for being rendered
+    this._readAllBlobs(() => {
+      client._addMessage(this);
+    });
+  }
+
+  /**
    * Send the message to all participants of the Conversation.
    *
    * Message must have parts and a valid conversation to send successfully.
@@ -420,6 +470,11 @@ class Message extends Syncable {
     if (success) {
       this._populateFromServer(data);
       this._triggerAsync('messages:sent');
+      this._triggerAsync('messages:change', {
+        property: 'syncState',
+        oldValue: Constants.SYNC_STATE.SAVING,
+        newValue: Constants.SYNC_STATE.SYNCED,
+      });
     } else {
       this.trigger('messages:sent-error', { error: data });
       this.destroy();
@@ -675,7 +730,7 @@ class Message extends Syncable {
  */
 Message.prototype.clientId = '';
 
-/* Feature is tested but not available on server
+/**
  * Conversation ID or Channel ID that this Message belongs to.
  *
  * @type {string}

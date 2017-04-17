@@ -215,7 +215,7 @@ class ConversationsQuery {
   }
 }
 
-/* Feature is tested but not available on server
+/**
  * Query builder class generating queries for a set of Channels.
  *
  * Used in Creating and Updating layer.Query instances.
@@ -293,7 +293,7 @@ class ChannelsQuery {
 }
 
 
-/* Feature is tested but not available on server
+/**
  * Query builder class generating queries for getting members of a Channel.
  *
  * Used in Creating and Updating layer.Query instances.
@@ -506,7 +506,7 @@ const QueryBuilder = {
     return new ConversationsQuery();
   },
 
-  /* Feature is tested but not available on server
+  /**
    * Create a new layer.ChannelsQuery instance.
    *
    * @method channels
@@ -517,7 +517,7 @@ const QueryBuilder = {
     return new ChannelsQuery();
   },
 
-  /* Feature is tested but not available on server
+  /**
    * Create a new layer.MembersQuery instance.
    *
    * @method members

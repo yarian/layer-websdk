@@ -1,5 +1,33 @@
 /**
- * Query class for running a Query on Conversations
+ * Query class for running a Query on Conversations.
+ *
+ *
+ *      var conversationQuery = client.createQuery({
+ *        client: client,
+ *        model: layer.Query.Conversation,
+ *        sortBy: [{'createdAt': 'desc'}]
+ *      });
+ *
+ *
+ * You can change the `paginationWindow` and `sortBy` properties at any time using:
+ *
+ *      query.update({
+ *        paginationWindow: 200
+ *      });
+ *
+ * You can release data held in memory by your queries when done with them:
+ *
+ *      query.destroy();
+ *
+ * #### sortBy
+ *
+ * Note that the `sortBy` property is only supported for Conversations at this time and only
+ * supports "createdAt" and "lastMessage.sentAt" as sort fields, and only supports `desc` sort direction.
+ *
+ *      query.update({
+ *        sortBy: [{'lastMessage.sentAt': 'desc'}]
+ *      });
+ *
  *
  * @class  layer.ConversationsQuery
  * @extends layer.Query
@@ -188,26 +216,25 @@ class ConversationsQuery extends Query {
     // Filter out any Conversations already in our data
     const list = evt[name].filter(conversation => this._getIndex(conversation.id) === -1);
 
+
     if (list.length) {
       const data = this.data;
+
+      // typically bulk inserts happen via _appendResults(); so this array typically iterates over an array of length 1
       list.forEach((conversation) => {
         const newIndex = this._getInsertIndex(conversation, data);
         data.splice(newIndex, 0, this._getData(conversation));
-      });
 
-      // Whether sorting by last_message or created_at, new results go at the top of the list
-      if (this.dataType === Query.ObjectDataType) {
-        this.data = [].concat(data);
-      }
-      this.totalSize += list.length;
 
-      // Trigger an 'insert' event for each item added;
-      // typically bulk inserts happen via _appendResults().
-      list.forEach((conversation) => {
+        if (this.dataType === Query.ObjectDataType) {
+          this.data = [].concat(data);
+        }
+        this.totalSize += 1;
+
         const item = this._getData(conversation);
         this._triggerChange({
           type: 'insert',
-          index: this.data.indexOf(item),
+          index: newIndex,
           target: item,
           query: this,
         });

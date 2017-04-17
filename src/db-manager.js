@@ -74,12 +74,13 @@ class DbManager extends Root {
     super(options);
 
     // If no indexedDB, treat everything as disabled.
-    /* istanbul ignore next */
-    if (!window.indexedDB) {
+    if (!window.indexedDB || !options.enabled) {
       options.tables = {};
     } else {
       // Test if Arrays as keys supported, disable persistence if not
       let enabled = true;
+
+      /* istanbul ignore next */
       try {
         window.IDBKeyRange.bound(['announcement', 0], ['announcement', MAX_SAFE_INTEGER]);
       } catch (e) {
@@ -736,6 +737,7 @@ class DbManager extends Root {
    * @param {layer.Message[]} callback.result
    */
   loadMessages(conversationId, fromId, pageSize, callback) {
+    if (!this['_permission_messages'] || this._isOpenError) return callback([]);
     try {
       const fromMessage = fromId ? this.client.getMessage(fromId) : null;
       const query = window.IDBKeyRange.bound([conversationId, 0],
@@ -758,6 +760,7 @@ class DbManager extends Root {
    * @param {layer.Announcement[]} callback.result
    */
   loadAnnouncements(fromId, pageSize, callback) {
+    if (!this['_permission_messages'] || this._isOpenError) return callback([]);
     try {
       const fromMessage = fromId ? this.client.getMessage(fromId) : null;
       const query = window.IDBKeyRange.bound(['announcement', 0],

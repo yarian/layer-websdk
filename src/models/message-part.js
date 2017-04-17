@@ -194,7 +194,9 @@ class MessagePart extends Root {
     if (this._content && !this.isFiring) {
       this.isFiring = true;
       const type = this.mimeType === 'image/jpeg+preview' ? 'image/jpeg' : this.mimeType;
-      this._content.loadContent(type, (err, result) => this._fetchContentCallback(err, result, callback));
+      this._content.loadContent(type, (err, result) => {
+        if (!this.isDestroyed) this._fetchContentCallback(err, result, callback);
+      });
     }
     return this;
   }
@@ -233,7 +235,7 @@ class MessagePart extends Root {
    */
   _fetchContentComplete(body, callback) {
     const message = this._getMessage();
-
+    if (!message) return;
     this.body = body;
 
     this.trigger('content-loaded');

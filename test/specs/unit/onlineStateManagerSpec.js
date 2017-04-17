@@ -64,18 +64,15 @@ describe("The OnlineStateManager Class", function() {
     describe("The constructor() method", function() {
         it("Should copy in object parameters", function() {
             var manager = this.onlineManager = new layer.OnlineStateManager({
-              socketManager: socket,
-              testUrl: '/nonces'
+              socketManager: socket
             });
 
             expect(manager.socketManager).toBe(socket);
-            expect(manager.testUrl).toEqual("/nonces");
         });
 
         it("Should listen for websocket messages", function() {
             var manager = this.onlineManager = new layer.OnlineStateManager({
-              socketManager: socket,
-              testUrl: '/nonces'
+              socketManager: socket
             });
             spyOn(manager, "_connectionListener");
 
@@ -88,8 +85,7 @@ describe("The OnlineStateManager Class", function() {
 
         it("Should listen for xhr success responses", function() {
             var manager = this.onlineManager = new layer.OnlineStateManager({
-              socketManager: socket,
-              testUrl: '/nonces'
+              socketManager: socket
             });
             spyOn(manager, "_connectionListener");
 
@@ -110,8 +106,7 @@ describe("The OnlineStateManager Class", function() {
 
         it("Should listen for xhr failure responses", function() {
             var manager = this.onlineManager = new layer.OnlineStateManager({
-              socketManager: socket,
-              testUrl: '/nonces'
+              socketManager: socket
             });
             spyOn(manager, "_connectionListener");
 
@@ -135,8 +130,7 @@ describe("The OnlineStateManager Class", function() {
         var manager;
         beforeEach(function() {
             manager = this.onlineManager = new layer.OnlineStateManager({
-              socketManager: socket,
-              testUrl: '/nonces'
+              socketManager: socket
             });
         });
 
@@ -168,8 +162,7 @@ describe("The OnlineStateManager Class", function() {
       var manager;
       beforeEach(function() {
           manager = this.onlineManager = new layer.OnlineStateManager({
-            socketManager: socket,
-            testUrl: '/nonces'
+            socketManager: socket
           });
       });
 
@@ -214,7 +207,6 @@ describe("The OnlineStateManager Class", function() {
         beforeEach(function() {
             manager = this.onlineManager = new layer.OnlineStateManager({
               socketManager: socket,
-              testUrl: '/nonces',
               isOnline: true,
               isClientReady: true
             });
@@ -279,8 +271,7 @@ describe("The OnlineStateManager Class", function() {
         var manager;
         beforeEach(function() {
             manager = this.onlineManager = new layer.OnlineStateManager({
-              socketManager: socket,
-              testUrl: '/nonces'
+              socketManager: socket
             });
         });
 
@@ -305,8 +296,7 @@ describe("The OnlineStateManager Class", function() {
       var manager;
       beforeEach(function() {
           manager = this.onlineManager = new layer.OnlineStateManager({
-            socketManager: socket,
-            testUrl: '/nonces'
+            socketManager: socket
           });
       });
 
@@ -337,8 +327,7 @@ describe("The OnlineStateManager Class", function() {
         var manager;
         beforeEach(function() {
             manager = this.onlineManager = new layer.OnlineStateManager({
-              socketManager: socket,
-              testUrl: '/nonces'
+              socketManager: socket
             });
         });
 
@@ -382,8 +371,7 @@ describe("The OnlineStateManager Class", function() {
       var manager;
       beforeEach(function() {
           manager = this.onlineManager = new layer.OnlineStateManager({
-            socketManager: socket,
-            testUrl: '/nonces'
+            socketManager: socket
           });
           manager.isOnline = true;
       });
@@ -415,8 +403,7 @@ describe("The OnlineStateManager Class", function() {
         var manager;
         beforeEach(function() {
             manager = this.onlineManager = new layer.OnlineStateManager({
-              socketManager: socket,
-              testUrl: '/nonces'
+              socketManager: socket
             });
         });
 

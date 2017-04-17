@@ -128,7 +128,10 @@ describe("The Websocket Request Manager Class", function() {
         it("Should call the callback immediately if not connected", function() {
           spyOn(requestManager, "_isOpen").and.returnValue(false);
             var spy = jasmine.createSpy('hey');
-            requestManager.sendRequest({hey: "ho"}, spy);
+            requestManager.sendRequest({
+                data: {hey: "ho"},
+                callback: spy,
+            });
             expect(spy).toHaveBeenCalledWith(jasmine.any(layer.LayerError));
             expect(spy).toHaveBeenCalledWith(jasmine.objectContaining({
               success: false,
@@ -143,7 +146,7 @@ describe("The Websocket Request Manager Class", function() {
         it("Should not modify the input object", function() {
             spyOn(requestManager, "_isOpen").and.returnValue(true);
             var body = {body: "good"};
-            requestManager.sendRequest(body);
+            requestManager.sendRequest({data: body});
             expect(body).toEqual({body: "good"});
         });
 
@@ -151,18 +154,27 @@ describe("The Websocket Request Manager Class", function() {
             spyOn(requestManager, "_isOpen").and.returnValue(true);
             requestManager._requestCallbacks = {};
             var f = function() {};
-            requestManager.sendRequest({}, f);
-            var requestId = Object.keys(requestManager._requestCallbacks)[0];
-            expect(requestManager._requestCallbacks[requestId]).toEqual({
+            var request = requestManager.sendRequest({
+                data: {},
+                callback: f,
+                isChangesArray: false
+            });
+            expect(request).toEqual({
+                request_id: jasmine.any(String),
                 date: jasmine.any(Number),
-                callback: f
+                callback: f,
+                isChangesArray: false,
+                method: undefined,
+                batchIndex: -1,
+                batchTotal: -1,
+                results: []
             });
         });
 
         it("Should correctly handle no callback", function() {
             spyOn(requestManager, "_isOpen").and.returnValue(true);
             requestManager._requestCallbacks = {};
-            requestManager.sendRequest({});
+            requestManager.sendRequest({data: {}});
             expect(requestManager._requestCallbacks).toEqual({});
         });
 
@@ -170,7 +182,10 @@ describe("The Websocket Request Manager Class", function() {
         it("Should call socketManager.send", function() {
             spyOn(requestManager, "_isOpen").and.returnValue(true);
             requestManager._requestCallbacks = {};
-            requestManager.sendRequest({hey: "ho"}, function() {});
+            requestManager.sendRequest({
+                data: {hey: "ho"},
+                callback: function() {}
+            });
             var requestId = Object.keys(requestManager._requestCallbacks)[0];
             expect(client.socketManager.send).toHaveBeenCalledWith({
                 type: "request",
@@ -184,11 +199,62 @@ describe("The Websocket Request Manager Class", function() {
         it("Should call _scheduleCallbackCleanup", function() {
             spyOn(requestManager, "_isOpen").and.returnValue(true);
             spyOn(requestManager, "_scheduleCallbackCleanup");
-            requestManager.sendRequest({hey: "ho"}, function(){});
+            requestManager.sendRequest({
+                data: {hey: "ho"},
+                callback: function(){}
+            });
             expect(requestManager._scheduleCallbackCleanup).toHaveBeenCalledWith();
+        });
+
+        it("Should track whether changes array is expected response", function() {
+            spyOn(requestManager, "_isOpen").and.returnValue(true);
+            var request = requestManager.sendRequest({
+                data: {hey: "ho"},
+                callback: function() {},
+                isChangesArray: true
+            });
+            expect(request.isChangesArray).toBe(true);
+
+            var request = requestManager.sendRequest({
+                data: {hey: "ho"},
+                callback: function() {}
+            });
+            expect(request.isChangesArray).toBe(false);
         });
     });
 
+    describe("The cancelOperation() method", function() {
+        it("Should cancel all operations of the given method name", function() {
+            spyOn(requestManager, "_isOpen").and.returnValue(true);
+            spyOn(client.socketManager, "send");
+            var spy = jasmine.createSpy("callback");
+            requestManager.sendRequest({
+                data: {method: "hey", data: {value: 1}},
+                callback: spy
+            });
+            requestManager.sendRequest({
+                data: {method: "ho", data: {value: 2}},
+                callback: spy
+            });
+            requestManager.sendRequest({
+                data: {method: "hey", data: {value: 3}},
+                callback: spy
+            });
+            requestManager.sendRequest({
+                data: {method: "you", data: {value: 4}},
+                callback: spy
+            });
+            expect(Object.keys(requestManager._requestCallbacks).length).toEqual(4);
+
+            requestManager.cancelOperation("hey");
+            expect(Object.keys(requestManager._requestCallbacks).length).toEqual(2);
+            Object.keys(requestManager._requestCallbacks).forEach(function(requestId) {
+                var request = requestManager._requestCallbacks[requestId];
+                expect(typeof request.method).toEqual('string');
+                expect(request.method).not.toEqual("hey");
+            });
+        });
+    });
 
     describe("The _scheduleCallbackCleanup() method", function() {
         it("Should schedule a call to _runCallbackCleanup", function() {

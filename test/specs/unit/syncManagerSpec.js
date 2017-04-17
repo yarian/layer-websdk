@@ -397,7 +397,30 @@ describe("The SyncManager Class", function() {
             syncManager._processNextStandardRequest();
 
             // Posttest
-            expect(syncManager.requestManager.sendRequest).toHaveBeenCalledWith(data, jasmine.any(Function));
+            expect(syncManager.requestManager.sendRequest).toHaveBeenCalledWith({
+                data: data,
+                callback: jasmine.any(Function),
+                isChangesArray: false
+            });
+        });
+
+        it("Should call socketManager.sendRequest with returnChangesArray", function() {
+            var data = {name: "fred"}
+            syncManager.queue = [new layer.WebsocketSyncEvent({
+                data: data,
+                returnChangesArray: true
+            })];
+            spyOn(syncManager.requestManager, "sendRequest");
+
+            // Run
+            syncManager._processNextStandardRequest();
+
+            // Posttest
+            expect(syncManager.requestManager.sendRequest).toHaveBeenCalledWith({
+                data: data,
+                callback: jasmine.any(Function),
+                isChangesArray: true
+            });
         });
 
         it("Should call xhr", function() {

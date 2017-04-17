@@ -172,6 +172,8 @@ LayerError.dictionary = {
   appIdImmutable: 'The appId property cannot be changed',
   clientMustBeReady: 'The Client must have triggered its "ready" event before you can call this',
   modelImmutable: 'The model property cannot be changed',
+  valueNotSupported: 'The value provided is not a supported value',
+  permissionDenied: 'Operation not allowed on that object',
 };
 
 module.exports = LayerError;

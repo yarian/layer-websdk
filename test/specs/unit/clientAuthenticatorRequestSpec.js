@@ -5,11 +5,23 @@ describe("The Client Authenticator Requests", function() {
     var userId = "93c83ec4-b508-4a60-8550-099f9c42ec1a";
     var identityToken = "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImN0eSI6ImxheWVyLWVpdDt2PTEiLCJraWQiOiIyOWUzN2ZhZS02MDdlLTExZTQtYTQ2OS00MTBiMDAwMDAyZjgifQ.eyJpc3MiOiI4YmY1MTQ2MC02MDY5LTExZTQtODhkYi00MTBiMDAwMDAwZTYiLCJwcm4iOiI5M2M4M2VjNC1iNTA4LTRhNjAtODU1MC0wOTlmOWM0MmVjMWEiLCJpYXQiOjE0MTcwMjU0NTQsImV4cCI6MTQxODIzNTA1NCwibmNlIjoiRFZPVFZzcDk0ZU9lNUNzZDdmaWVlWFBvUXB3RDl5SjRpQ0EvVHJSMUVJT25BSEdTcE5Mcno0Yk9YbEN2VDVkWVdEdy9zU1EreVBkZmEydVlBekgrNmc9PSJ9.LlylqnfgK5nhn6KEsitJMsjfayvAJUfAb33wuoCaNChsiRXRtT4Ws_mYHlgwofVGIXKYrRf4be9Cw1qBKNmrxr0er5a8fxIN92kbL-DlRAAg32clfZ_MxOfblze0DHszvjWBrI7F-cqs3irRi5NbrSQxeLZIiGQdBCn8Qn5Zv9s";
 
-    var client, requests;
+    var client, requests, WS;
 
     beforeAll(function() {
         jasmine.addCustomEqualityTester(mostRecentEqualityTest);
         jasmine.addCustomEqualityTester(responseTest);
+        WS = window.WebSocket;
+        window.WebSocket = function() {
+            this.send = function() {};
+            this.addEventListener = function() {};
+            this.removeEventListener = function() {};
+            this.close = function() {};
+            this.readyState = WebSocket.OPEN;
+        };
+    });
+
+    afterAll(function() {
+        window.WebSocket = WS;
     });
 
     beforeEach(function() {
@@ -126,6 +138,37 @@ describe("The Client Authenticator Requests", function() {
             }));
         });
 
+        it("Should call socketRequestManager.sendRequest if sync is false with isChangesArray", function() {
+            var callback = function() {};
+            spyOn(client.socketRequestManager, "sendRequest");
+            client.sendSocketRequest({
+                body: "Hey!",
+                sync: false,
+                isChangesArray: true
+            }, callback);
+            expect(client.socketRequestManager.sendRequest)
+                .toHaveBeenCalledWith({
+                    isChangesArray: true,
+                    data: jasmine.objectContaining({body: "Hey!"}),
+                    callback: callback
+                });
+        });
+
+        it("Should create a SyncEvent with specified depends if sync is true with isChangesArray", function() {
+            spyOn(client.syncManager, "request");
+            client.sendSocketRequest({
+                body: "Hey!",
+                sync: {
+                    depends: ["Fred!"]
+                },
+                isChangesArray: true
+            });
+            expect(client.syncManager.request).toHaveBeenCalledWith(jasmine.objectContaining({
+                depends: ["Fred!"],
+                returnChangesArray: true
+            }));
+        });
+
         it("Should call socketRequestManager.sendRequest if sync is false", function() {
             var callback = function() {};
             spyOn(client.socketRequestManager, "sendRequest");
@@ -134,7 +177,53 @@ describe("The Client Authenticator Requests", function() {
                 sync: false
             }, callback);
             expect(client.socketRequestManager.sendRequest)
-                .toHaveBeenCalledWith(jasmine.objectContaining({body: "Hey!"}), callback);
+                .toHaveBeenCalledWith({
+                    data: jasmine.objectContaining({body: "Hey!"}),
+                    callback: callback,
+                    isChangesArray: false
+                });
+        });
+
+        it("Should call _connect if wantsToAuthenticate but not authenticated", function() {
+            spyOn(client, "_connect");
+
+            // Run 1
+            client._wantsToBeAuthenticated = true;
+            client.isAuthenticated = false;
+            client.sendSocketRequest({
+                body: "Hey!",
+                sync: {
+                    depends: ["Fred!"]
+                },
+                isChangesArray: true
+            });
+            expect(client._connect).toHaveBeenCalled();
+            client._connect.calls.reset();
+
+            // Run 2
+            client._wantsToBeAuthenticated = false;
+            client.isAuthenticated = false;
+            client.sendSocketRequest({
+                body: "Hey!",
+                sync: {
+                    depends: ["Fred!"]
+                },
+                isChangesArray: true
+            });
+            expect(client._connect).not.toHaveBeenCalled();
+            client._connect.calls.reset();
+
+            // Run 2
+            client._wantsToBeAuthenticated = true;
+            client.isAuthenticated = true;
+            client.sendSocketRequest({
+                body: "Hey!",
+                sync: {
+                    depends: ["Fred!"]
+                },
+                isChangesArray: true
+            });
+            expect(client._connect).not.toHaveBeenCalled();
         });
     });
 
@@ -275,8 +364,34 @@ describe("The Client Authenticator Requests", function() {
                     authorization: 'Layer session-token="sessionToken"'
                 }
             }));
-
         });
+
+        it("Should call _connect if wantsToAuthenticate but not authenticated", function() {
+            spyOn(client, "_connect");
+
+            // Run 1
+            client._wantsToBeAuthenticated = true;
+            client.isAuthenticated = false;
+            client._syncXhr({url: "fred", method: "POST", headers: {}});
+            expect(client._connect).toHaveBeenCalled();
+            client._connect.calls.reset();
+
+            // Run 2
+            client._wantsToBeAuthenticated = false;
+            client.isAuthenticated = false;
+            client._syncXhr({url: "fred", method: "POST", headers: {}});
+            expect(client._connect).not.toHaveBeenCalled();
+            client._connect.calls.reset();
+
+            // Run 2
+            client._wantsToBeAuthenticated = true;
+            client.isAuthenticated = true;
+            client._syncXhr({url: "fred", method: "POST", headers: {}});
+            expect(client._connect).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("The _nonsyncXhr() method", function() {
 
         it("Should call _xhrResult with the callback", function() {
             // Setup
@@ -370,9 +485,7 @@ describe("The Client Authenticator Requests", function() {
             jasmine.clock().tick(1001);
             expect(client._nonsyncXhr).not.toHaveBeenCalled();
         });
-    });
 
-    describe("The _nonsyncXhr() method", function() {
         it("Should call the syncManager", function() {
             var callback = jasmine.createSpy('callback');
             spyOn(client.syncManager, "request");
@@ -548,8 +661,10 @@ describe("The Client Authenticator Requests", function() {
             });
         });
 
-        it("Should clear isAuthenticated on getting a 401", function() {
+        it("Should clear isAuthenticated and isReady on getting a 401", function() {
             client.isAuthenticated = true;
+            client._wantsToBeAuthenticated = true;
+            client.isReady = true;
             client._xhrResult({
                 success: false,
                 status: 401,
@@ -562,10 +677,12 @@ describe("The Client Authenticator Requests", function() {
             });
 
             expect(client.isAuthenticated).toBe(false);
+            expect(client.isReady).toBe(false);
         });
 
         it("Should clear localStorage sessionToken on getting a 401", function() {
           client.isAuthenticated = true;
+          client._wantsToBeAuthenticated = true;
           localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + client.appId] = "Frodo and Gollum Kissing in a Tree";
           client._xhrResult({
               success: false,
@@ -581,12 +698,13 @@ describe("The Client Authenticator Requests", function() {
           expect(localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + client.appId]).toBe(undefined);
         });
 
-        it("Should call _authenticate on getting a 401 if authenticated", function() {
+        it("Should call _authenticate on getting a 401 if wants to be authenticated", function() {
             // Setup
-            client.isAuthenticated = true;
+            client._wantsToBeAuthenticated = true;
+            client._lastChallengeTime = client.TimeBetweenReauths - 1;
             spyOn(client, "_authenticate");
 
-            // Run
+            // Run Test 1
             client._xhrResult({
                 success: false,
                 status: 401,
@@ -597,9 +715,38 @@ describe("The Client Authenticator Requests", function() {
                     }
                 }
             });
-
-            // Posttest
             expect(client._authenticate).toHaveBeenCalledWith("sense");
+            client._authenticate.calls.reset();
+
+            // Run Test 2
+            client._wantsToBeAuthenticated = false;
+            client._lastChallengeTime = 0;
+            client._xhrResult({
+                success: false,
+                status: 401,
+                data: {
+                    id: "fred",
+                    data: {
+                        nonce: "sense"
+                    }
+                }
+            });
+            expect(client._authenticate).not.toHaveBeenCalled();
+
+            // Run Test 3
+            client._wantsToBeAuthenticated = true;
+            client._lastChallengeTime = Date.now() - 100;
+            client._xhrResult({
+                success: false,
+                status: 401,
+                data: {
+                    id: "fred",
+                    data: {
+                        nonce: "sense"
+                    }
+                }
+            });
+            expect(client._authenticate).not.toHaveBeenCalled();
         });
 
         it("Should call not _authenticate on getting a 401 if not authenticated", function() {
