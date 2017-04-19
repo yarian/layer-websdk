@@ -277,6 +277,7 @@ class Conversation extends Container {
     this._disableEvents = (this.syncState === Constants.SYNC_STATE.NEW);
 
     this.participants = client._fixIdentities(conversation.participants);
+    this.participants.forEach(identity => identity.on('identities:change', this._handleParticipantChangeEvent, this));
     this.distinct = conversation.distinct;
     this.unreadCount = conversation.unread_message_count;
     this.isCurrentParticipant = this.participants.indexOf(client.user) !== -1;
@@ -666,6 +667,8 @@ class Conversation extends Container {
   __updateParticipants(newValue, oldValue) {
     if (this._inLayerParser) return;
     const change = this._getParticipantChange(newValue, oldValue);
+    change.add.forEach(identity => identity.on('identities:change', this._handleParticipantChangeEvent, this));
+    change.remove.forEach(identity => identity.off('identities:change', this._handleParticipantChangeEvent, this));
     if (change.add.length || change.remove.length) {
       change.property = 'participants';
       change.oldValue = oldValue;
@@ -674,6 +677,16 @@ class Conversation extends Container {
     }
   }
 
+  _handleParticipantChangeEvent(evt) {
+    evt.changes.forEach((change) => {
+      this._triggerAsync('conversations:change', {
+        property: 'participants.' + change.property,
+        identity: evt.target,
+        oldValue: change.oldValue,
+        newValue: change.newValue,
+      });
+    });
+  }
 
   /**
    * Create a conversation instance from a server representation of the conversation.

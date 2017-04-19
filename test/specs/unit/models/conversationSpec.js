@@ -790,7 +790,7 @@ describe("The Conversation Class", function() {
             expect(client._addConversation).toHaveBeenCalledWith(conversation);
         });
 
-        it("Should set isCurrentParticipant to true", function() {
+        it("Should set isCurrentParticipant to false", function() {
             // Setup
             c.participants = [userIdentity1, userIdentity2];
 
@@ -810,6 +810,27 @@ describe("The Conversation Class", function() {
 
             // Posttest
             expect(conversation.isCurrentParticipant).toBe(true);
+        });
+
+        it("Should wire up all participants to _handleParticipantChangeEvent", function() {
+            // Setup
+            c.participants = [userIdentity1, client.user];
+            conversation._populateFromServer(c);
+            spyOn(conversation, "_triggerAsync");
+            spyOn(userIdentity1, "_triggerAsync").and.callFake(function(name, args) {
+                userIdentity1.trigger(name, args);
+            });
+
+            // Run
+            userIdentity1._updateValue(['displayName'], 'Fred');
+
+            // Posttest
+            expect(conversation._triggerAsync).toHaveBeenCalledWith('conversations:change', {
+                property: 'participants.displayName',
+                identity: userIdentity1,
+                oldValue: "1",
+                newValue: "Fred",
+            });
         });
     });
 
@@ -1108,6 +1129,67 @@ describe("The Conversation Class", function() {
             expect(conversation.participants[1]).toBe(client.getIdentity("jane"));
             expect(conversation.participants).toEqual([userIdentity1, client.getIdentity("jane"), userIdentity3, userIdentity4]);
             //expect(client.getIdentity("3").displayName).toEqual("The new 3"); this is not expected to update at this time.
+        });
+    });
+
+    describe("The __updateParticipants() method", function() {
+        it("Should trigger conversations:change event", function() {
+            spyOn(conversation, "_triggerAsync");
+            conversation.__updateParticipants([userIdentity1, userIdentity2], [userIdentity2, userIdentity3, userIdentity4]);
+            expect(conversation._triggerAsync).toHaveBeenCalledWith('conversations:change', {
+                property: 'participants',
+                oldValue: [userIdentity2, userIdentity3, userIdentity4],
+                newValue: [userIdentity1, userIdentity2],
+                add: [userIdentity1],
+                remove: [userIdentity3, userIdentity4]
+            });
+        });
+
+        it("Should wire up _handleParticipantChangeEvent", function() {
+            spyOn(conversation, '_handleParticipantChangeEvent');
+            conversation.__updateParticipants([userIdentity1, userIdentity2], [userIdentity2, userIdentity3, userIdentity4]);
+            userIdentity1.trigger('identities:change', {property: 'displayName', oldValue: 'fred', newValue: 'freddy'});
+
+            expect(conversation._handleParticipantChangeEvent.calls.argsFor(0)[0].changes).toEqual([{
+                property: 'displayName',
+                oldValue: 'fred',
+                newValue: 'freddy'
+            }]);
+            expect(conversation._handleParticipantChangeEvent.calls.argsFor(0)[0].eventName).toEqual('identities:change');
+            expect(conversation._handleParticipantChangeEvent.calls.argsFor(0)[0].target).toBe(userIdentity1);
+        });
+
+        it("Should unwire _handleParticipantChangeEvent", function() {
+            spyOn(conversation, '_handleParticipantChangeEvent');
+            conversation.__updateParticipants([userIdentity1, userIdentity2], [userIdentity2, userIdentity3, userIdentity4]);
+            conversation.__updateParticipants([client.user], [userIdentity1, userIdentity2]);
+            userIdentity2.trigger('identities:change', {property: 'displayName', oldValue: 'fred', newValue: 'freddy'});
+            expect(conversation._handleParticipantChangeEvent).not.toHaveBeenCalled();
+        });
+    });
+
+    describe("The _handleParticipantChangeEvent() method", function() {
+        it("Should trigger conversations:change event", function() {
+            spyOn(conversation, '_triggerAsync');
+            conversation._handleParticipantChangeEvent({
+                changes: [
+                    {property: 'displayName', oldValue: 'fred', newValue: 'freddy'},
+                    {property: 'firstName', oldValue: 'fred1', newValue: 'freddy1'},
+                ],
+                target: userIdentity1
+            });
+            expect(conversation._triggerAsync).toHaveBeenCalledWith('conversations:change', {
+                property: 'participants.displayName',
+                oldValue: 'fred',
+                newValue: 'freddy',
+                identity: userIdentity1
+            });
+            expect(conversation._triggerAsync).toHaveBeenCalledWith('conversations:change', {
+                property: 'participants.firstName',
+                oldValue: 'fred1',
+                newValue: 'freddy1',
+                identity: userIdentity1
+            });
         });
     });
 

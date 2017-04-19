@@ -1,5 +1,9 @@
 # Web SDK Change Log
 
+## 3.2.1
+
+* Conversation Queries now trigger change events when Conversation participants have changes
+
 ## 3.2.0
 
 * Breaking Change (impacts few apps)
@@ -13,7 +17,7 @@
       if presence is not something your user wants to expose.
   * Adds Channels (Note: This feature is in preview mode and not ready for production applications)
     * Channel instance is `layer.Channel`
-    * Channels are qisPresenceEnabledodel: layer.Query.Channel`
+    * Channels are queried using `model: layer.Query.Channel`
     * Channels have `layer.Membership` objects representing members of the channel.
     * Members are queried using `model: layer.Query.Membership`
   * Adds `layer.Message.presend()` which allows a message that hasn't yet been sent to be added to Query results and rendered
@@ -36,6 +40,7 @@
     * Queries retry if auth fails and is re-established
     * On destroying a Query, it was triggering `change:data`; now it triggeres `change:reset`
     * Events that report on items added to the array have fixes to the `index` field of the event
+
 
 
 ## 3.1.1

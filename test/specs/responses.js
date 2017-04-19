@@ -302,7 +302,7 @@ var testDbEnabled = function(callback) {
     function createTable(callback) {
         const request = window.indexedDB.open('layer-test', 1);
         request.onupgradeneeded = function(evt) {
-            db = event.target.result;
+            db = evt.target.result;
             try {
                 const store = db.createObjectStore('test-table', { keyPath: 'id' });
                 store.createIndex('my-index', ['a', 'b'], { unique: false });
