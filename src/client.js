@@ -546,6 +546,50 @@ class Client extends ClientAuth {
   static destroyAllClients() {
     ClientRegistry.getAll().forEach(client => client.destroy());
   }
+
+  /**
+   * Listen for a new Client to be registered.
+   *
+   * If your code needs a client, and it doesn't yet exist, you
+   * can use this to get called when the client exists.
+   *
+   * ```
+   * layer.Client.addListenerForNewClient(function(client) {
+   *    mycomponent.setClient(client);
+   * });
+   * ```
+   *
+   * @method addListenerForNewClient
+   * @static
+   * @param {Function} listener
+   * @param {layer.Client} listener.client
+   */
+  static addListenerForNewClient(listener) {
+    ClientRegistry.addListener(listener);
+  }
+
+  /**
+   * Remove listener for a new Client.
+   *
+   *
+   * ```
+   * var f = function(client) {
+   *    mycomponent.setClient(client);
+   *    layer.Client.removeListenerForNewClient(f);
+   * };
+   *
+   * layer.Client.addListenerForNewClient(f);
+   * ```
+   *
+   * Calling with null will remove all listeners.
+   *
+   * @method removeListenerForNewClient
+   * @static
+   * @param {Function} listener
+   */
+  static removeListenerForNewClient(listener) {
+    ClientRegistry.removeListener(listener);
+  }
 }
 
 /**
@@ -570,7 +614,7 @@ Client.prototype._scheduleCheckAndPurgeCacheAt = 0;
  * @static
  * @type {String}
  */
-Client.version = '3.2.1';
+Client.version = '3.2.2';
 
 /**
  * Any Conversation or Message that is part of a Query's results are kept in memory for as long as it

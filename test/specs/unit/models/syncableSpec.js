@@ -113,6 +113,58 @@ describe("The Syncable Class", function() {
             expect(ident._populateFromServer).not.toHaveBeenCalled();
             expect(ident._load).toHaveBeenCalledWith();
         });
+
+        it("Should call _load once client is ready", function() {
+            client.isReady = false;
+            var ident = layer.Message.load(responses.message1.id, client);
+            spyOn(ident, "_load");
+            jasmine.clock().tick(11);
+
+            // Midtest
+            expect(ident._load).not.toHaveBeenCalled();
+
+            // Posttest
+            client._clientReady();
+            expect(ident._load).toHaveBeenCalledWith();
+        });
+
+        it("Should call _load once client is ready for new client", function() {
+            var _load = layer.Message.prototype._load;
+            layer.Message.prototype._load = jasmine.createSpy('load');
+            client = new layer.Client({
+                appId: appId,
+                url: "https://huh.com"
+            });
+
+            var ident = layer.Message.load(responses.message1.id, client);
+
+            // Midtest
+            expect(layer.Message.prototype._load).not.toHaveBeenCalled();
+
+            // Posttest
+            client.user = new layer.Identity({
+                clientId: client.appId,
+                userId: "Frodo",
+                id: "layer:///identities/" + client.userId,
+                firstName: "first",
+                lastName: "last",
+                phoneNumber: "phone",
+                emailAddress: "email",
+                metadata: {},
+                publicKey: "public",
+                avatarUrl: "avatar",
+                displayName: "display",
+                syncState: layer.Constants.SYNC_STATE.SYNCED,
+                isFullIdentity: true,
+                sessionOwner: true
+            });
+            client._clientAuthenticated();
+            client._clientReady();
+            expect(layer.Message.prototype._load).toHaveBeenCalledWith();
+
+            // Restore
+            layer.Message.prototype._load = _load;
+        });
       });
 
       describe("Announcement subclass", function() {

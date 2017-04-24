@@ -1081,6 +1081,46 @@ describe("The Client class", function() {
             });
         });
 
+        describe("The addListenerForNewClient() static method", function() {
+            beforeEach(function() {
+                layer.Util.defer.flush();
+            });
+
+            it("Should call callback each time a client is registered", function() {
+                var clients = [];
+                layer.Client.addListenerForNewClient(function(client) {
+                    clients.push(client);
+                });
+
+                // Run
+                var client1 = new layer.Client({appId: "1"});
+                var client2 = new layer.Client({appId: "2"});
+                var client3 = new layer.Client({appId: "3"});
+
+                // Posttest
+                layer.Util.defer.flush();
+                expect(clients).toEqual([client1, client2, client3]);
+
+                // Cleanup
+                layer.Client.removeListenerForNewClient();
+            });
+
+            it("Should remove all listeners", function() {
+                var clients = [];
+                layer.Client.addListenerForNewClient(function(client) {
+                    clients.push(client);
+                });
+                layer.Client.removeListenerForNewClient();
+
+                // Run
+                var client1 = new layer.Client({appId: "1"});
+
+                // Posttest
+                layer.Util.defer.flush();
+                expect(clients).toEqual([]);
+            });
+        });
+
         describe("The _updateContainerId() method", function() {
             it("Should call _updateConversationId", function() {
                 var conversation = client._createObject(responses.conversation1);

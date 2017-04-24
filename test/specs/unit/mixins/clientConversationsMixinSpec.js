@@ -125,9 +125,10 @@ describe("The Client Conversation Mixin", function() {
         it("Should not load if not ready", function() {
             client.isReady = false;
             requests.reset();
-            expect(function() {
-                client.getConversation(cid1, true);
-            }).toThrowError(layer.LayerError.dictionary.clientMustBeReady);
+            client.getConversation(cid1, true);
+            expect(requests.count()).toEqual(0);
+            client._clientReady();
+            expect(requests.count()).toEqual(1);
         });
     });
 

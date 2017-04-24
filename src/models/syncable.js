@@ -144,7 +144,6 @@ class Syncable extends Root {
    */
   static load(id, client) {
     if (!client || !(client instanceof Root)) throw new Error(LayerError.dictionary.clientMissing);
-    if (!client.isReady) throw new Error(LayerError.dictionary.clientMustBeReady);
 
     const obj = {
       id,
@@ -168,15 +167,23 @@ class Syncable extends Root {
     const typeName = ConstructorClass.eventPrefix;
 
     if (typeName) {
-      client.dbManager.getObject(typeName, id, (item) => {
-        if (syncItem.isDestroyed) return;
-        if (item) {
-          syncItem._populateFromServer(item);
-          syncItem.trigger(typeName + ':loaded');
-        } else {
-          syncItem._load();
-        }
-      });
+      if (!client.dbManager) {
+        syncItem.syncState = SYNC_STATE.LOADING;
+        client.once('ready', () => syncItem._load());
+      } else {
+        client.dbManager.getObject(typeName, id, (item) => {
+          if (syncItem.isDestroyed) return;
+          if (item) {
+            syncItem._populateFromServer(item);
+            syncItem.trigger(typeName + ':loaded');
+          } else if (!client.isReady) {
+            syncItem.syncState = SYNC_STATE.LOADING;
+            client.once('ready', () => syncItem._load());
+          } else {
+            syncItem._load();
+          }
+        });
+      }
     } else {
       syncItem._load();
     }

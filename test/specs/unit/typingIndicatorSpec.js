@@ -849,7 +849,7 @@ describe("The Typing Indicator Classes", function() {
             it("Should set a delay that is 2500 after last message sent and then send the message take 1", function() {
                 publisher._lastMessageTime = Date.now();
                 publisher.state = layer.TypingIndicators.STARTED;
-                spyOn(publisher, "_send").and.callFake(function() {console.log("SEND IS CALLED");});
+                spyOn(publisher, "_send");
 
                 // Run
                 publisher._scheduleNextMessage(layer.TypingIndicators.STARTED);

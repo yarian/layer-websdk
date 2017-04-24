@@ -9,7 +9,8 @@
  */
 
 const registry = {};
-
+const listeners = [];
+import { defer } from './client-utils';
 /**
  * Register a new Client; will destroy any previous client with the same appId.
  *
@@ -22,6 +23,8 @@ function register(client) {
     registry[appId].destroy();
   }
   registry[appId] = client;
+
+  defer(() => listeners.forEach(listener => listener(client)));
 }
 
 /**
@@ -49,9 +52,39 @@ function getAll() {
   return Object.keys(registry).map(key => registry[key]);
 }
 
+/**
+ * Register a listener to be called whenever a new client is registered.
+ *
+ * @method addListener
+ * @param {Function} listener
+ * @param {layer.Client} listener.client
+ */
+function addListener(listener) {
+  listeners.push(listener);
+}
+
+/**
+ * Remove a registered listener or all listeners.
+ *
+ * If called with no arguments or null arguments, removes all listeners.
+ * @method removeListener
+ * @param {Function}
+ */
+function removeListener(listener) {
+  if (listener) {
+    const index = listeners.indexOf(listener);
+    if (index >= 0) listeners.splice(index, 1);
+  } else {
+    listeners.splice(0, listeners.length);
+  }
+}
+
+
 module.exports = {
   get,
   getAll,
   register,
   unregister,
+  addListener,
+  removeListener,
 };

@@ -1,5 +1,10 @@
 # Web SDK Change Log
 
+## 3.2.2
+
+* Adds `layer.Client.addListenerForNewClient(callback)` allowing code to register to receive the `layer.Client` once its created
+* Calling `getMessage(id, true)`, `getConversation(id, true)`, etc... will no longer throw an error if the client is not yet authenticated/ready.  It will instead wait for authentication to complete, and then load the requested resource.
+
 ## 3.2.1
 
 * Conversation Queries now trigger change events when Conversation participants have changes

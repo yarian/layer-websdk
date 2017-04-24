@@ -131,9 +131,11 @@ describe("The Client Message Mixin", function() {
             requests.reset();
             client.isReady = false;
             var newId = message.id + "a";
-            expect(function() {
-                client.getMessage(newId, true);
-            }).toThrowError(layer.LayerError.dictionary.clientMustBeReady);
+            spyOn(client, 'xhr');
+            client.getMessage(newId, true);
+            expect(client.xhr).not.toHaveBeenCalled();
+            client._clientReady();
+            expect(client.xhr).toHaveBeenCalled();
         });
     });
 
