@@ -324,6 +324,19 @@ describe("The MessageParts class", function() {
             });
         });
 
+        it("Should trigger messageparts:change event", function() {
+            part.body = '';
+            spyOn(part, "_triggerAsync");
+            part._fetchContentComplete("Hey Ho");
+
+            // Posttest
+            expect(part._triggerAsync).toHaveBeenCalledWith("messageparts:change", {
+                property: "body",
+                oldValue: '',
+                newValue: "Hey Ho",
+            });
+        });
+
         it("Should call the callback", function() {
           var spy = jasmine.createSpy('callback');
           part._fetchContentComplete("Hey Ho", spy);
@@ -414,6 +427,19 @@ describe("The MessageParts class", function() {
           property: "parts"
         })
       });
+
+      it("Should trigger messageparts:change event", function() {
+        spyOn(part, "_triggerAsync");
+        part._fetchStreamComplete("hey");
+
+        // Posttest
+        expect(part._triggerAsync).toHaveBeenCalledWith("messageparts:change", {
+            property: "url",
+            oldValue: '',
+            newValue: "hey",
+        });
+      });
+
 
       it("Should call callback", function() {
         var spy = jasmine.createSpy("callback");

@@ -50,6 +50,26 @@ var client = new layer.Client({
 });
 ```
 
+#### NPM ES6 Build
+
+```javascript
+var layer = require('layer-websdk/index-es6');
+
+var client = new layer.Client({
+    appId: LAYER_APP_ID
+});
+```
+
+#### NPM React Native Build
+
+```javascript
+var layer = require('layer-websdk/index-react-native');
+
+var client = new layer.Client({
+    appId: LAYER_APP_ID
+});
+```
+
 ### From source
 
 Download the latest SDK release [Source code](https://github.com/layerhq/layer-websdk/releases/latest) archive, extract the files and run the following commands from the extracted project folder:

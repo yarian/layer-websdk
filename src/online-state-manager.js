@@ -36,7 +36,7 @@ class OnlineStateManager extends Root {
    * An Application is expected to only have one of these.
    *
    *      var onlineStateManager = new layer.OnlineStateManager({
-   *          socketManager: socketManager
+   *          socketManager: socketManager,
    *      });
    *
    * @method constructor
@@ -53,9 +53,14 @@ class OnlineStateManager extends Root {
     // Any change in online status reported by the browser should result in
     // an immediate update to our online/offline state
     /* istanbul ignore else */
-    if (typeof window !== 'undefined') {
+    if ((typeof window !== 'undefined') && window.addEventListener) {
       window.addEventListener('online', this._handleOnlineEvent.bind(this));
       window.addEventListener('offline', this._handleOnlineEvent.bind(this));
+    } else {
+      const OnlineEvents = global.getNativeSupport('OnlineEvents');
+      if (OnlineEvents) {
+        OnlineEvents.addEventListener('change', this._handleOnlineEvent.bind(this));
+      }
     }
   }
 

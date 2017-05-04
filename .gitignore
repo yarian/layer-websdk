@@ -22,3 +22,4 @@ build
 *.sublime-project
 .vscode
 jsconfig.json
+index-stashed.js

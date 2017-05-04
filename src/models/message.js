@@ -182,14 +182,15 @@ class Message extends Syncable {
    * @return {layer.MessagePart[]}
    */
   __adjustParts(parts) {
+    let adjustedParts;
     if (typeof parts === 'string') {
-      return [new MessagePart({
+      adjustedParts = [new MessagePart({
         body: parts,
         mimeType: 'text/plain',
         clientId: this.clientId,
       })];
     } else if (Array.isArray(parts)) {
-      return parts.map((part) => {
+      adjustedParts = parts.map((part) => {
         let result;
         if (part instanceof MessagePart) {
           result = part;
@@ -201,10 +202,16 @@ class Message extends Syncable {
       });
     } else if (parts && typeof parts === 'object') {
       parts.clientId = this.clientId;
-      return [new MessagePart(parts)];
+      adjustedParts = [new MessagePart(parts)];
     }
+    if (adjustedParts) {
+      adjustedParts.forEach((part) => {
+        part.off('messageparts:change', this._onMessagePartChange, this); // if we already subscribed, don't create a redundant subscription
+        part.on('messageparts:change', this._onMessagePartChange, this);
+      });
+    }
+    return adjustedParts;
   }
-
 
   /**
    * Add a layer.MessagePart to this Message.
@@ -230,8 +237,31 @@ class Message extends Syncable {
       } else if (typeof part === 'object') {
         this.parts.push(new MessagePart(part));
       }
+      const thePart = this.parts[this.parts.length - 1];
+      thePart.off('messageparts:change', this._onMessagePartChange, this); // if we already subscribed, don't create a redundant subscription
+      thePart.on('messageparts:change', this._onMessagePartChange, this);
     }
     return this;
+  }
+
+  /**
+   * Any time a Part changes, the Message has changed; trigger the `messages:change` event.
+   *
+   * Currently, this only looks at changes to body or mimeType, and does not handle changes to url/rich content.
+   *
+   * @method _onMessagePartChange
+   * @private
+   * @param {layer.LayerEvent} evt
+   */
+  _onMessagePartChange(evt) {
+    evt.changes.forEach((change) => {
+      this._triggerAsync('messages:change', {
+        property: 'parts.' + change.property,
+        oldValue: change.oldValue,
+        newValue: change.newValue,
+        part: evt.target,
+      });
+    });
   }
 
   /**

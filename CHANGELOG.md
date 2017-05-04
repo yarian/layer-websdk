@@ -1,5 +1,27 @@
 # Web SDK Change Log
 
+## 3.2.3
+
+* Changes to MessagePart `body` or `mimeType` will now trigger `messageparts:change` events on the part
+* Messages now listen for their MessagePart's events, and trigger `messages:change` events any time a part is changed
+* Events triggered when a MessagePart finishes loading its RichContent has changed to align with this:
+  * BEFORE: a `messages:change` event was triggered with `property: 'parts'` and oldValue/newValue of the change event simply refering to the `parts` array
+  * AFTER: a `messages:change` event is triggered with `property: 'parts.body'`, and oldValue/newValue of
+    the `body` property from before and after
+* If building a React Native project, one can now use `import from 'layer-websdk/index-react-native'` for a react-native safe version.
+  * NOTE: some services, like sending of files are not yet supported
+
+
+Scenario:
+
+```javacript
+message.presend();
+message.parts[0].body = "hello";
+```
+
+The above code will do a `presend()` which will let any appropriate Query add this unsent message to its results, and the
+Query will trigger change events to allow for rerendering any time the `body` property is updated.
+
 ## 3.2.2
 
 * Adds `layer.Client.addListenerForNewClient(callback)` allowing code to register to receive the `layer.Client` once its created

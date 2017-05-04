@@ -99,6 +99,7 @@ module.exports = function (grunt) {
       },
       dist: {
         files: {
+          "lib/layer.js": "src/layer.js",
           "lib/root.js": "src/root.js",
           "lib/const.js": "src/const.js",
           "lib/logger.js": "src/logger.js",
@@ -145,7 +146,9 @@ module.exports = function (grunt) {
           "lib/typing-indicators/typing-indicators.js": "src/typing-indicators/typing-indicators.js",
           "lib/typing-indicators/typing-indicator-listener.js": "src/typing-indicators/typing-indicator-listener.js",
           "lib/typing-indicators/typing-listener.js": "src/typing-indicators/typing-listener.js",
-          "lib/typing-indicators/typing-publisher.js": "src/typing-indicators/typing-publisher.js"
+          "lib/typing-indicators/typing-publisher.js": "src/typing-indicators/typing-publisher.js",
+          "lib/utils/defer.js": "src/utils/defer.js",
+          "lib/utils/layer-parser.js": "src/utils/layer-parser.js"
         }
       }
     },
@@ -219,7 +222,7 @@ module.exports = function (grunt) {
     },
     watch: {
       debug: {
-        files: ['package.json', 'src/**', "Gruntfile.js"],
+        files: ['package.json', 'src/**', "Gruntfile.js", "index.js"],
         tasks: ['debug', 'prepublish']
       }
     },

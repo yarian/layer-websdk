@@ -236,14 +236,19 @@ class MessagePart extends Root {
   _fetchContentComplete(body, callback) {
     const message = this._getMessage();
     if (!message) return;
+
+    // NOTE: This will trigger a messageparts:change event, and therefore a messages:change event
     this.body = body;
 
     this.trigger('content-loaded');
+
+    // TODO: This event is now deprecated, and should be removed for WebSDK 4.0
     message._triggerAsync('messages:change', {
       oldValue: message.parts,
       newValue: message.parts,
       property: 'parts',
     });
+
     if (callback) callback(this.body);
   }
 
@@ -293,6 +298,14 @@ class MessagePart extends Root {
     const message = this._getMessage();
 
     this.trigger('url-loaded');
+
+    this._triggerAsync('messageparts:change', {
+      oldValue: '',
+      newValue: url,
+      property: 'url',
+    });
+
+    // TODO: This event is now deprecated, and should be removed for WebSDK 4.0
     message._triggerAsync('messages:change', {
       oldValue: message.parts,
       newValue: message.parts,
@@ -515,6 +528,54 @@ class MessagePart extends Root {
   }
 
   /**
+   * This method is automatically called any time the body is changed.
+   *
+   * Note that it is not called during initialization.  Any developer who does:
+   *
+   * ```
+   * part.body = "Hi";
+   * ```
+   *
+   * can expect this to trigger a change event, which will in turn trigger a `messages:change` event on the layer.Message.
+   *
+   * @method __updateBody
+   * @private
+   * @param {String} newValue
+   * @param {String} oldValue
+   */
+  __updateBody(newValue, oldValue) {
+    this._triggerAsync('messageparts:change', {
+      property: 'body',
+      newValue,
+      oldValue,
+    });
+  }
+
+  /**
+   * This method is automatically called any time the mimeType is changed.
+   *
+   * Note that it is not called during initialization.  Any developer who does:
+   *
+   * ```
+   * part.mimeType = "text/mountain";
+   * ```
+   *
+   * can expect this to trigger a change event, which will in turn trigger a `messages:change` event on the layer.Message.
+   *
+   * @method __updateMimeType
+   * @private
+   * @param {String} newValue
+   * @param {String} oldValue
+   */
+  __updateMimeType(newValue, oldValue) {
+    this._triggerAsync('messageparts:change', {
+      property: 'mimeType',
+      newValue,
+      oldValue,
+    });
+  }
+
+  /**
    * Creates a MessagePart from a server representation of the part
    *
    * @method _createFromServer
@@ -649,6 +710,7 @@ MessagePart._supportedEvents = [
   'content-loaded',
   'url-loaded',
   'content-loaded-error',
+  'messageparts:change',
 ].concat(Root._supportedEvents);
 Root.initClass.apply(MessagePart, [MessagePart, 'MessagePart']);
 

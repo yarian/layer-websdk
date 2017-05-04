@@ -134,10 +134,8 @@ describe("The Message class", function() {
             });
 
             // Posttest
-            expect(m.parts).toEqual([jasmine.objectContaining({
-                body: "Hello There",
-                mimeType: "text/plain"
-            })]);
+            expect(m.parts[0].body).toEqual("Hello There");
+            expect(m.parts[0].mimeType).toEqual("text/plain");
         });
 
         it("Should be created with a Part", function() {
@@ -150,11 +148,9 @@ describe("The Message class", function() {
             });
 
             // Posttest
-            expect(m.parts).toEqual([jasmine.objectContaining({
-                body: "Hello There",
-                mimeType: "text/greeting",
-                clientId: m.clientId
-            })]);
+            expect(m.parts[0].body).toEqual("Hello There");
+            expect(m.parts[0].mimeType).toEqual("text/greeting");
+            expect(m.parts[0].clientId).toEqual(m.clientId);
         });
 
         it("Should be created with array of parts", function() {
@@ -167,11 +163,9 @@ describe("The Message class", function() {
             });
 
             // Posttest
-            expect(m.parts).toEqual([jasmine.objectContaining({
-                body: "Hello There",
-                mimeType: "text/greeting",
-                clientId: m.clientId
-            })]);
+            expect(m.parts[0].body).toEqual("Hello There");
+            expect(m.parts[0].mimeType).toEqual("text/greeting");
+            expect(m.parts[0].clientId).toEqual(m.clientId);
         });
 
         it("Should be created with array of mixed", function() {
@@ -184,16 +178,11 @@ describe("The Message class", function() {
             });
 
             // Posttest
-            expect(m.parts).toEqual([
-                jasmine.objectContaining({
-                    body: "Hello There 1",
-                    mimeType: "text/plain"
-                }),
-                jasmine.objectContaining({
-                    body: "Hello There 2",
-                    mimeType: "text/greeting"
-                })
-            ]);
+            expect(m.parts[0].body).toEqual("Hello There 1");
+            expect(m.parts[0].mimeType).toEqual("text/plain");
+
+            expect(m.parts[1].body).toEqual("Hello There 2");
+            expect(m.parts[1].mimeType).toEqual("text/greeting");
         });
 
         it("Should set isRead = true and isUnread = false for normal call", function() {
@@ -454,8 +443,34 @@ describe("The Message class", function() {
 
     // Tested via constructor so no tests at this time
     describe("The __adjustParts() method", function() {
+        var message;
+        beforeEach(function() {
+            message = new layer.Message.ChannelMessage({
+                parts: [{body: "Hello There", mimeType: "text/plain"}],
+                client: client,
+                clientId: client.appId
+            });
+        });
 
+        afterEach(function() {
+            message.destroy();
+        });
 
+        it("Should listen for part changes", function() {
+            var part = new layer.MessagePart({
+                body: "ho",
+                mimeType: "text/ho"
+            });
+            spyOn(message, "_onMessagePartChange");
+            message.parts = [part];
+
+            // Run
+            part.body = "howdy";
+            jasmine.clock().tick(100);
+
+            // Posttest
+            expect(message._onMessagePartChange).toHaveBeenCalled();
+        });
     });
 
     describe("The addPart() method", function() {
@@ -528,6 +543,56 @@ describe("The Message class", function() {
                     clientId: message.clientId
                 })
             ]);
+        });
+
+        it("Should listen for part changes", function() {
+            var part = new layer.MessagePart({
+                body: "ho",
+                mimeType: "text/ho"
+            });
+            spyOn(message, "_onMessagePartChange");
+            message.addPart(part);
+
+            // Run
+            part.body = "howdy";
+            jasmine.clock().tick(100);
+
+            // Posttest
+            expect(message._onMessagePartChange).toHaveBeenCalled();
+        });
+    });
+
+    describe("The _onMessagePartChange() method", function() {
+        var message;
+        beforeEach(function() {
+            message = new layer.Message.ConversationMessage({
+                parts: [{body: "Hello There", mimeType: "text/plain"}],
+                client: client
+            });
+        });
+        afterEach(function() {
+            message.destroy();
+        });
+
+        it("Should trigger message change events when parts change", function() {
+            var part = new layer.MessagePart({
+                body: "ho",
+                mimeType: "text/ho"
+            });
+            spyOn(message, "_triggerAsync");
+            message.parts = [part];
+
+            // Run
+            part.body = "howdy";
+            jasmine.clock().tick(100);
+
+            // Posttest
+            expect(message._triggerAsync).toHaveBeenCalledWith('messages:change', {
+                property: 'parts.body',
+                oldValue: 'ho',
+                newValue: 'howdy',
+                part: part
+            });
         });
     });
 
