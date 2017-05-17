@@ -69,6 +69,7 @@ function parseLinkHeaders(linkHeader) {
 }
 
 module.exports = (request, callback) => {
+  const startTime = Date.now();
   const req = Xhr ? new Xhr() : new XMLHttpRequest();
   const method = (request.method || 'GET').toUpperCase();
 
@@ -82,6 +83,7 @@ module.exports = (request, callback) => {
       success: this.status && this.status < 300,
       xhr: this,
     };
+
     const isJSON = (String(headers['content-type']).split(/;/)[0].match(/^application\/json/) ||
            request.format === 'json');
 
@@ -108,10 +110,13 @@ module.exports = (request, callback) => {
         result.data = this.responseText;
       }
 
-
+      // Note that it is a successful connection if we get back an error from the server,
+      // it may have been a failed request, but the connection was good.
       module.exports.trigger({
         target: this,
         status: !this.responseText && !this.status ? 'connection:error' : 'connection:success',
+        duration: Date.now() - startTime,
+        request,
       });
 
       if (!this.responseText && !this.status) {

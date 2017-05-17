@@ -324,5 +324,18 @@ describe("The Client Message Mixin", function() {
             // Posttest
             expect(client.trigger).not.toHaveBeenCalled();
         });
+
+        it("Should allow a message to be sent and receive a position after a message has been removed", function() {
+            var m = conversation.createMessage("h").send();
+            var position = m.position = 100;
+
+            // Run
+            client._removeMessage(m);
+            var m2 = conversation.createMessage("hello").send();
+
+            // Posttest
+            expect(conversation.lastMessage).toBe(m2);
+            expect(m2.position).toEqual(101);
+        });
     });
 });

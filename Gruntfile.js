@@ -113,6 +113,7 @@ module.exports = function (grunt) {
           "lib/mixins/client-members.js": "src/mixins/client-members.js",
           "lib/mixins/client-messages.js": "src/mixins/client-messages.js",
           "lib/mixins/client-queries.js": "src/mixins/client-queries.js",
+          "lib/telemetry-monitor.js": "src/telemetry-monitor.js",
           "lib/models/syncable.js": "src/models/syncable.js",
           "lib/models/container.js": "src/models/container.js",
           "lib/models/conversation.js": "src/models/conversation.js",

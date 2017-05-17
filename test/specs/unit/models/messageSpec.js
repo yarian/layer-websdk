@@ -1370,14 +1370,16 @@ describe("The Message class", function() {
             expect(conversation.isLoading).toBe(true);
         });
 
-        it("Should delay if Conversation is loading", function() {
+        it("Should delay if Conversation is loading but call _setupMessage", function() {
             var conversation = m.getConversation();
             conversation.syncState = layer.Constants.SYNC_STATE.LOADING;
             spyOn(conversation, "once");
+            spyOn(conversation, "_setupMessage");
 
             // Run
             m.send("argh");
             expect(conversation.once).toHaveBeenCalledWith('conversations:loaded', jasmine.any(Function));
+            expect(conversation._setupMessage).toHaveBeenCalledWith(m);
 
             // Second test
             spyOn(m, "send");

@@ -296,7 +296,13 @@ module.exports = {
         if (!this._inCleanup) {
           this._triggerAsync('messages:remove', { messages: [message] });
           const conv = message.getConversation(false);
-          if (conv && conv.lastMessage === message) conv.lastMessage = null;
+
+          // Websocket will eventually deliver an update to the latest lastMessage;
+          // until then, use the old lastMessage's position as a placeholder
+          if (!this._inCheckAndPurgeCache && conv && conv.lastMessage === message) {
+            conv.lastMessage = null;
+            conv._lastMessagePosition = message.position;
+          }
         }
       }
     },

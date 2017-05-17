@@ -39,6 +39,9 @@ class ChannelsQuery extends ConversationsQuery {
       this.isFiring = true;
       this._firingRequest = newRequest;
       this.client.xhr({
+        telemetry: {
+          name: 'channel_query_time',
+        },
         url: this._firingRequest,
         method: 'GET',
         sync: false,

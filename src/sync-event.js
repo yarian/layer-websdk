@@ -229,6 +229,7 @@ class XHRSyncEvent extends SyncEvent {
       method: this.method,
       headers: this.headers,
       data: this.data,
+      telemetry: this.telemetry,
     };
   }
 
@@ -291,6 +292,11 @@ XHRSyncEvent.prototype.headers = null;
  */
 XHRSyncEvent.prototype.method = 'GET';
 
+
+/**
+ * Telemetry data to go with the request.
+ */
+XHRSyncEvent.prototype.telemetry = null;
 
 /**
  * A layer.SyncEvent intended to be fired as a websocket request.

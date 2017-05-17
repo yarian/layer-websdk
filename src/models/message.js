@@ -360,6 +360,7 @@ class Message extends Syncable {
 
     if (conversation.isLoading) {
       conversation.once(conversation.constructor.eventPrefix + ':loaded', () => this.send(notification));
+      conversation._setupMessage(this);
       return this;
     }
 
@@ -464,6 +465,12 @@ class Message extends Syncable {
     const client = this.getClient();
     const conversation = this.getConversation(false);
 
+    this.getClient()._triggerAsync('state-change', {
+      started: true,
+      type: 'send_' + Util.typeFromID(this.id),
+      telemetryId: 'send_' + Util.typeFromID(this.id) + '_time',
+      id: this.id,
+    });
     this.sentAt = new Date();
     client.sendSocketRequest({
       method: 'POST',
@@ -495,6 +502,13 @@ class Message extends Syncable {
     * @param {Object} messageData - Server description of the message
     */
   _sendResult({ success, data }) {
+    this.getClient()._triggerAsync('state-change', {
+      ended: true,
+      type: 'send_' + Util.typeFromID(this.id),
+      telemetryId: 'send_' + Util.typeFromID(this.id) + '_time',
+      result: success,
+      id: this.id,
+    });
     if (this.isDestroyed) return;
 
     if (success) {

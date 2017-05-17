@@ -870,7 +870,7 @@ describe("The SyncManager Class", function() {
             syncManager._xhrError(result);
 
             // Posttest
-            expect(syncManager._xhrHandleServerUnavailableError).toHaveBeenCalledWith(request);
+            expect(syncManager._xhrHandleServerUnavailableError).toHaveBeenCalledWith(result);
         });
 
         it("Should call _xhrHandleServerUnavailableError if serverUnavailable", function() {
@@ -882,7 +882,7 @@ describe("The SyncManager Class", function() {
             syncManager._xhrError(result);
 
             // Posttest
-            expect(syncManager._xhrHandleServerUnavailableError).toHaveBeenCalledWith(request);
+            expect(syncManager._xhrHandleServerUnavailableError).toHaveBeenCalledWith(result);
         });
 
         it("Should call callback if reauthorize", function() {
@@ -962,7 +962,7 @@ describe("The SyncManager Class", function() {
     });
 
     describe("The _xhrHandleServerUnavailableError() method", function() {
-        var request;
+        var request, result;
         beforeEach(function() {
             syncManager.onlineManager.isOnline = true;
             request = new layer.SyncEvent({
@@ -970,6 +970,10 @@ describe("The SyncManager Class", function() {
                 target: "fred"
             });
             syncManager.queue = [request];
+            result = {
+                request: request,
+                data: "myerror"
+            };
         });
 
         it("Should default to retryCount of 0", function() {
@@ -977,11 +981,11 @@ describe("The SyncManager Class", function() {
         });
 
         it("Should increment retryCount", function() {
-            syncManager._xhrHandleServerUnavailableError(request);
+            syncManager._xhrHandleServerUnavailableError(result);
             expect(request.retryCount).toEqual(1);
-            syncManager._xhrHandleServerUnavailableError(request);
+            syncManager._xhrHandleServerUnavailableError(result);
             expect(request.retryCount).toEqual(2);
-            syncManager._xhrHandleServerUnavailableError(request);
+            syncManager._xhrHandleServerUnavailableError(result);
             expect(request.retryCount).toEqual(3);
         });
 
@@ -990,12 +994,12 @@ describe("The SyncManager Class", function() {
             spyOn(layer.Util, "getExponentialBackoffSeconds");
 
             // Run
-            syncManager._xhrHandleServerUnavailableError(request);
-            expect(layer.Util.getExponentialBackoffSeconds).toHaveBeenCalledWith(900, 0);
-            syncManager._xhrHandleServerUnavailableError(request);
-            expect(layer.Util.getExponentialBackoffSeconds).toHaveBeenCalledWith(900, 1);
-            syncManager._xhrHandleServerUnavailableError(request);
-            expect(layer.Util.getExponentialBackoffSeconds).toHaveBeenCalledWith(900, 2);
+            syncManager._xhrHandleServerUnavailableError(result);
+            expect(layer.Util.getExponentialBackoffSeconds).toHaveBeenCalledWith(60, 0);
+            syncManager._xhrHandleServerUnavailableError(result);
+            expect(layer.Util.getExponentialBackoffSeconds).toHaveBeenCalledWith(60, 1);
+            syncManager._xhrHandleServerUnavailableError(result);
+            expect(layer.Util.getExponentialBackoffSeconds).toHaveBeenCalledWith(60, 2);
 
             // Restore
             layer.Util.getExponentialBackoffSeconds = tmp;
@@ -1007,7 +1011,7 @@ describe("The SyncManager Class", function() {
             spyOn(syncManager, "_processNextRequest");
 
             // Run
-            syncManager._xhrHandleServerUnavailableError(request);
+            syncManager._xhrHandleServerUnavailableError(result);
             jasmine.clock().tick(14999);
             expect(syncManager._processNextRequest).not.toHaveBeenCalled();
             jasmine.clock().tick(2);
@@ -1015,6 +1019,19 @@ describe("The SyncManager Class", function() {
 
             // Restore
             layer.Util.getExponentialBackoffSeconds = tmp;
+        });
+
+        it("Should trigger a sync:error-will-retry event", function() {
+            var response;
+            syncManager.on('sync:error-will-retry', function(evt) {
+                response = evt;
+            });
+            syncManager._xhrHandleServerUnavailableError(result);
+
+            expect(response.target).toEqual("fred");
+            expect(response.retryCount).toEqual(0);
+            expect(response.error).toEqual("myerror");
+            expect(response.request).toBe(request);
         });
     });
 

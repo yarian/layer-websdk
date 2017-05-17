@@ -143,6 +143,9 @@ class MessagesQuery extends Query {
       this.isFiring = true;
       this._firingRequest = newRequest;
       this.client.xhr({
+        telemetry: {
+          name: 'message_query_time',
+        },
         url: newRequest,
         method: 'GET',
         sync: false,

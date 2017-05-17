@@ -67,6 +67,12 @@ class Container extends Syncable {
       // Update the syncState
       this._setSyncing();
 
+      this.getClient()._triggerAsync('state-change', {
+        started: true,
+        type: 'send_' + Util.typeFromID(this.id),
+        telemetryId: 'send_' + Util.typeFromID(this.id) + '_time',
+        id: this.id,
+      });
       this.getClient().sendSocketRequest({
         method: 'POST',
         body: {}, // see _getSendData
@@ -128,6 +134,12 @@ class Container extends Syncable {
    * @param  {Object} result
    */
   _createResult({ success, data }) {
+    this.getClient()._triggerAsync('state-change', {
+      ended: true,
+      type: 'send_' + Util.typeFromID(this.id),
+      telemetryId: 'send_' + Util.typeFromID(this.id) + '_time',
+      id: this.id,
+    });
     if (this.isDestroyed) return;
     if (success) {
       this._createSuccess(data);

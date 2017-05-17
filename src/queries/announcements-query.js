@@ -43,6 +43,9 @@ class AnnouncementsQuery extends MessagesQuery {
       this.isFiring = true;
       this._firingRequest = newRequest;
       this.client.xhr({
+        telemetry: {
+          name: 'announcement_query_time',
+        },
         url: newRequest,
         method: 'GET',
         sync: false,

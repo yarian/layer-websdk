@@ -53,6 +53,9 @@ class ConversationsQuery extends Query {
       this.isFiring = true;
       this._firingRequest = newRequest;
       this.client.xhr({
+        telemetry: {
+          name: 'conversation_query_time',
+        },
         url: this._firingRequest,
         method: 'GET',
         sync: false,

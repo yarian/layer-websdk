@@ -98,6 +98,7 @@ const ClientRegistry = require('./client-registry');
 const logger = require('./logger');
 const TypingListener = require('./typing-indicators/typing-listener');
 const TypingPublisher = require('./typing-indicators/typing-publisher');
+const TelemetryMonitor = require('./telemetry-monitor');
 
 class Client extends ClientAuth {
 
@@ -127,6 +128,10 @@ class Client extends ClientAuth {
 
     this._typingIndicators = new TypingIndicatorListener({
       clientId: this.appId,
+    });
+    this.telemetryMonitor = new TelemetryMonitor({
+      client: this,
+      enabled: this.telemetryEnabled,
     });
   }
 
@@ -378,12 +383,14 @@ class Client extends ClientAuth {
    * @param  {layer.Root[]} objects - Array of Messages or Conversations
    */
   _checkAndPurgeCache(objects) {
+    this._inCheckAndPurgeCache = true;
     objects.forEach((obj) => {
       if (!obj.isDestroyed && !this._isCachedObject(obj)) {
         if (obj instanceof Root === false) obj = this.getObject(obj.id);
         if (obj) obj.destroy();
       }
     });
+    this._inCheckAndPurgeCache = false;
   }
 
   /**
@@ -608,13 +615,31 @@ Client.prototype._scheduleCheckAndPurgeCacheItems = null;
  */
 Client.prototype._scheduleCheckAndPurgeCacheAt = 0;
 
+
+/**
+ * Set to false to disable telemetry gathering.
+ *
+ * No content nor identifiable information is gathered, only
+ * usage and performance metrics.
+ *
+ * @type {Boolean}
+ */
+Client.prototype.telemetryEnabled = true;
+
+/**
+ * Gather usage and responsiveness statistics
+ *
+ * @private
+ */
+Client.prototype.telemetryMonitor = null;
+
 /**
  * Get the version of the Client library.
  *
  * @static
  * @type {String}
  */
-Client.version = '3.2.3';
+Client.version = '3.3.0';
 
 /**
  * Any Conversation or Message that is part of a Query's results are kept in memory for as long as it
@@ -655,7 +680,6 @@ Client._supportedEvents = [
    *                            A paused user still has text in their text box.
    */
   'typing-indicator-change',
-
 
 ].concat(ClientAuth._supportedEvents);
 

@@ -107,9 +107,10 @@ class ClientAuthenticator extends Root {
 
     this.onlineManager = new OnlineManager({
       socketManager: this.socketManager,
-      connected: this._handleOnlineChange.bind(this),
-      disconnected: this._handleOnlineChange.bind(this),
     });
+
+    this.onlineManager.on('connected', this._handleOnlineChange, this);
+    this.onlineManager.on('disconnected', this._handleOnlineChange, this);
 
     this.syncManager = new SyncManager({
       onlineManager: this.onlineManager,
@@ -217,6 +218,12 @@ class ClientAuthenticator extends Root {
    * @private
    */
   _connect() {
+    this._triggerAsync('state-change', {
+      started: true,
+      type: 'authentication',
+      telemetryId: 'auth_time',
+      id: null,
+    });
     this.xhr({
       url: '/nonces',
       method: 'POST',
@@ -465,6 +472,12 @@ class ClientAuthenticator extends Root {
    * @param  {string} identityToken
    */
   _authResponse(result, identityToken) {
+    this._triggerAsync('state-change', {
+      ended: true,
+      type: 'authentication',
+      telemetryId: 'auth_time',
+      result: result.success,
+    });
     if (!result.success) {
       this._authError(result.data, identityToken);
     } else {
@@ -957,6 +970,7 @@ class ClientAuthenticator extends Root {
     this.syncManager.request(new XHRSyncEvent({
       url: options.url,
       data: options.data,
+      telemetry: options.telemetry,
       method: options.method,
       operation: options.sync.operation || options.method,
       headers: options.headers,
@@ -1472,6 +1486,18 @@ ClientAuthenticator._supportedEvents = [
    * @param {boolean} event.isOnline
    */
   'online',
+
+
+  /**
+   * State change events are used for internal communications.
+   *
+   * Primarily used so that the Telemetry component can monitor and report on
+   * system activity.
+   *
+   * @event
+   * @private
+   */
+  'state-change',
 ].concat(Root._supportedEvents);
 
 Root.initClass.apply(ClientAuthenticator, [ClientAuthenticator, 'ClientAuthenticator']);

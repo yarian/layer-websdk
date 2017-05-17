@@ -157,7 +157,8 @@ describe("The SyncEvent Classes", function() {
                     url: "url",
                     data: "data",
                     headers: "headers",
-                    method: "method"
+                    method: "method",
+                    telemetry: null
                 });
             });
         });

@@ -109,7 +109,7 @@ class OnlineStateManager extends Root {
 
     // If this is called while we are online, then we are using this to detect when we've gone without data for more than pingFrequency.
     // Call this._onlineExpired after pingFrequency of no server responses.
-    if (!connectionFailure) {
+    if (!connectionFailure && this.isOnline) {
       logger.debug('OnlineStateManager: Scheduled onlineExpired');
       this.onlineCheckId = setTimeout(this._onlineExpired.bind(this), this.pingFrequency);
     }
@@ -284,7 +284,7 @@ OnlineStateManager.prototype.offlineCounter = 0;
  * Value is measured in seconds.
  * @type {Number}
  */
-OnlineStateManager.prototype.maxOfflineWait = 5 * 60;
+OnlineStateManager.prototype.maxOfflineWait = 60;
 
 /**
  * Minimum wait between tries in ms.

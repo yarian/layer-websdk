@@ -156,6 +156,9 @@ class Conversation extends Container {
     let position;
     if (this.lastMessage) {
       position = this.lastMessage.position + 1;
+    } else if (this._lastMessagePosition) {
+      position = this._lastMessagePosition + 1;
+      this._lastMessagePosition = 0;
     } else {
       position = 0;
     }
@@ -838,6 +841,16 @@ Conversation.prototype.distinct = true;
  */
 Conversation.prototype.lastMessage = null;
 
+
+/**
+ * The position of the last known message.
+ *
+ * Used in the event that lastMessage has been deleted.
+ *
+ * @private
+ * @property {Number}
+ */
+Conversation.prototype._lastMessagePosition = 0;
 
 Conversation.eventPrefix = 'conversations';
 

@@ -98,10 +98,10 @@ describe("The OnlineStateManager Class", function() {
             });
 
             // Posttest
-            expect(manager._connectionListener).toHaveBeenCalledWith({
+            expect(manager._connectionListener).toHaveBeenCalledWith(jasmine.objectContaining({
                 target: jasmine.any(Object),
                 status: "connection:success"
-            });
+            }));
         });
 
         it("Should listen for xhr failure responses", function() {
@@ -119,10 +119,10 @@ describe("The OnlineStateManager Class", function() {
             });
 
             // Posttest
-            expect(manager._connectionListener).toHaveBeenCalledWith({
+            expect(manager._connectionListener).toHaveBeenCalledWith(jasmine.objectContaining({
                 target: jasmine.any(Object),
                 status: "connection:error"
-            });
+            }));
         });
     });
 
@@ -244,6 +244,26 @@ describe("The OnlineStateManager Class", function() {
 
             // Run
             manager._scheduleNextOnlineCheck(true, null);
+            jasmine.clock().tick(50 * 1000 - 1);
+            expect(manager.checkOnlineStatus).not.toHaveBeenCalled();
+
+            // Posttest
+            jasmine.clock().tick(2);
+            expect(manager.checkOnlineStatus).toHaveBeenCalled();
+            expect(layer.Util.getExponentialBackoffSeconds).toHaveBeenCalledWith(manager.maxOfflineWait, 0);
+
+            // Restore
+            layer.Util.getExponentialBackoffSeconds = tmp;
+        });
+
+        it("Should schedule checkOnlineStatus to be called based on getExponentialBackoffSeconds if no errors and is offline", function() {
+            spyOn(manager, "checkOnlineStatus");
+            var tmp = layer.Util.getExponentialBackoffSeconds;
+            spyOn(layer.Util, "getExponentialBackoffSeconds").and.returnValue(50);
+            manager.isOnline = false;
+
+            // Run
+            manager._scheduleNextOnlineCheck(false, null);
             jasmine.clock().tick(50 * 1000 - 1);
             expect(manager.checkOnlineStatus).not.toHaveBeenCalled();
 

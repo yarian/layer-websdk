@@ -56,6 +56,7 @@ describe("The Websocket Socket Manager Class", function() {
             }, 10);
         });
         client._clientReady();
+        client.telemetryMonitor.state.records = [];
         client.onlineManager.isOnline = true;
 
         websocketManager = client.socketManager;

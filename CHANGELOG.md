@@ -1,5 +1,13 @@
 # Web SDK Change Log
 
+## 3.3.0
+
+* Adds telemetry for tracking performance numbers and usage.  Does not collect content or personally identifiable information.
+* Fixes bug where deleting the last message in a conversation fails to provide a suitable position for the next message
+* Adds a `client.syncManager` event `sync:error-will-retry` for apps that want to be notified when a request has failed, and a retry has been scheduled.  Contains a `retryCount` to help track how many retries have been performed.
+* Fixes issue where repeated websocket failure causes client to switch to offline and stop retrying
+* Adjustments made to exponential backoff, keeping maximum delays between retries to under one minute.
+
 ## 3.2.3
 
 * Changes to MessagePart `body` or `mimeType` will now trigger `messageparts:change` events on the part
@@ -10,7 +18,6 @@
     the `body` property from before and after
 * If building a React Native project, one can now use `import from 'layer-websdk/index-react-native'` for a react-native safe version.
   * NOTE: some services, like sending of files are not yet supported
-
 
 Scenario:
 

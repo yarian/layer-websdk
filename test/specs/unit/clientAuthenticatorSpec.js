@@ -275,10 +275,25 @@ describe("The Client Authenticator Class", function() {
                 expect(client._hasUserIdChanged('FrodoTheDodo')).toBe(true);
             });
 
+            it("Should return true if the user object is missing from the session data", function () {
+                // Setup
+                localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + client.appId] = JSON.stringify({
+                    userId: 'FrodoTheDodo',
+                    sessionToken: '',
+                    expires: Date.now() + 10000000
+                });
+
+                // Run
+                expect(client._hasUserIdChanged('FrodoTheDodo')).toBe(true);
+            });
+
             it("Should return true if there is a change in userId from the session data", function () {
                 // Setup
                 localStorage[layer.Constants.LOCALSTORAGE_KEYS.SESSIONDATA + client.appId] = JSON.stringify({
-                    userId: 'Samwise',
+                    user: {
+                        user_id: 'Samwise',
+                        id: 'layer:///identities/FrodoTheDodo'
+                    },
                     sessionToken: '',
                     expires: Date.now() + 10000000
                 });
