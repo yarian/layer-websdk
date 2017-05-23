@@ -110,6 +110,26 @@ class SocketManager extends Root {
   /**
    * Connect to the websocket server
    *
+   * Note that if you'd like to see how dead websockets are handled, you can try something like this:
+   *
+   * ```
+   * var WS = function WebSocket(url) {
+      this.url = url;
+      this.close = function() {};
+      this.send = function(msg) {console.log("SEND ", msg);};
+      this.addEventListener = function(name, callback) {
+        this["on" + name] = callback;
+      };
+      this.removeEventListener = function() {};
+      this.readyState = 1;
+      setTimeout(function() {this.onopen();}.bind(this), 100);
+    };
+    WS.CONNECTING = 0;
+    WS.OPEN = 1;
+    WS.CLOSING = 2;
+    WS.CLOSED = 3;
+    ```
+   *
    * @method connect
    * @param  {layer.SyncEvent} evt - Ignored parameter
    */
@@ -636,8 +656,7 @@ class SocketManager extends Root {
   _scheduleReconnect() {
     if (this.isDestroyed || !this.client.isOnline || !this.client.isAuthenticated) return;
 
-    const maxDelay = (this.client.onlineManager.pingFrequency - 1000) / 1000;
-    const delay = Utils.getExponentialBackoffSeconds(maxDelay, Math.min(15, this._lostConnectionCount));
+    const delay = Utils.getExponentialBackoffSeconds(this.maxDelaySecondsBetweenReconnect, Math.min(15, this._lostConnectionCount));
     logger.debug('Websocket Reconnect in ' + delay + ' seconds');
     if (!this._reconnectId) {
       this._reconnectId = setTimeout(() => {
@@ -657,7 +676,7 @@ class SocketManager extends Root {
   _validateSessionBeforeReconnect() {
     if (this.isDestroyed || !this.client.isOnline || !this.client.isAuthenticated) return;
 
-    const maxDelay = 30 * 1000; // maximum delay of 30 seconds per ping
+    const maxDelay = this.maxDelaySecondsBetweenReconnect * 1000;
     const diff = Date.now() - this._lastValidateSessionRequest - maxDelay;
     if (diff < 0) {
       // This is identical to whats in _scheduleReconnect and could be cleaner
@@ -675,7 +694,11 @@ class SocketManager extends Root {
         sync: false,
       }, (result) => {
         if (result.success) this.connect();
-        // if not successful, the this.client.xhr will handle reauthentication
+        if (result.status === 401) {
+          // client-authenticator.js captures this state and handles it; `connect()` will be called once reauthentication completes
+        } else {
+          this._scheduleReconnect();
+        }
       });
     }
   }
@@ -721,10 +744,18 @@ SocketManager.prototype._lastValidateSessionRequest = 0;
 
 /**
  * Frequency with which the websocket checks to see if any websocket notifications
- * have been missed.
+ * have been missed.  This test is done by calling `getCounter`
+ *
  * @type {Number}
  */
 SocketManager.prototype.pingFrequency = 30000;
+
+/**
+ * Delay between reconnect attempts
+ *
+ * @type {Number}
+ */
+SocketManager.prototype.maxDelaySecondsBetweenReconnect = 30;
 
 /**
  * The Client that owns this.
@@ -789,3 +820,4 @@ SocketManager._supportedEvents = [
 ].concat(Root._supportedEvents);
 Root.initClass.apply(SocketManager, [SocketManager, 'SocketManager']);
 module.exports = SocketManager;
+

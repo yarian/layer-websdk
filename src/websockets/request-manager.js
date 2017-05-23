@@ -206,10 +206,13 @@ class WebsocketRequestManager {
     // a 'connected' event... they have not failed.  May need to rethink this for cases where third parties are directly
     // calling the websocket manager bypassing the sync manager.
     if (this.isDestroyed || !this._isOpen()) return;
-    let count = 0;
+    let count = 0,
+      abort = false;
     const now = Date.now();
     Object.keys(this._requestCallbacks).forEach((requestId) => {
       const callbackConfig = this._requestCallbacks[requestId];
+      if (abort) return;
+
       // If the request hasn't expired, we'll need to reschedule callback cleanup; else if its expired...
       if (callbackConfig && now < callbackConfig.date + DELAY_UNTIL_TIMEOUT) {
         count++;
@@ -217,14 +220,49 @@ class WebsocketRequestManager {
 
       // If there has been no data from the server, there's probably a problem with the websocket; reconnect.
       else if (now > this.socketManager._lastDataFromServerTimestamp + DELAY_UNTIL_TIMEOUT) {
+        // Retrying isn't currently handled here; its handled by the caller (typically sync-manager); so clear out all requests,
+        // notifying the callers that they have failed.
+        abort = true;
+        this._failAll();
         this.socketManager._reconnect(false);
-        this._scheduleCallbackCleanup();
       } else {
         // The request isn't responding and the socket is good; fail the request.
         this._timeoutRequest(requestId);
       }
     });
     if (count) this._scheduleCallbackCleanup();
+  }
+
+  /**
+   * Any requests that have not had responses are considered as failed if we disconnect without a response.
+   *
+   * Call all callbacks with a `server_unavailable` error.  The caller may retry,
+   * but this component does not have built-in retry.
+   *
+   * @method
+   * @private
+   */
+  _failAll() {
+    Object.keys(this._requestCallbacks).forEach((requestId) => {
+      try {
+        logger.warn('Websocket request aborted due to reconnect');
+        this._requestCallbacks[requestId].callback({
+          success: false,
+          status: 503,
+          data: new LayerError({
+            id: 'socket_dead',
+            message: 'Websocket appears to be dead. Reconnecting.',
+            url: 'https:/developer.layer.com/docs/websdk',
+            code: 0,
+            status: 503,
+            httpStatus: 503,
+          }),
+        });
+      } catch (err) {
+        // Do nothing
+      }
+      delete this._requestCallbacks[requestId];
+    });
   }
 
   _timeoutRequest(requestId) {

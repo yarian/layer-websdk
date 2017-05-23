@@ -5,7 +5,7 @@
  */
 
 const uuid = require('uuid');
-
+const base64url = require('base64url');
 exports.atob = typeof atob === 'undefined' ? global.getNativeSupport('atob') : atob.bind(window);
 exports.btoa = typeof btoa === 'undefined' ? global.getNativeSupport('btoa') : btoa.bind(window);
 const LocalFileReader = typeof FileReader === 'undefined' ? global.getNativeSupport('FileReader') : FileReader;
@@ -109,21 +109,11 @@ exports.clone = obj => JSON.parse(JSON.stringify(obj));
  */
 /* istanbul ignore next */
 exports.decode = (str) => {
-  let output = str.replace('-', '+').replace('_', '/');
-  switch (output.length % 4) {
-    case 0:
-      break;
-    case 2:
-      output += '==';
-      break;
-    case 3:
-      output += '=';
-      break;
-    default:
-      throw new Error('Illegal base64url string!');
-  }
-  return exports.atob(output);
+  const result = base64url.decode(str);
+  if (!result) throw new Error("Illegal base64url string!");
+  return result;
 };
+
 
 /**
  * Returns a delay in seconds needed to follow an exponential

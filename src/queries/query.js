@@ -364,10 +364,6 @@ class Query extends Root {
    * @private
    */
   _reset() {
-    if (this._isSyncingId) {
-      clearTimeout(this._isSyncingId);
-      this._isSyncingId = 0;
-    }
     this.totalSize = 0;
     const data = this.data;
     this.data = [];
@@ -376,8 +372,6 @@ class Query extends Root {
     this._predicate = null;
     this._nextDBFromId = '';
     this._nextServerFromId = '';
-    this._isServerSyncing = false;
-    this._isSyncingCount = 0;
     this.pagedToEnd = false;
     this.paginationWindow = this._initialPaginationWindow;
     this._triggerChange({
@@ -454,29 +448,15 @@ class Query extends Root {
    */
   _processRunResults(results, requestUrl, pageSize) {
     if (requestUrl !== this._firingRequest || this.isDestroyed) return;
-    // _isSyncingCount == 9 means we've waited roughly 30 seconds; give up if we've waited longer, and report the results that we have.
-    const isSyncing = results.xhr.getResponseHeader('Layer-Conversation-Is-Syncing') === 'true' &&
-      this._isSyncingCount < 9;
 
     // isFiring is false... unless we are still syncing
-    this.isFiring = isSyncing;
+    this.isFiring = false;
     this._firingRequest = '';
     if (results.success) {
-      if (isSyncing) {
-        const duration = Utils.getExponentialBackoffSeconds(30, Math.min(10, this._isSyncingCount));
-        this._isSyncingId = setTimeout(() => {
-          this._isSyncingId = 0;
-          this._run();
-        }, Math.floor(duration * 1000));
-        this._isSyncingCount++;
-      } else {
-        this._isSyncingCount = 0;
-        this._isSyncingId = 0;
-        this.totalSize = Number(results.xhr.getResponseHeader('Layer-Count'));
-        this._appendResults(results, false);
+      this.totalSize = Number(results.xhr.getResponseHeader('Layer-Count'));
+      this._appendResults(results, false);
 
-        if (results.data.length < pageSize) this.pagedToEnd = true;
-      }
+      if (results.data.length < pageSize) this.pagedToEnd = true;
     } else if (results.data.getNonce()) {
       this.client.once('ready', () => {
         this._run();
@@ -1046,15 +1026,6 @@ Query.prototype._nextServerFromId = '';
  * @type {string}
  */
 Query.prototype._nextDBFromId = '';
-
-/**
- * Number of times we've gotten back an `is-syncing` response from the server implying results are incomplete
- * and not properly ordered.
- *
- * @private {Number}
- */
-Query.prototype._isSyncingCount = 0;
-
 
 Query._supportedEvents = [
   /**

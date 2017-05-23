@@ -511,7 +511,6 @@ describe("The Query Class", function() {
                 xhr: {
                     getResponseHeader: function(name) {
                         if (name == 'Layout-Count') return 6;
-                        if (name == 'Layer-Conversation-Is-Syncing') return 'false';
                     }
                 }
             }, requestUrl, 10);
@@ -522,37 +521,6 @@ describe("The Query Class", function() {
             }, false);
         });
 
-        it("Should leave isFiring as true if still syncing", function() {
-           query._processRunResults({
-               success: false,
-               data: new layer.LayerError({}),
-               xhr: {
-                   getResponseHeader: function(name) {
-                       if (name == 'Layout-Count') return 6;
-                       if (name == 'Layer-Conversation-Is-Syncing') return 'true';
-                   },
-               }
-           }, requestUrl, 10);
-           expect(query.isFiring).toBe(true);
-       });
-
-        it("Should not have any data if still syncing", function() {
-            spyOn(query, "_run");
-            query._isServerSyncing = true;
-            query.paginationWindow = 4;
-            query.data = [];
-            query._processRunResults({
-                success: true,
-                data: [message, message, message, message, message, message, message],
-                xhr: {
-                     getResponseHeader: function(name) {
-                         if (name == 'Layer-Count') return 0;
-                         if (name == 'Layer-Conversation-Is-Syncing') return 'true';
-                     }
-                }
-            }, requestUrl, 10);
-            expect(query.data).toEqual([]);
-        });
 
         it("Should not schedule _run if results are up to date", function() {
             spyOn(query, "_run");
@@ -565,7 +533,6 @@ describe("The Query Class", function() {
                 xhr: {
                     getResponseHeader: function(name) {
                         if (name == 'Layout-Count') return 6;
-                        if (name == 'Layer-Conversation-Is-Syncing') return 'false';
                     }
                 }
             }, requestUrl, 10);
@@ -574,71 +541,7 @@ describe("The Query Class", function() {
             query.data = [];
         });
 
-        it("Should schedule _run if results are not up to date", function() {
-            spyOn(query, "_run");
-            spyOn(query, "_appendResults");
-            query.paginationWindow = 100;
-            query.data = [message, message, message, message, message, message, message];
-            query._processRunResults({
-                success: true,
-                data: [{id: "a"}],
-                xhr: {
-                    getResponseHeader: function(name) {
-                        if (name == 'Layout-Count') return 6;
-                        if (name == 'Layer-Conversation-Is-Syncing') return 'true';
-                    }
-                }
-            }, requestUrl, 10);
-            jasmine.clock().tick(10000);
-            expect(query._run).toHaveBeenCalled();
-            query.data = [];
-        });
 
-        it("Should use exponential backoff if results are not up to date", function() {
-            var tmp = layer.Util.getExponentialBackoffSeconds;
-            var lastDelay;
-            conversation.lastMessage = null;
-
-            function processResults() {
-                query._processRunResults({
-                success: true,
-                data: [responses.message1, responses.message1, responses.message1, responses.message1, responses.message1, responses.message1, responses.message1],
-                xhr: {
-                    getResponseHeader: function(name) {
-                        if (name == 'Layout-Count') return 6;
-                        if (name == 'Layer-Conversation-Is-Syncing') return 'true';
-                    }
-                }
-                }, requestUrl, 10);
-            }
-            spyOn(layer.Util, "getExponentialBackoffSeconds").and.callFake(function(maxSeconds, counter) {
-                lastDelay = tmp(maxSeconds, counter);
-                return lastDelay;
-            });
-
-            spyOn(query, "_run").and.callThrough();
-            //spyOn(query, "_appendResults");
-            query.paginationWindow = 15;
-            query.data = [];
-
-            for (var i = 0; i < 9; i++) {
-                processResults();
-                expect(layer.Util.getExponentialBackoffSeconds).toHaveBeenCalledWith(30, i);
-                jasmine.clock().tick(Math.floor(lastDelay * 1000) + 1);
-                expect(query._run).toHaveBeenCalled();
-                expect(query.data).toEqual([]);
-                query._run.calls.reset();
-            }
-
-            processResults();
-            jasmine.clock().tick(Math.floor(lastDelay * 1000) + 1);
-            expect(query._run).not.toHaveBeenCalled();
-            expect(query.data).not.toEqual([]);
-
-            // Cleanup
-            query.data = [];
-            layer.Util.getExponentialBackoffSeconds = tmp;
-        });
 
 
         it("Should not call _appendResults if request is not the most recent request", function() {
@@ -714,7 +617,6 @@ describe("The Query Class", function() {
 
         it("Should refire on client ready if it failed due to authentication", function() {
             client.off();
-            debugger;
             query._processRunResults({
                 success: false,
                 status: 401,
@@ -753,7 +655,6 @@ describe("The Query Class", function() {
                 xhr: {
                     getResponseHeader: function(name) {
                         if (name == 'Layout-Count') return 6;
-                        if (name == 'Layer-Conversation-Is-Syncing') return 'false';
                     }
                 }
             });
@@ -766,7 +667,6 @@ describe("The Query Class", function() {
                 xhr: {
                     getResponseHeader: function(name) {
                         if (name == 'Layout-Count') return 6;
-                        if (name == 'Layer-Conversation-Is-Syncing') return 'false';
                     }
                 }
             }, true);
@@ -780,7 +680,6 @@ describe("The Query Class", function() {
                 xhr: {
                     getResponseHeader: function(name) {
                         if (name == 'Layout-Count') return 6;
-                        if (name == 'Layer-Conversation-Is-Syncing') return 'false';
                     }
                 }
             }, false);
@@ -806,7 +705,6 @@ describe("The Query Class", function() {
                 xhr: {
                     getResponseHeader: function(name) {
                         if (name == 'Layout-Count') return 6;
-                        if (name == 'Layer-Conversation-Is-Syncing') return 'false';
                     }
                 }
             });
@@ -833,7 +731,6 @@ describe("The Query Class", function() {
                 xhr: {
                     getResponseHeader: function(name) {
                         if (name == 'Layout-Count') return 6;
-                        if (name == 'Layer-Conversation-Is-Syncing') return 'false';
                     }
                 }
             });
@@ -850,7 +747,6 @@ describe("The Query Class", function() {
                 xhr: {
                     getResponseHeader: function(name) {
                         if (name == 'Layout-Count') return 6;
-                        if (name == 'Layer-Conversation-Is-Syncing') return 'false';
                     }
                 }
             });
@@ -878,7 +774,6 @@ describe("The Query Class", function() {
               xhr: {
                 getResponseHeader: function(name) {
                     if (name == 'Layout-Count') return 6;
-                    if (name == 'Layer-Conversation-Is-Syncing') return 'false';
                 }
             }
           });

@@ -323,13 +323,13 @@ describe("The Websocket Request Manager Class", function() {
             expect(requestManager._timeoutRequest).not.toHaveBeenCalledWith("d");
         });
 
-        it("Should reconnect and reschedule if the request has expired and there has been no other websocket data received", function() {
+        it("Should reconnect and flush all requests if the request has expired and there has been no other websocket data received", function() {
             spyOn(client.socketManager, "_reconnect");
-            spyOn(requestManager, "_scheduleCallbackCleanup");
+            spyOn(client.socketRequestManager, "_failAll");
             client.socketManager._lastDataFromServerTimestamp = new Date('2010-10-10').getTime();
             requestManager._runCallbackCleanup();
             expect(client.socketManager._reconnect).toHaveBeenCalledWith(false);
-            expect(requestManager._scheduleCallbackCleanup).toHaveBeenCalledWith();
+            expect(requestManager._failAll).toHaveBeenCalledWith();
         });
 
         it("Should reschedule if any requests have not timed out", function() {
@@ -356,6 +356,69 @@ describe("The Websocket Request Manager Class", function() {
           requestManager._runCallbackCleanup();
           expect(requestManager._callbackCleanupId).toEqual(0);
         });
+    });
+
+    describe("The _failAll() method", function() {
+        var spy1, spy2, spy3, spy4;
+        beforeEach(function() {
+          var now = new Date();
+          var past = new Date();
+          spy1 = jasmine.createSpy('spy1');
+          spy2 = jasmine.createSpy('spy2');
+          spy3 = jasmine.createSpy('spy3');
+          spy4 = jasmine.createSpy('spy4');
+          past.setHours(past.getHours() - 1);
+          requestManager._requestCallbacks = {
+              a: {
+                  date: now.getTime(),
+                  callback: spy1
+              },
+              b: {
+                  date: past.getTime(),
+                  callback: spy2,
+              },
+              c: {
+                  date: past.getTime(),
+                  callback: spy3,
+              },
+              d: {
+                  date: now.getTime(),
+                  callback: spy4
+              }
+          };
+      });
+
+      it("Should call the callback", function() {
+        requestManager._failAll();
+        expect(spy1).toHaveBeenCalledWith(jasmine.objectContaining({
+          success: false,
+          status: 503,
+          data: jasmine.objectContaining({
+            id: 'socket_dead',
+            message: 'Websocket appears to be dead. Reconnecting.',
+            url: 'https:/developer.layer.com/docs/websdk',
+            code: 0,
+            status: 503,
+            httpStatus: 503,
+          }),
+        }));
+        expect(spy2).toHaveBeenCalled();
+        expect(spy3).toHaveBeenCalled();
+        expect(spy4).toHaveBeenCalled();
+      });
+
+      it("Should remove all requests", function() {
+        requestManager._failAll();
+        expect(requestManager._requestCallbacks).toEqual({});
+      });
+
+      it("Should remove all requests even if the callback throws an error", function() {
+          requestManager._requestCallbacks.b.callback = function() {
+            throw new Error("Doh!");
+          };
+          requestManager._failAll();
+          expect(requestManager._requestCallbacks).toEqual({});
+      });
     });
 
     describe("The _timeoutRequest() method", function() {

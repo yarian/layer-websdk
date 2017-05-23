@@ -8,7 +8,9 @@
  *    Rationale: The websocket manager is calling `getCounter` every 30 seconds; so it would have had to fail to get any response
  *    3 times before we give up.
  * 2. While we are offline, ping the server until we determine we are in fact able to connect to the server
- * 3. Trigger events `connected` and `disconnected` to let the rest of the system know when we are/are not connected.
+ * 3. Any time there is a browser `online` or `offline` event, check to see if we can in fact reach the server.  Do not trust either event to be wholly accurate.
+ *    We may be online, but still unable to reach any services.  And Chrome tabs in our tests have shown `navigator.onLine` to sometimes be `false` even while connected.
+ * 4. Trigger events `connected` and `disconnected` to let the rest of the system know when we are/are not connected.
  *    NOTE: The Websocket manager will use that to reconnect its websocket, and resume its `getCounter` call every 30 seconds.
  *
  * NOTE: Apps that want to be notified of changes to online/offline state should see layer.Client's `online` event.
@@ -185,13 +187,14 @@ class OnlineStateManager extends Root {
    */
   checkOnlineStatus(callback) {
     this._clearCheck();
+    const client = this.socketManager.client;
 
     logger.info('OnlineStateManager: Firing XHR for online check');
     this._lastCheckOnlineStatus = new Date();
     // Ping the server and see if we're connected.
     xhr({
-      url: `${this.socketManager.client.url}/?action=validateIsOnline&client=${this.socketManager.client.constructor.version}`,
-      method: 'GET',
+      url: `${client.url}/ping?client=${client.constructor.version}`,
+      method: 'HEAD',
       headers: {
         accept: ACCEPT,
       },

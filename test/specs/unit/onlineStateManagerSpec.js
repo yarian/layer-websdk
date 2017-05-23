@@ -355,10 +355,10 @@ describe("The OnlineStateManager Class", function() {
             manager.destroy();
         });
 
-        it("Should ping the testUrl", function() {
+        it("Should ping the ping endpoint", function() {
             manager.checkOnlineStatus();
             var url = requests.mostRecent().url;
-            expect(url.indexOf(client.url + '/?action=validateIsOnline&client=')).toEqual(0);
+            expect(url.indexOf(client.url + '/ping?client=' + client.constructor.version)).toEqual(0);
         });
 
         // Integration test which depends upon _connectionListener updating

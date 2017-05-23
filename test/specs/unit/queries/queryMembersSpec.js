@@ -185,7 +185,6 @@ describe("The IdentitiesQuery Class", function() {
               xhr: {
                     getResponseHeader: function(name) {
                         if (name == 'Layout-Count') return 6;
-                        if (name == 'Layer-Conversation-Is-Syncing') return 'false';
                     }
                 }
           });

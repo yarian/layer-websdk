@@ -1,5 +1,12 @@
 # Web SDK Change Log
 
+## 3.3.1
+
+* Replaces base64url decoder with `base64url` npm package
+* Removes Query Sync loop due to changes in server architecture
+* Fixes ping operation to no longer log errors when the user is not authenticated
+* Minor tweaks to timing around recovery and retry for reaching Layer Servers
+
 ## 3.3.0
 
 * Adds telemetry for tracking performance numbers and usage.  Does not collect content or personally identifiable information.

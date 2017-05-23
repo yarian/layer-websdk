@@ -197,3 +197,101 @@ myobj.trigger('hello') // triggers alert
 #### WARNING
 
 Do not name properties the same as events, or your constructor will have trouble when you pass that name as a parameter.
+
+
+## Retry and Recovery logic
+
+### The Online Manager
+
+A key component for reconnect/retry logic is the Online Manager.  The `client.isOnline` actually returns `client.onlineManager.isOnline`, and requests and websocket connect requests
+don't happen as long as the client thinks we are offline.
+
+To make matters worse, some ugly browser bugs keep us from relying on `navigator.onLine`; for example, in testing, we frequently saw scenarios where one Chrome tab evaluated `navigator.onLine` to `true` and another tab returned `false`.
+
+1. Any time we go more than 100 seconds without any data from the server (REST responses or Websocket events/responses), flag us as being offline.
+   Rationale: The websocket manager is calling `getCounter` every 30 seconds; so it would have had to fail to get any response
+   3 times before we give up.
+2. While we are offline, ping the server until we determine we are in fact able to connect to the server. Exponential backoff is used; a maximum wait between tests is 60 seconds.
+3. Any time there is a browser `online` or `offline` event, check to see if we can in fact reach the server.  Do not trust either event to be wholly accurate.
+   We may be online, but still unable to reach any services.  And Chrome tabs in our tests have shown `navigator.onLine` to sometimes be `false` even while connected.
+4. If the ping is successful, set us back to `online`, and start the 100 second timer that will set us back to `offline`.
+
+
+
+### Websocket Reconnect logic
+
+On dropping a websocket connection, the following steps are taken to reestablish a connection.
+
+1. If the Online Manager says we're offline, do not attempt to reconnect.  Wait for it change state, and then restart this process
+2. Schedule the next reconnect attempt using exponential backoff, maximum delay of 30 seconds
+3. Websockets are disconnected when a Session Token expires.  Any subsequent attempt to connect with such a Session Token will fail.  Javascript can not access this error.
+   To determine if we should be able to connect prior to connecting the websocket, a REST API call is made to the server with the following results:
+   * Session token is accepted; websocket's `connect()` call is made
+   * Session is rejected; this error is captured by `client-authenticator.js` and reauthentication process kicks off
+   * Request fails to get a response; Online Manager detects this, and pings the server to verify if we are still onlinethat either validates the session token, or
+   on failing, kicks off a reauthentication process.
+   * Request fails to get a response; Scheulde next reconnect attempt
+
+
+### Websocket Recovery logic
+
+There are two aspects to Websocket Recovery:
+
+* Detection
+* Recovery steps
+
+#### Detection
+
+Websockets use a Ping operation to verify that they are still connected.  In theory, its possible to be disconnected without the browser reporting it to the client (ahem, Chrome, ahem); typically this is supported
+by browsers doing a ping; but as Chrome doesn't ping, we've added a Ping operation.  This ping operation may cause Chrome to finally admit that it no longer has a working connection and report an error, triggering [Websocket Reconnect logic](#websocket_reconnect_logic)
+
+Furthermore, because Chrome automatically reconnects a websocket without reporting that it ever disconnected, it becomes difficult to detect that we ever had a bad connection.  We address this with a `counter` that is part of most websocket packets.
+
+* The first counter from the server is 0
+* Every susequent counter is incremented by 1
+* Frames are gaurenteed to arrive in the order sent
+* Any time the counter increments by more than 1, something has gone wrong (unclear if this is possible)
+* Any time the counter resets to 0, our connection has been reset, and we have a new websocket session.
+
+
+Note that detection of a reset websocket session means we do have a valid session, but must execute the [Sync Manager Session Reset logic](#sync_manager_session_reset_logic).
+
+### Socket Manager Session Reset logic
+
+#### First time connection
+
+On establishing the _first_ websocket connection, the following requests are performed:
+
+* `Presence.subscribe`: Subscribe for presence changes to users followed by the current user
+* `Presence.update`: Tell the server to re-enable the last used Presence status for the current user
+
+Note that you may also see `Presence.sync` with a list of Identity IDs.  However, this is based entirely the Client receiving identities for which it lacks presence data, and is not handled by the websocket.
+
+Also note that if no websocket data is ever received, reconnects will be treated as a First time connection.
+
+#### Reconnects
+
+Every time that a new websocket connection is reestablished, the following requests are performed:
+
+* `Event.replay`: Request any missed Conversation and Message events from the server
+* `Presence.subscribe`: Subscribe for presence changes to users followed by the current user
+* `Presence.update`: Tell the server to re-enable the last used Presence status for the current user
+* `Presence.sync`: Request any missed presence changes since our last websocket event
+
+### Sync Manager Retry logic
+
+Most requests to Layer's servers go through a Sync Manager that insures that the request gets sent, and handles retries in the event of failure.  There are a few exceptions:
+
+* Queries
+* Fetching of individual objects
+
+These do not perform retries on failure because Clients whose queries are not getting responses should get quick errors rather than continual retries.
+
+In the event that the sync manager sends a REST API or Websocket request that fails:
+
+* If the error is an authentication error, `client-authenticator.js` intercepts this and kicks off reauthentication.  The request will be retried once reauthenticated.
+* If the error is that we failed to reach the server, or received a `server_unavailable`/`503` error, use exponential backoff with retries, not to excede 60 seconds between retries and not to excede 20 retries total.
+* If the error is of the non-recoverable type `not_found`, `id_in_use`, or any unexpected errors that we don't have built in handling for, the request is aborted and removed from the Sync Manager's queue.
+* If we have retried 20 times, the request is aborted and removed from the Sync Manager's queue.
+* If we appear to be offline, sync manager will retry once Online Manager reports that we are reconnected
+* If we keep being told by the sync manager that we are online, but get responses that the Online Manager takes to imply that we are offline, this implies we are receiving CORS errors. 3 repetitions of this pattern in a row is treated as a CORS error.  Abort and remove the request.
