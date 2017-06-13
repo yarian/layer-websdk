@@ -3,6 +3,7 @@
 ## 3.3.3
 
 * Fixes bug in decoding Identity ID #156
+* Changes caching policy so that fetched data is no longer garbage collected
 
 ## 3.3.2
 
