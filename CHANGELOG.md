@@ -1,5 +1,9 @@
 # Web SDK Change Log
 
+## 3.3.3
+
+* Fixes bug in decoding Identity ID #156
+
 ## 3.3.2
 
 * Fixes error when using jsuglify with `drop_console=true` #138
