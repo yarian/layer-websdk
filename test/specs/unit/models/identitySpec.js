@@ -155,6 +155,13 @@ function deleteTables(done) {
           }).url).toEqual(client.url + '/identities/frodo');
         });
 
+        it("Should decode a userId", function() {
+          expect(new layer.Identity({
+            clientId: client.appId,
+            id: "layer:///identities/auth0%7Cabc"
+          }).userId).toEqual("auth0|abc");
+        });
+
         it("Should call client._addIdentity", function() {
           spyOn(client, "_addIdentity");
           var identity = new layer.Identity({

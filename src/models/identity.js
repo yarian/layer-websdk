@@ -36,7 +36,7 @@ class Identity extends Syncable {
     } else if (!options.id && options.userId) {
       options.id = Identity.prefixUUID + encodeURIComponent(options.userId);
     } else if (options.id && !options.userId) {
-      options.userId = options.id.substring(Identity.prefixUUID.length);
+      options.userId = decodeURIComponent(options.id.substring(Identity.prefixUUID.length));
     }
 
     // Make sure we have an clientId property

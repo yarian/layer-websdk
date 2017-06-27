@@ -10,7 +10,7 @@
 
 const registry = {};
 const listeners = [];
-import { defer } from './client-utils';
+const { defer } = require('./client-utils');
 /**
  * Register a new Client; will destroy any previous client with the same appId.
  *

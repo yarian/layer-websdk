@@ -375,6 +375,20 @@ describe("The MessagesQuery Class", function() {
             expect(requests.count()).toEqual(0);
         });
 
+        it("Should set pagedToEnd if Conversation unsaved", function() {
+            var m1 = client._createObject(responses.message1);
+            var m2 = client._createObject(responses.message2);
+            requests.reset();
+
+            conversation.lastMessage = conversation.createMessage("hi");
+            conversation.syncState = layer.Constants.SYNC_STATE.SAVING;
+            query.data = [m1, m2];
+            expect(query.pagedToEnd).toBe(false);
+
+            query._fetchData(45);
+            expect(query.pagedToEnd).toBe(true);
+        });
+
 
         it("Should call _processRunResults", function() {
             spyOn(query, "_processRunResults");
@@ -402,7 +416,6 @@ describe("The MessagesQuery Class", function() {
               data: [conversation.lastMessage],
               target: client,
             });
-
         });
     });
 

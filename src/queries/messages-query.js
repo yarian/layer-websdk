@@ -139,6 +139,7 @@ class MessagesQuery extends Query {
       (this._nextServerFromId ? '&from_id=' + this._nextServerFromId : '');
 
     // Don't query on unsaved conversations, nor repeat still firing queries
+    // If we have a conversation ID but no conversation object, try the query anyways.
     if ((!conversation || conversation.isSaved()) && newRequest !== this._firingRequest) {
       this.isFiring = true;
       this._firingRequest = newRequest;
@@ -150,6 +151,10 @@ class MessagesQuery extends Query {
         method: 'GET',
         sync: false,
       }, results => this._processRunResults(results, newRequest, pageSize));
+    }
+
+    if (conversation && !conversation.isSaved()) {
+      this.pagedToEnd = true;
     }
 
     // If there are no results, then its a new query; automatically populate it with the Conversation's lastMessage.
@@ -189,6 +194,10 @@ class MessagesQuery extends Query {
         method: 'GET',
         sync: false,
       }, results => this._processRunResults(results, newRequest, pageSize));
+    }
+
+    if (channel && !channel.isSaved()) {
+      this.pagedToEnd = true;
     }
   }
 

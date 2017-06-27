@@ -1,5 +1,11 @@
 # Web SDK Change Log
 
+## 3.3.3
+
+* Fixes bug in decoding Identity ID #156
+* Fixes bug in missing Buffer object for react native #158
+* Fixes bug where query.pagedToEnd is false when there is no data to load
+
 ## 3.3.2
 
 * Fixes error when using jsuglify with `drop_console=true` #138

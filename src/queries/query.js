@@ -454,9 +454,9 @@ class Query extends Root {
     this._firingRequest = '';
     if (results.success) {
       this.totalSize = Number(results.xhr.getResponseHeader('Layer-Count'));
+      if (results.data.length < pageSize || results.data.length === this.totalSize) this.pagedToEnd = true;
       this._appendResults(results, false);
 
-      if (results.data.length < pageSize) this.pagedToEnd = true;
     } else if (results.data.getNonce()) {
       this.client.once('ready', () => {
         this._run();

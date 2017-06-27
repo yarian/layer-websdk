@@ -1,5 +1,6 @@
-import { NetInfo } from 'react-native';
-import base64JS from 'base64-js';
+const { NetInfo } = require('react-native');
+const base64JS = require('base64-js');
+global.Buffer = require('buffer/').Buffer;
 
 /* istanbul ignore next */
 if (global.layer && global.layer.Client) {
