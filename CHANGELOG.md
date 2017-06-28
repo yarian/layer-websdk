@@ -1,5 +1,9 @@
 # Web SDK Change Log
 
+## 3.3.4
+
+* Rips out Buffer and base64url decoder and fixes original decoder snippet
+
 ## 3.3.3
 
 * Fixes bug in decoding Identity ID #156
