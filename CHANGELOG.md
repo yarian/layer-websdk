@@ -1,5 +1,9 @@
 # Web SDK Change Log
 
+## 3.3.5
+
+* Fixes special case where websocket is CONNECTING but not yet OPEN that causes a second websocket to be openned
+
 ## 3.3.4
 
 * Rips out Buffer and base64url decoder and fixes original decoder snippet

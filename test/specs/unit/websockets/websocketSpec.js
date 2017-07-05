@@ -267,6 +267,20 @@ describe("The Websocket Socket Manager Class", function() {
           jasmine.clock().tick(5001);
           expect(websocketManager._connectionFailed).toHaveBeenCalledWith();
         });
+
+        it("Should call reconnect if there is an existing socket", function() {
+            spyOn(websocketManager, "_reconnect");
+            websocketManager._socket = null;
+            websocketManager.connect();
+            expect(websocketManager._socket).not.toBe(null);
+            expect(websocketManager._reconnect).not.toHaveBeenCalled();
+
+            // Run
+            websocketManager.connect();
+
+            // Posttest
+            expect(websocketManager._reconnect).toHaveBeenCalledWith();
+        });
     });
 
     describe("The _clearConnectionFailed() method", function() {

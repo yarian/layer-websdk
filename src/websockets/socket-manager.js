@@ -86,6 +86,7 @@ class SocketManager extends Root {
     if (evt.isOnline) {
       this._reconnect(evt.reset);
     } else {
+      logger.info('Websocket closed due to ambigious connection state');
       this.close();
     }
   }
@@ -135,7 +136,7 @@ class SocketManager extends Root {
    */
   connect(evt) {
     if (this.client.isDestroyed || !this.client.isOnline) return;
-    if (this._isOpen()) return this._reconnect();
+    if (this._socket) return this._reconnect();
 
     this._closing = false;
 
@@ -144,13 +145,15 @@ class SocketManager extends Root {
     // Get the URL and connect to it
     const url = `${this.client.websocketUrl}/?session_token=${this.client.sessionToken}`;
 
+    logger.info('Websocket Connecting');
+
     // Load up our websocket component or shim
     /* istanbul ignore next */
     const WS = typeof WebSocket === 'undefined' ? require('websocket').w3cwebsocket : WebSocket;
 
     this._socket = new WS(url, WEBSOCKET_PROTOCOL);
 
-    // If its the shim, set the event hanlers
+     // If its the shim, set the event hanlers
     /* istanbul ignore if */
     if (typeof WebSocket === 'undefined') {
       this._socket.onmessage = this._onMessage;
@@ -640,6 +643,7 @@ class SocketManager extends Root {
       this._socket.onopen = null;
       this._socket.onerror = null;
     }
+    this._clearConnectionFailed();
   }
 
   /**
