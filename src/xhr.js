@@ -201,7 +201,7 @@ module.exports = (request, callback) => {
     }
   }
 
-  req.open(method, request.url, true);
+  req.open(method, request.url, !request.sync);
   if (request.timeout) req.timeout = request.timeout;
   if (request.withCredentials) req.withCredentials = true;
   if (request.responseType) req.responseType = request.responseType;
