@@ -514,6 +514,77 @@ describe("The Conversation Class", function() {
       });
     });
 
+    describe("The markAllMessagesAsRead() method", function() {
+        var m1, m2, m3;
+        beforeEach(function() {
+            m1 = conversation.createMessage("m1").presend();
+            m2 = conversation.createMessage("m2").presend();
+            m3 = conversation.createMessage("m3").presend();
+            m1.syncState = m2.syncState = m3.syncState = layer.Constants.SYNC_STATE.SYNCED;
+        });
+
+        it("Should use the input message to send mark all as read to the server", function(){
+            expect(conversation.lastMessage).toBe(m3);
+            expect(m1.position < m2.position).toBe(true);
+            expect(m2.position < m3.position).toBe(true);
+
+            // Run
+            conversation.markAllMessagesAsRead(m2);
+
+            // Posttest
+            expect(requests.mostRecent().url).toEqual(conversation.url + '/mark_all_read');
+            expect(requests.mostRecent().method).toEqual('POST');
+            expect(requests.mostRecent().data()).toEqual({position: m2.position});
+        });
+
+        it("Should use the last message to send mark all as read to the server", function(){
+            // Run
+            conversation.markAllMessagesAsRead();
+
+            // Posttest
+            expect(requests.mostRecent().url).toEqual(conversation.url + '/mark_all_read');
+            expect(requests.mostRecent().method).toEqual('POST');
+            expect(requests.mostRecent().data()).toEqual({position: m3.position});
+        });
+
+        it("Should use null if no last message ", function() {
+            // Setup
+            conversation.lastMessage = null;
+
+            // Run
+            conversation.markAllMessagesAsRead();
+
+            // Posttest
+            expect(requests.mostRecent().url).toEqual(conversation.url + '/mark_all_read');
+            expect(requests.mostRecent().method).toEqual('POST');
+            expect(requests.mostRecent().data()).toEqual({position: null});
+        });
+
+        it("Should use null if last message is unsent", function() {
+            // Setup
+            conversation.lastMessage.syncState = layer.Constants.SYNC_STATE.SAVING;
+
+            // Run
+            conversation.markAllMessagesAsRead();
+
+            // Posttest
+            expect(requests.mostRecent().url).toEqual(conversation.url + '/mark_all_read');
+            expect(requests.mostRecent().method).toEqual('POST');
+            expect(requests.mostRecent().data()).toEqual({position: null});
+        });
+
+        it("Should do nothing if conversation is unsaved", function() {
+            // Setup
+            conversation.syncState = layer.Constants.SYNC_STATE.SAVING;
+
+            // Run
+            conversation.markAllMessagesAsRead();
+
+            // Posttest
+            expect(requests.mostRecent()).toBe(undefined);
+        });
+    });
+
     describe("The _handleLocalDistinctConversation() method", function() {
         it("Should clear the _sendDistinctEvent", function() {
             // Setup

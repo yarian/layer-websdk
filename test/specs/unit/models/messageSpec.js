@@ -1119,6 +1119,18 @@ describe("The Message class", function() {
           m.isRead = true;
           expect(conversation.unreadCount).toEqual(4);
         });
+
+        it("Should not send read receipts if conversation is in markAllAsRead", function() {
+            // Setup
+            spyOn(m, "_sendReceipt");
+            m.getConversation()._inMarkAllAsRead = true;
+
+            // Run
+            m.isRead = true;
+
+            // Posttest
+            expect(m._sendReceipt).not.toHaveBeenCalledWith("read");
+        });
     });
 
     describe("The sendReceipt() method", function() {

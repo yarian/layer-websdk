@@ -42,6 +42,8 @@ class WebsocketChangeManager {
   _handleChange(evt) {
     if (evt.data.type === 'change') {
       this._processChange(evt.data.body);
+    } else if (evt.data.type === 'operation') {
+      this.client.trigger('websocket:operation', { data: evt.data.body });
     }
   }
 

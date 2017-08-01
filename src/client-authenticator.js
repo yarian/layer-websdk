@@ -249,6 +249,8 @@ class ClientAuthenticator extends Root {
    * @returns {layer.ClientAuthenticator} this
    */
   connect(userId = '') {
+    if (this.isAuthenticated) return this;
+
     let user;
     this.isConnected = false;
     this._lastChallengeTime = 0;
@@ -306,6 +308,8 @@ class ClientAuthenticator extends Root {
    * @returns {layer.ClientAuthenticator} this
    */
   connectWithSession(userId, sessionToken) {
+    if (this.isAuthenticated) return this;
+
     let user;
     this.isConnected = false;
     this.user = null;
@@ -332,9 +336,11 @@ class ClientAuthenticator extends Root {
     }
 
     this.isConnected = true;
-    setTimeout(() => this._authComplete({
-      session_token: sessionToken,
-    }, false), 1);
+    setTimeout(() => {
+      if (!this.isAuthenticated) {
+        this._authComplete({ session_token: sessionToken }, false);
+      }
+    }, 1);
     return this;
   }
 
@@ -1498,6 +1504,16 @@ ClientAuthenticator._supportedEvents = [
    * @private
    */
   'state-change',
+
+  /**
+   * An operation has been received via the websocket.
+   *
+   * Used for custom/complex operations that cannot be handled via `udpate` requests.
+   *
+   * @event
+   * @private
+   */
+  'websocket:operation',
 ].concat(Root._supportedEvents);
 
 Root.initClass.apply(ClientAuthenticator, [ClientAuthenticator, 'ClientAuthenticator']);

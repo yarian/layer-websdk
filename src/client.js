@@ -80,6 +80,7 @@
  * //@ mixin layer.mixins.ClientChannels
  * @mixin layer.mixins.ClientMessages
  * @mixin layer.mixins.ClientQueries
+ * @mixin layer.mixin.WebsocketOperations
  */
 
 const ClientAuth = require('./client-authenticator');
@@ -639,7 +640,7 @@ Client.prototype.telemetryMonitor = null;
  * @static
  * @type {String}
  */
-Client.version = '3.3.5';
+Client.version = '3.4.0';
 
 /**
  * Any Conversation or Message that is part of a Query's results are kept in memory for as long as it
@@ -690,6 +691,7 @@ Client.mixins = [
   require('./mixins/client-conversations'),
   require('./mixins/client-channels'),
   require('./mixins/client-messages'),
+  require('./mixins/websocket-operations'),
 ];
 Root.initClass.apply(Client, [Client, 'Client']);
 module.exports = Client;

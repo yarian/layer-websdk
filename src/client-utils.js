@@ -123,7 +123,7 @@ exports.decode = (str) => {
     default:
       throw new Error('Illegal base64url string!');
   }
-  return atob(output);
+  return exports.atob(output);
 };
 
 

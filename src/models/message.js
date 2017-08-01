@@ -294,6 +294,7 @@ class Message extends Syncable {
    * to complete or cancel this process.
    *
    * @method presend
+   * @return this
    */
   presend() {
     const client = this.getClient();
@@ -316,6 +317,7 @@ class Message extends Syncable {
     this._readAllBlobs(() => {
       client._addMessage(this);
     });
+    return this;
   }
 
   /**

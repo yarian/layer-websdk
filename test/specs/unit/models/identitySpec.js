@@ -425,6 +425,18 @@ function deleteTables(done) {
             newValue: new Date('2010-01-01')
           });
         });
+
+        it("Should not report that status has changed if it hasn't changed, nor should it report changes to only lastSeenAt", function() {
+          spyOn(identity, "_triggerAsync");
+          identity._presence.status = 'available';
+          identity._presence.last_seen_at = new Date('2020-01-01');
+          identity._handlePatchEvent(
+            {status: "available", last_seen_at: "2010-01-01"},
+            {status: "available", lastSeenAt: new Date("2020-02-02")},
+            ['presence.status', 'presence.last_seen_at']);
+
+          expect(identity._triggerAsync).not.toHaveBeenCalled();
+        });
       });
 
       describe("The setStatus() method", function() {

@@ -888,7 +888,42 @@ describe("The MessageParts class", function() {
           part._populateFromServer(JSON.parse(JSON.stringify(responses.message1.parts[1])));
           expect(part._content.downloadUrl).toEqual(responses.message1.parts[1].content.download_url);
           expect(part._content.expiration).toEqual(new Date(responses.message1.parts[1].content.expiration));
-      });
+        });
+
+        it("Should update the body and trigger change events", function(done) {
+            m = new layer.MessagePart({body: "hey", mimeType: "text/plain"});
+            spyOn(m, '_triggerAsync');
+            m._populateFromServer({mime_type: "text/plain", body: "hey hey hey"});
+            expect(m.body).toEqual("hey hey hey");
+            setTimeout(function() {
+                expect(m._triggerAsync).toHaveBeenCalledWith('messageparts:change', {
+                    property: 'body',
+                    oldValue: 'hey',
+                    newValue: 'hey hey hey'
+                });
+                done();
+            }, 100);
+        });
+
+        it("Should not trigger a change event if a blob is unchanged", function(done) {
+            m = new layer.MessagePart({body: "hey", mimeType: "ho"});
+            spyOn(m, '_triggerAsync');
+            m._populateFromServer({mime_type: "ho", body: "hey"});
+            setTimeout(function() {
+                expect(m._triggerAsync).not.toHaveBeenCalled();
+                done();
+            }, 100);
+        });
+
+        it("Should trigger a change event if a blob is changed", function(done) {
+            m = new layer.MessagePart({body: "hey", mimeType: "ho"});
+            spyOn(m, '_triggerAsync');
+            m._populateFromServer({mime_type: "ho", body: "hey2"});
+            setTimeout(function() {
+                expect(m._triggerAsync).toHaveBeenCalled();
+                done();
+            }, 100);
+        });
     });
 
     describe("The static _createFromServer() method", function() {

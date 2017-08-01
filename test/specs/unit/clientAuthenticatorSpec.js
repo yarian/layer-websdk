@@ -434,8 +434,6 @@ describe("The Client Authenticator Class", function() {
             });
 
 
-
-
             it("Should not call _restoreLastUser if not isTrustedDevice", function() {
                 // Setup
                 spyOn(client, "_restoreLastUser");
@@ -526,6 +524,18 @@ describe("The Client Authenticator Class", function() {
                 expect(client._lastChallengeTime).toEqual(0);
                 expect(client._wantsToBeAuthenticated).toEqual(true);
                 expect(client.isConnected).toEqual(false);
+            });
+
+            it("Should do nothing if already authenticated", function() {
+                client.isAuthenticated = true;
+                spyOn(client, "_authComplete");
+                client.connect();
+                expect(client._authComplete).not.toHaveBeenCalled();
+                jasmine.clock().tick(2);
+                expect(client._authComplete).not.toHaveBeenCalled();
+
+                // should still be chainable
+                expect(client.connect()).toBe(client);
             });
         });
 
@@ -696,13 +706,26 @@ describe("The Client Authenticator Class", function() {
             });
 
             it("Should allow reauthentication", function() {
-                client.isReady = client.isAuthenticated = client._wantsToBeAuthenticated = client.isConnected = true;
+                client.isReady = client.isAuthenticated = false;
+                client._wantsToBeAuthenticated = client.isConnected = true;
                 client.sessionToken = "Fred";
                 client.connectWithSession('userId', 'sessionToken');
                 jasmine.clock().tick(10);
 
                 expect(client.sessionToken).toEqual('sessionToken');
-                expect(client.isReady === client.isAuthenticated === client.isConnected === true).toBe(true);
+                expect(client.isAuthenticated).toBe(true);
+            });
+
+            it("Should do nothing if already authenticated", function() {
+                client.isAuthenticated = true;
+                spyOn(client, "_authComplete");
+                client.connectWithSession('userId', 'sessionToken');
+                expect(client._authComplete).not.toHaveBeenCalled();
+                jasmine.clock().tick(2);
+                expect(client._authComplete).not.toHaveBeenCalled();
+
+                // should still be chainable
+                expect(client.connectWithSession('userId', 'sessionToken')).toBe(client);
             });
         });
 

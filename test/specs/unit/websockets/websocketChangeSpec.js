@@ -94,6 +94,32 @@ describe("The Websocket Change Manager Class", function() {
     });
 
     describe("The _handleChange() method", function() {
+        it("Should trigger websocket:operation on the client", function() {
+            // Setup
+            spyOn(client, "trigger");
+
+            // Run
+            changeManager._handleChange({
+              data: {
+                type: 'operation',
+                body: {
+                  "method": "do_something",
+                  data: "fred",
+                  object: {}
+                }
+              }
+            });
+
+            // Posttest
+            expect(client.trigger).toHaveBeenCalledWith('websocket:operation', {
+                data: {
+                  "method": "do_something",
+                  data: "fred",
+                  object: {}
+                }
+            });
+        });
+
         it("Should call _handleCreate", function() {
             // Setup
             spyOn(changeManager, "_handleCreate");

@@ -525,10 +525,31 @@ class MessagePart extends Root {
    * @param  {Object} part - Server representation of a part
    * @private
    */
-  _populateFromServer(part) {
+   _populateFromServer(part) {
     if (part.content && this._content) {
       this._content.downloadUrl = part.content.download_url;
       this._content.expiration = new Date(part.content.expiration);
+    } else {
+       const textual = this.isTextualMimeType();
+
+      // Custom handling for non-textual content
+      if (!textual) {
+
+        // If the body exists and is a blob, extract the data uri for convenience; only really relevant for image and video HTML tags.
+        if (part.body) {
+          Util.blobToBase64(this.body, (inputBase64) => {
+            if (inputBase64 !== Util.btoa(part.body)) {
+              this.body = new Blob([part.body], { type: this.mimeType });
+              if (this.body) this.url = URL.createObjectURL(this.body);
+            }
+          });
+        } else {
+          this.body = null;
+          this.url = '';
+        }
+      } else {
+        this.body = part.body;
+      }
     }
   }
 
@@ -603,6 +624,9 @@ class MessagePart extends Root {
     });
   }
 
+  _updateUrl(newValue, oldValue) {
+    if (oldValue) URL.revokeObjectURL(oldValue);
+  }
   /**
    * Creates a MessagePart from a server representation of the part
    *
@@ -750,3 +774,4 @@ MessagePart._supportedEvents = [
 Root.initClass.apply(MessagePart, [MessagePart, 'MessagePart']);
 
 module.exports = MessagePart;
+

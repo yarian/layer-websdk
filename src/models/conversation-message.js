@@ -218,7 +218,7 @@ class ConversationMessage extends Message {
    */
   __updateIsRead(value) {
     if (value) {
-      if (!this._inPopulateFromServer) {
+      if (!this._inPopulateFromServer && !this.getConversation()._inMarkAllAsRead) {
         this._sendReceipt(Constants.RECEIPT_STATE.READ);
       }
       this._triggerMessageRead();

@@ -188,6 +188,7 @@ class Identity extends Syncable {
    * @param  {Object[]} data - Array of operations
    */
   _handlePatchEvent(newValueIn, oldValueIn, paths) {
+    const changes = [];
     paths.forEach((path) => {
       let newValue = newValueIn,
         oldValue = oldValueIn;
@@ -199,17 +200,23 @@ class Identity extends Syncable {
       } else if (path === 'presence.status') {
         newValue = this._presence.status;
         oldValue = oldValue.status;
+
+        //We receive a huge number of presence.status change events from the websocket that do not represent
+        // an actual change in value. Insure we do not trigger events announcing such a change.
+        if (newValue === oldValue) return;
       }
       const property = path
         .replace(/_(.)/g, (match, value) => value.toUpperCase())
         .replace(/^presence\./, '');
-
-      this._triggerAsync('identities:change', {
-        property,
-        oldValue,
-        newValue,
-      });
+      changes.push({ property, oldValue, newValue });
     });
+
+    // Don't trigger changes if the only thing to change was lastSeenAt; lastSeenAt only changes if your online,
+    // and if your online, lastSeenAt isn't all that significant.
+    // The only time changes to `lastSeenAt` should be triggered as an event is when status changes to offline
+    if (changes.length !== 1 || changes[0].property !== 'lastSeenAt') {
+      changes.forEach(change => this._triggerAsync('identities:change', change));
+    }
   }
 
   /**

@@ -328,5 +328,14 @@ module.exports = {
       });
     },
 
+    /**
+     * Iterate over every locally cached Message, calling your function.
+     *
+     * @param {Function} fn
+     * @param {layer.Message} fn.message
+     */
+    forEachMessage(fn) {
+      Object.keys(this._models.messages).forEach(id => fn(this._models.messages[id]));
+    },
   },
 };

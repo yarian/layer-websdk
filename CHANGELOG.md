@@ -1,5 +1,13 @@
 # Web SDK Change Log
 
+## 3.4.0
+
+* Adds markAllMessagesAsRead operation
+* Calling connect when already connected is a no-op and has no effect
+* Eliminates unnecessary change events from Identity that may cause the Conversation Query to generate excessive numbers of events
+* Fixes bug in React Native where `atob` was `undefined`
+* If the server redefines the Message Part `body`, the new body is stored and change events are triggered
+
 ## 3.3.5
 
 * Fixes special case where websocket is CONNECTING but not yet OPEN that causes a second websocket to be openned

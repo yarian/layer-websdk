@@ -58,6 +58,7 @@ const LayerError = require('../layer-error');
 const Util = require('../client-utils');
 const Constants = require('../const');
 const LayerEvent = require('../layer-event');
+const logger = require('../logger');
 
 class Conversation extends Container {
   /**
@@ -270,6 +271,37 @@ class Conversation extends Container {
         id: this.id,
       },
     };
+  }
+
+  /**
+   * Mark all messages in the conversation as read.
+   *
+   * Optionally provide a Message object to mark all messages up to and including
+   * the specified message as read.
+   *
+   * Will not update `message.isRead` nor `conversation.unreadCount` until after
+   * server has responded to the request.
+   *
+   * @param {layer.Message} [message=conversation.lastMessage]
+   * @return this
+   */
+  markAllMessagesAsRead(message) {
+    if (!this.isSaved()) return this;
+    if (!message) message = this.lastMessage;
+    const position = (!message || !message.isSaved()) ? null : message.position;
+    this._xhr({
+      method: 'POST',
+      url: '/mark_all_read',
+      data: { position },
+      sync: {
+        operation: 'RECEIPT',
+      },
+    }, (result) => {
+      if (!result.success) {
+        logger.error('Mark all as read failed; currently this error is not handled by Layer WebSDK');
+      }
+    });
+    return this;
   }
 
   _populateFromServer(conversation) {
@@ -851,6 +883,14 @@ Conversation.prototype.lastMessage = null;
  * @property {Number}
  */
 Conversation.prototype._lastMessagePosition = 0;
+
+/**
+ * Indicates if we are currently processing a markAllAsRead operation
+ *
+ * @private
+ * @property {Boolean}
+ */
+Conversation.prototype._inMarkAllAsRead = false;
 
 Conversation.eventPrefix = 'conversations';
 
