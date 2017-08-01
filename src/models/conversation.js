@@ -282,6 +282,11 @@ class Conversation extends Container {
    * Will not update `message.isRead` nor `conversation.unreadCount` until after
    * server has responded to the request.
    *
+   * ```
+   * conversation.markAllMessagesAsRead();
+   * ```
+   *
+   * @method markAllMessagesAsRead
    * @param {layer.Message} [message=conversation.lastMessage]
    * @return this
    */
