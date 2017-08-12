@@ -3,6 +3,8 @@
 var fs = require('fs');
 
 var version = require('./package.json').version;
+var path = require('path');
+var babel = require('babel-core');
 
 var HTML_HEAD = fs.readFileSync('./jsduck-config/head.html').toString();
 var CSS = fs.readFileSync('./jsduck-config/style.css').toString();
@@ -92,65 +94,15 @@ module.exports = function (grunt) {
     pkg: grunt.file.readJSON('package.json'),
 
     // Build tasks
-    babel: {
-      options: {
-        sourceMap: 'inline',
-        presets: ['es2015']
-      },
+    custom_babel: {
       dist: {
-        files: {
-          "lib/layer.js": "src/layer.js",
-          "lib/root.js": "src/root.js",
-          "lib/const.js": "src/const.js",
-          "lib/logger.js": "src/logger.js",
-          "lib/client-utils.js": "src/client-utils.js",
-          "lib/xhr.js": "src/xhr.js",
-          "lib/client-authenticator.js": "src/client-authenticator.js",
-          "lib/client.js": "src/client.js",
-          "lib/mixins/client-identities.js": "src/mixins/client-identities.js",
-          "lib/mixins/client-conversations.js": "src/mixins/client-conversations.js",
-          "lib/mixins/client-channels.js": "src/mixins/client-channels.js",
-          "lib/mixins/client-members.js": "src/mixins/client-members.js",
-          "lib/mixins/client-messages.js": "src/mixins/client-messages.js",
-          "lib/mixins/client-queries.js": "src/mixins/client-queries.js",
-          "lib/mixins/websocket-operations.js": "src/mixins/websocket-operations.js",
-          "lib/telemetry-monitor.js": "src/telemetry-monitor.js",
-          "lib/models/syncable.js": "src/models/syncable.js",
-          "lib/models/container.js": "src/models/container.js",
-          "lib/models/conversation.js": "src/models/conversation.js",
-          "lib/models/channel.js": "src/models/channel.js",
-          "lib/models/message-part.js": "src/models/message-part.js",
-          "lib/models/message.js": "src/models/message.js",
-          "lib/models/conversation-message.js": "src/models/conversation-message.js",
-          "lib/models/channel-message.js": "src/models/channel-message.js",
-          "lib/models/announcement.js": "src/models/announcement.js",
-          "lib/models/content.js": "src/models/content.js",
-          "lib/models/identity.js": "src/models/identity.js",
-          "lib/models/membership.js": "src/models/membership.js",
-          "lib/queries/query.js": "src/queries/query.js",
-          "lib/queries/identities-query.js": "src/queries/identities-query.js",
-          "lib/queries/conversations-query.js": "src/queries/conversations-query.js",
-          "lib/queries/channels-query.js": "src/queries/channels-query.js",
-          "lib/queries/members-query.js": "src/queries/members-query.js",
-          "lib/queries/messages-query.js": "src/queries/messages-query.js",
-          "lib/queries/announcements-query.js": "src/queries/announcements-query.js",
-          "lib/queries/query-builder.js": "src/queries/query-builder.js",
-          "lib/sync-manager.js": "src/sync-manager.js",
-          "lib/sync-event.js": "src/sync-event.js",
-          "lib/db-manager.js": "src/db-manager.js",
-          "lib/online-state-manager.js": "src/online-state-manager.js",
-          "lib/websockets/socket-manager.js": "src/websockets/socket-manager.js",
-          "lib/websockets/request-manager.js": "src/websockets/request-manager.js",
-          "lib/websockets/change-manager.js": "src/websockets/change-manager.js",
-          "lib/layer-error.js": "src/layer-error.js",
-          "lib/layer-event.js": "src/layer-event.js",
-          "lib/client-registry.js": "src/client-registry.js",
-          "lib/typing-indicators/typing-indicators.js": "src/typing-indicators/typing-indicators.js",
-          "lib/typing-indicators/typing-indicator-listener.js": "src/typing-indicators/typing-indicator-listener.js",
-          "lib/typing-indicators/typing-listener.js": "src/typing-indicators/typing-listener.js",
-          "lib/typing-indicators/typing-publisher.js": "src/typing-indicators/typing-publisher.js",
-          "lib/utils/defer.js": "src/utils/defer.js",
-          "lib/utils/layer-parser.js": "src/utils/layer-parser.js"
+
+        files: [
+          {
+            src: ['src/**/*.js']
+          }
+        ],
+        options: {
         }
       }
     },
@@ -371,20 +323,54 @@ module.exports = function (grunt) {
     });
   });
 
+  grunt.registerMultiTask('custom_babel', 'Babelifying all files in src', function() {
+    var options = this.options();
+
+    function convert(file, outputPath) {
+      try {
+        var output = grunt.file.read(file);
+        var outputFolder = path.dirname(outputPath);
+        if (!grunt.file.exists(outputFolder)) {
+          grunt.file.mkdir(outputFolder);
+        }
+        var babelResult = babel.transform(output, {
+          presets: ["babel-preset-es2015"]
+        });
+        var result = babelResult.code;
+
+        grunt.file.write(outputPath, result);
+      grunt.log.writeln("Wrote " + outputPath + "; success: " + grunt.file.exists(outputPath));
+      } catch(e) {
+        grunt.log.writeln('Failed to process ' + file + '; ', e);
+      }
+    }
+
+    grunt.file.delete('lib');
+
+    var files = [];
+    // Iterate over each file set and generate the build file specified for that set
+    this.files.forEach(function(fileGroup) {
+      fileGroup.src.forEach(function(file, index) {
+        files.push(file);
+        convert(file, file.replace(/^src/, 'lib'));
+      });
+    });
+  });
+
   // Building
   grunt.loadNpmTasks('grunt-babel');
   grunt.loadNpmTasks('grunt-browserify');
   grunt.loadNpmTasks('grunt-contrib-watch');
   grunt.loadNpmTasks('grunt-contrib-uglify');
   grunt.loadNpmTasks('grunt-remove');
-  grunt.registerTask('debug', ['version', 'babel:dist', 'browserify:debug']);
+  grunt.registerTask('debug', ['version', 'custom_babel:dist', 'browserify:debug']);
   grunt.registerTask('buildmin', ['version', 'browserify:build',  'uglify', 'remove:build']);
   grunt.registerTask('build', ['debug', 'buildmin']);
   grunt.registerTask('prepublish', ['build']);
 
   // Documentation
   grunt.loadNpmTasks('grunt-jsduck');
-  grunt.registerTask('docs', ['version', 'babel:dist',  'jsduck', 'jsduckfixes']);
+  grunt.registerTask('docs', ['version', 'custom_babel:dist',  'jsduck', 'jsduckfixes']);
 
   // Testing
   grunt.loadNpmTasks('grunt-contrib-jasmine');
@@ -393,7 +379,7 @@ module.exports = function (grunt) {
 
   // Coverage Tests; warning: First run of grunt coverage will NOT use the copied istanbul fix; only the subsequent runs will.
   grunt.loadNpmTasks('grunt-contrib-copy');
-  grunt.registerTask('coverage', ['copy:fixIstanbul', 'babel:dist', 'browserify:coverage', 'jasmine:coverage']);
+  grunt.registerTask('coverage', ['copy:fixIstanbul', 'custom_babel:dist', 'browserify:coverage', 'jasmine:coverage']);
 
   // Saucelabs Tests
   grunt.loadNpmTasks('grunt-saucelabs');

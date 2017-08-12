@@ -75,12 +75,13 @@
  * @class  layer.Client
  * @extends layer.ClientAuthenticator
  * @mixin layer.mixins.ClientIdentities
- * //@ mixin layer.mixins.ClientMembership
+ * @mixin layer.mixins.ClientMembership
  * @mixin layer.mixins.ClientConversations
- * //@ mixin layer.mixins.ClientChannels
+ * @mixin layer.mixins.ClientChannels
  * @mixin layer.mixins.ClientMessages
  * @mixin layer.mixins.ClientQueries
  * @mixin layer.mixin.WebsocketOperations
+ * @mixin layer.mixins.ClientCardModels
  */
 
 const ClientAuth = require('./client-authenticator');
@@ -694,6 +695,7 @@ Client.mixins = [
   require('./mixins/client-channels'),
   require('./mixins/client-messages'),
   require('./mixins/websocket-operations'),
+  require('./mixins/client-card-models'),
 ];
 Root.initClass.apply(Client, [Client, 'Client']);
 module.exports = Client;

@@ -14,6 +14,7 @@ layer.Message.ChannelMessage = require('./models/channel-message');
 layer.Announcement = require('./models/announcement');
 layer.MessagePart = require('./models/message-part');
 layer.Content = require('./models/content');
+layer.CardModel = require('./models/card-model');
 layer.Query = require('./queries/query');
 layer.QueryBuilder = require('./queries/query-builder');
 layer.xhr = require('./xhr');

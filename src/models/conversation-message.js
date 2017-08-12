@@ -85,7 +85,9 @@ class ConversationMessage extends Message {
     }
     return value;
   }
-
+__updateParts(parts) {
+    this._regenerateMimeAttributesMap();
+  }
   /**
    * Handle changes to the recipientStatus property.
    *

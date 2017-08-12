@@ -52,6 +52,23 @@ exports.uuid = id => (id || '').replace(/^.*\//, '');
 
 exports.isEmpty = obj => Object.prototype.toString.apply(obj) === '[object Object]' && Object.keys(obj).length === 0;
 
+
+exports.camelCase = str =>
+  str.replace(/[-_](.)/g, (match, value) => value.toUpperCase());
+
+/**
+ * Turn a camel case name into a hyphenated name
+ *
+ * @method hyphenate
+ * @static
+ * @param {String} aCamelCasedString
+ * @returns {String} a-hyphenated-string
+ */
+const regexHyphenate = /([a-z])([A-Z])/g;
+exports.hyphenate = (str, separator = '-') =>
+  str.replace(regexHyphenate, (match, part1, part2) =>
+    part1 + separator + part2.toLowerCase());
+
 /**
  * Simplified sort method.
  *

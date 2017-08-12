@@ -57,6 +57,7 @@
     "grunt-template-jasmine-istanbul": "^0.4.0",
     "grunt-umd": "^2.3.5",
     "istanbulify": "^0.1.0",
+    "path": "^0.12.7",
     "through": "^2.3.8"
   }
 }

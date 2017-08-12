@@ -610,7 +610,8 @@ class Root extends EventClass {
 
 function defineProperty(newClass, propertyName) {
   const pKey = '__' + propertyName;
-  const camel = propertyName.substring(0, 1).toUpperCase() + propertyName.substring(1);
+  let camel = Utils.camelCase(propertyName);
+  camel = camel.charAt(0).toUpperCase() + camel.substring(1);
   const hasDefinitions = newClass.prototype['__adjust' + camel] || newClass.prototype['__update' + camel] ||
     newClass.prototype['__get' + camel];
   if (hasDefinitions) {
