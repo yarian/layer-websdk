@@ -169,6 +169,11 @@ class Message extends Syncable {
     if (!this.parts) this.parts = [];
   }
 
+
+  __adjustUpdatedAt(date) {
+    if (typeof date === 'string') return new Date(date);
+  }
+
   /**
    * Turn input into valid layer.MessageParts.
    *
@@ -195,6 +200,8 @@ class Message extends Syncable {
         let result;
         if (part instanceof MessagePart) {
           result = part;
+        } else if (part.mime_type && !part.mimeType) {
+          result = MessagePart._createFromServer(part);
         } else {
           result = new MessagePart(part);
         }
@@ -250,24 +257,23 @@ class Message extends Syncable {
     if (part) {
       const oldValue = this.parts ? [].concat(this.parts) : null;
       part.clientId = this.clientId;
-      if (part instanceof MessagePart) {
-        this.parts.push(part);
-      } else if (typeof part === 'object') {
-        this.parts.push(new MessagePart(part));
+      const mPart = (part instanceof MessagePart) ? part : new MessagePart(part);
+      if (this.parts.indexOf(mPart) === -1) {
+        this.parts.push(mPart);
       }
       const index = this.parts.length - 1;
       const thePart = this.parts[index];
 
       thePart.off('messageparts:change', this._onMessagePartChange, this); // if we already subscribed, don't create a redundant subscription
       thePart.on('messageparts:change', this._onMessagePartChange, this);
-      if (!part.id) part.id = `${this.id}/parts/${index}`;
+      if (!part.id) part.id = `${this.id}/parts/${Util.generateUUID()}`;
       this._addToMimeAttributesMap(thePart);
       this.trigger('messages:change', {
         property: 'parts',
         oldValue,
         newValue: this.parts,
       });
-      this.trigger('messages:part-added', { part });
+      this.trigger('messages:part-added', { mPart });
     }
     return this;
   }
@@ -616,7 +622,7 @@ class Message extends Syncable {
     // Assign IDs to preexisting Parts so that we can call getPartById()
     if (parts) {
       parts.forEach((part, index) => {
-        if (!part.id) part.id = `${this.id}/parts/${index}`;
+        if (!part.id) part.id = `${this.id}/parts/${Util.generateUUID()}`;
       });
     }
   }
@@ -656,6 +662,9 @@ class Message extends Syncable {
 
     this.sentAt = new Date(message.sent_at);
     this.receivedAt = message.received_at ? new Date(message.received_at) : undefined;
+    if (!this.updatedAt || this.updatedAt.toISOString() !== message.updated_at) {
+      this.updatedAt = new Date(message.updated_at);
+    }
 
     let sender;
     if (message.sender.id) {
@@ -759,6 +768,10 @@ class Message extends Syncable {
     this._inLayerParser = false;
     if (paths[0].indexOf('recipient_status') === 0) {
       this.__updateRecipientStatus(this.recipientStatus, oldValue);
+    } else if (paths[0] === 'parts') {
+      const oldValueParts = oldValue.map(part => this.getClient().getMessagePart(part.id)).filter(part => part);
+      const addedParts = newValue.filter(part => oldValueParts.indexOf(part) === -1);
+      addedParts.forEach(part => this.addPart(part));
     }
     this._inLayerParser = true;
   }
@@ -981,6 +994,15 @@ Object.defineProperty(Message.prototype, 'isUnread', {
  */
 Message.prototype._mimeAttributeMap = null;
 
+/**
+ * Time that the part was last updated.
+ *
+ * If the part was created after the message was sent, or the part was updated after the
+ * part was sent then this will have a value.
+ *
+ * @type {Date}
+ */
+Message.prototype.updatedAt = null;
 
 Message.prototype._toObject = null;
 
@@ -1105,3 +1127,4 @@ Message._supportedEvents = [
 Root.initClass.apply(Message, [Message, 'Message']);
 Syncable.subclasses.push(Message);
 module.exports = Message;
+

@@ -85,7 +85,8 @@ class CardModel extends Root {
    * @method
    */
   _parseMessage() {
-
+    const responses = this.childParts.filter(part => part.mimeAttributes.role === 'response_summary')[0];
+    if (responses) this.responses = responses;
   }
 
   _handleMessageChanges(evt) {
@@ -116,50 +117,6 @@ class CardModel extends Root {
 
   generateResponseMessageText() {
     return this.getClient().user.displayName + ' has responded' + (this.title ? ' to ' + this.title : '');
-  }
-
-  addUserResponse({ data, messageText, renderedParts }) {
-    if (this.locked) {
-      console.warn('unable to respond to locked card');
-      return;
-    }
-
-    // Generate a textual message if one wasn't provided (ignored if renderedParts is provided instead)
-    if (!messageText) messageText = this.getClient().user.displayName + ' has responded' + (this.title ? ' to ' + this.title : '');
-
-    // Generate the Message Parts for the Response
-    let parts = [
-      new MessagePart({
-        mimeType: 'application/vnd.layer.card.response+json; role=root; node-id=root',
-        body: JSON.stringify({'response_to': this.message.id}),
-      }),
-      new MessagePart({
-        mimeType: 'application/vnd.layer.card.patch+json; role=patch; parent-node-id=root',
-        body: JSON.stringify({response: data}),
-      }),
-    ];
-
-    // Rendered Parts concept lets Card provide a collection of Parts representing a Status Card to render
-    // Won't work as-is; so just a placeholder
-    if (renderedParts) {
-      parts = parts.concat(renderedParts);
-    } else {
-      // Add the text card
-      parts.push(new MessagePart({
-        mimeType: 'application/vnd.layer.card.text+json; role=message; parent-node-id=root',
-        body: JSON.stringify({ text: messageText }),
-      }));
-    }
-
-    // Send the message
-    this.message.getConversation().createMessage({ parts }).send();
-
-    // Update our local message part with the change
-    // This will trigger _handleMessageChange method which will reparse the body, apply it and trigger events for the UI
-    const partBody = JSON.parse(this.part.body);
-    if (!partBody.responses) partBody.responses = {};
-    partBody.responses[this.getClient().user.id] = data;
-    this.part.body = JSON.stringify(partBody);
   }
 
   getModelFromPart(role) {
@@ -227,6 +184,14 @@ class CardModel extends Root {
       if (!(propertyName in currentData)) currentData[propertyName] = newData[propertyName];
     });
   }
+
+  // If triggered by a message change, trigger('change') is called above
+  __updateResponses() {
+    if (!this.responses) this.__responses = {};
+    this._processNewResponses();
+  }
+
+  _processNewResponses() { }
 
   __getActionEvent() {
     return this.action.event || this.constructor.defaultAction;
@@ -327,6 +292,13 @@ CardModel.prototype.role = null;
  * @type {Boolean}
  */
 CardModel.prototype.locked = false;
+
+/**
+ * Stores all user responses indexed by Identity ID
+ *
+ * @type {Object}
+ */
+CardModel.prototype.responses = null;
 
 CardModel.prototype.currentCardRenderer = '';
 

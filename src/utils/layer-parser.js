@@ -46,6 +46,11 @@ function createParser(request) {
       },
     },
     changeCallbacks: {
+      MessagePart: {
+        all: (updateObject, newValue, oldValue, paths) => {
+          updateObject._handlePatchEvent(newValue, oldValue, paths);
+        },
+      },
       Message: {
         all: (updateObject, newValue, oldValue, paths) => {
           updateObject._handlePatchEvent(newValue, oldValue, paths);

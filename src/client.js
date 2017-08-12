@@ -91,6 +91,7 @@ const ErrorDictionary = require('./layer-error').dictionary;
 const ConversationMessage = require('./models/conversation-message');
 const ChannelMessage = require('./models/channel-message');
 const Announcement = require('./models/announcement');
+const MessagePart = require('./models/message-part');
 const Identity = require('./models/identity');
 const Membership = require('./models/membership');
 const TypingIndicatorListener = require('./typing-indicators/typing-indicator-listener');
@@ -219,6 +220,8 @@ class Client extends ClientAuth {
       case 'messages':
       case 'announcements':
         return this.getMessage(id, canLoad);
+      case 'parts':
+        return this.getMessagePart(id);
       case 'conversations':
         return this.getConversation(id, canLoad);
       case 'channels':
@@ -249,6 +252,9 @@ class Client extends ClientAuth {
       return item;
     } else {
       switch (Util.typeFromID(obj.id)) {
+        case 'parts': {
+          return MessagePart._createFromServer(obj);
+        }
         case 'messages':
           if (obj.conversation) {
             return ConversationMessage._createFromServer(obj, this);

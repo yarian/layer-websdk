@@ -500,4 +500,228 @@ describe("The Websocket Change Manager Class", function() {
             layer.Util.LayerParse = tmp;
         });
     });
+    describe("Message Editing Tests", function() {
+        it("Should add a message part", function() {
+            var onMessagePartChange = layer.Message.prototype._onMessagePartChange;
+            spyOn(layer.Message.prototype, '_onMessagePartChange');
+
+            m = conversation.createMessage("hello").presend();
+            expect(m.parts.length).toEqual(1);
+            expect(m.parts[0].body).toEqual("hello");
+
+            changeManager._handlePatch({
+                operation: "update",
+                object: {
+                    id: m.id,
+                    type: 'Message'
+                },
+                "data": [{
+                    "operation": "add",
+                    "property": "parts",
+                    "id": m.id + "/parts/aedf4b6b-a9d9-40f2-ac86-3e959a3f99a7",
+				    "value": {
+						"id": m.id + "/parts/aedf4b6b-a9d9-40f2-ac86-3e959a3f99a7",
+						"mime_type": "text/plain",
+						"body": "This is the message.",
+						"updated_at": "2017-05-15T18:05:09Z"
+					}
+                },
+                {
+                    "operation": "set",
+                    "property": "updated_at",
+                    "value": "2014-09-15T04:44:59+00:00"
+                }]
+            });
+
+            expect(m.parts.length).toEqual(2);
+            expect(m.parts[0].body).toEqual("hello");
+            expect(m.parts[1].body).toEqual("This is the message.");
+            expect(m.parts[1].mimeType).toEqual("text/plain");
+            expect(m.parts[1].updatedAt.toISOString().substr(0,19)).toEqual("2017-05-15T18:05:09");
+            expect(m.updatedAt.toISOString().substr(0,19)).toEqual("2014-09-15T04:44:59");
+
+            // Should listen to events from the new part
+            layer.Message.prototype._onMessagePartChange.calls.reset();
+            m.parts[1].trigger('messageparts:change', {});
+            expect(layer.Message.prototype._onMessagePartChange).toHaveBeenCalled();
+
+            // Cleanup
+            layer.Message.prototype._onMessagePartChange = onMessagePartChange;
+        });
+
+        it("Should remove a message part", function() {
+
+            m = conversation.createMessage({
+                parts: [{
+                    body: "B1",
+                    mimeType: "text/plain"
+                },
+                {
+                    body: "B2",
+                    mimeType: "text/plain2"
+                }]
+            }).presend();
+
+            expect(m.parts.length).toEqual(2);
+            expect(m.parts[0].body).toEqual("B1");
+            expect(m.parts[1].body).toEqual("B2");
+            var removedPart = m.parts[0];
+
+            changeManager._handlePatch({
+                operation: "update",
+                object: {
+                    id: m.id,
+                    type: 'Message'
+                },
+                "data": [{
+                    "operation": "remove",
+                    "property": "parts",
+                    "id": m.parts[0].id
+                },
+                {
+                    "operation": "set",
+                    "property": "updated_at",
+                    "value": "2014-09-15T04:44:59+00:00"
+                }]
+            });
+
+            expect(m.parts.length).toEqual(1);
+            expect(m.parts[0].body).toEqual("B2");
+
+            m = conversation.createMessage({
+                parts: [{
+                    body: "B1",
+                    mimeType: "text/plain"
+                },
+                {
+                    body: "B2",
+                    mimeType: "text/plain2"
+                }]
+            }).presend();
+
+            removedPart = m.parts[1];
+            changeManager._handlePatch({
+                operation: "update",
+                object: {
+                    id: m.id,
+                    type: 'Message'
+                },
+                "data": [{
+                    "operation": "remove",
+                    "property": "parts",
+                    "id": m.parts[1].id
+                },
+                {
+                    "operation": "set",
+                    "property": "updated_at",
+                    "value": "2014-09-15T04:44:59+00:00"
+                }]
+            });
+
+            expect(m.parts.length).toEqual(1);
+            expect(m.parts[0].body).toEqual("B1");
+        });
+
+        it("Should overwrite all message parts", function() {
+            var onMessagePartChange = layer.Message.prototype._onMessagePartChange;
+            spyOn(layer.Message.prototype, '_onMessagePartChange');
+
+            m = conversation.createMessage("hello").presend();
+            expect(m.parts.length).toEqual(1);
+            expect(m.parts[0].body).toEqual("hello");
+
+            changeManager._handlePatch({
+                operation: "update",
+                object: {
+                    id: m.id,
+                    type: 'Message'
+                },
+                "data": [{
+                    "operation": "set",
+                    "property": "parts",
+				    "value": [{
+						"id": m.id + "/parts/aedf4b6b-a9d9-40f2-ac86-3e959a3f99a7",
+						"mime_type": "text/plain2",
+						"body": "This is the message.",
+						"updated_at": "2017-05-15T18:05:09Z"
+                    },
+                    {
+						"id": m.id + "/parts/aedf4b6b-a9d9-40f2-ac86-3e959a3f99a8",
+						"mime_type": "text/plain3",
+						"body": "This is not the message.",
+						"updated_at": "2017-06-15T18:05:09Z"
+					}]
+                },
+                {
+                    "operation": "set",
+                    "property": "updated_at",
+                    "value": "2014-09-15T04:44:59+00:00"
+                }]
+            });
+
+            expect(m.parts.length).toEqual(2);
+            expect(m.parts[0].id).toEqual(m.id + "/parts/aedf4b6b-a9d9-40f2-ac86-3e959a3f99a7");
+            expect(m.parts[1].id).toEqual(m.id + "/parts/aedf4b6b-a9d9-40f2-ac86-3e959a3f99a8");
+            expect(m.parts[0].body).toEqual("This is the message.");
+            expect(m.parts[1].body).toEqual("This is not the message.");
+            expect(m.parts[0].mimeType).toEqual("text/plain2");
+            expect(m.parts[1].mimeType).toEqual("text/plain3");
+            expect(m.parts[0].updatedAt.toISOString().substr(0,19)).toEqual("2017-05-15T18:05:09");
+            expect(m.parts[1].updatedAt.toISOString().substr(0,19)).toEqual("2017-06-15T18:05:09");
+            expect(m.updatedAt.toISOString().substr(0,19)).toEqual("2014-09-15T04:44:59");
+
+            m.parts[1].trigger('messageparts:change', {});
+            expect(layer.Message.prototype._onMessagePartChange).toHaveBeenCalled();
+
+            // Cleanup
+            layer.Message.prototype._onMessagePartChange = onMessagePartChange;
+        });
+
+        it("Should update one message part", function() {
+            m = conversation.createMessage({
+                parts: [{
+                    body: "B1",
+                    mimeType: "text/plain"
+                },
+                {
+                    body: "B2",
+                    mimeType: "text/plain2"
+                }]
+            }).presend();
+            expect(m.parts.length).toEqual(2);
+            expect(m.parts[0].body).toEqual("B1");
+            expect(m.parts[1].body).toEqual("B2");
+
+            changeManager._handlePatch({
+                operation: "update",
+                object: {
+                    id: m.parts[1].id,
+                    type: 'MessagePart'
+                },
+                "data": [{
+                    "operation": "set",
+                    "property": "body",
+                    "value": "This is an updated message"
+                },
+                {
+                    "operation": "set",
+                    "property": "mime_type",
+                    "value": "text/plain+updated"
+                },
+                {
+                    "operation": "set",
+                    "property": "updated_at",
+                    "value": "2014-09-15T04:44:59+00:00"
+                }]
+            });
+
+            expect(m.parts.length).toEqual(2);
+            expect(m.parts[0].body).toEqual("B1");
+            expect(m.parts[1].body).toEqual("This is an updated message");
+            expect(m.parts[1].mimeType).toEqual("text/plain+updated");
+            expect(m.parts[0].updatedAt).toBe(null);
+            expect(m.parts[1].updatedAt.toISOString().substr(0,19)).toEqual("2014-09-15T04:44:59");
+        });
+    });
+
 });
