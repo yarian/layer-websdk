@@ -1,5 +1,11 @@
 # Web SDK Change Log
 
+## 3.4.1
+
+* Conversations are no longer garbage collected if not referenced by a Query
+* Changes Garbage Collection delay on Messages from 10 minutes to 2 hours (configurable)
+* Adds `Conversation.totalMessageCount` property
+
 ## 3.4.0
 
 * Adds markAllMessagesAsRead operation
