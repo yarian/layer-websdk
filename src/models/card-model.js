@@ -61,9 +61,9 @@ class CardModel extends Root {
       'parent-node-id': this.nodeId,
     });
 
-    // This should be called on any message edits
-    this.part.on('messageparts:change', this._handleMessageChanges, this);
-    this.childParts.forEach(part => part.on('messageparts:change', this._handleMessageChanges, this));
+    // Call handlePartChanges any message edits that update a part.
+    this.part.on('messageparts:change', this._handlePartChanges, this);
+    this.childParts.forEach(part => part.on('messageparts:change', this._handlePartChanges, this));
     this.message.on('messages:part-added', this._handlePartAdded, this);
 
     this.message.on('destroy', this.destroy, this);
@@ -89,18 +89,18 @@ class CardModel extends Root {
     if (responses) this.responses = responses;
   }
 
-  _handleMessageChanges(evt) {
+  _handlePartChanges(evt) {
     this._parseMessage();
-    this.trigger('change');
+    this._triggerAsync('change');
   }
 
   _handlePartAdded(evt) {
     const part = evt.part;
     if (part.mimeAttributes['parent-node-id'] === this.nodeId) {
       this.childParts.push(part);
-      part.on('messageparts:change', this._handleMessageChanges, this);
+      part.on('messageparts:change', this._handlePartChanges, this);
       this._parseMessage();
-      this.trigger('change');
+      this._triggerAsync('change');
     }
   }
 
@@ -203,12 +203,31 @@ class CardModel extends Root {
 
   __updatePart(newPart) {
     if (!newPart.mimeAttributes['node-id']) {
-      newPart.mimeAttributes['node-id']  = Util.generateUUID();
+      newPart.mimeAttributes['node-id'] = Util.generateUUID();
     }
   }
 
   get nodeId() {
     return this.part.mimeAttributes['node-id'];
+  }
+
+  _processDelayedTriggers() {
+    if (this.isDestroyed) return;
+    const changes = this._delayedTriggers.filter(evt => evt[0] === 'change');
+    if (changes.length > 1) {
+      let hasOne = false;
+      this._delayedTriggers = this._delayedTriggers.filter(evt => {
+        if (evt[0] === 'change' && !hasOne) {
+          hasOne = true;
+          return true;
+        } else if (evt[0] === 'change') {
+          return false;
+        } else {
+          return true;
+        }
+      });
+    }
+    super._processDelayedTriggers();
   }
 
   /**

@@ -702,7 +702,7 @@ class MessagePart extends Root {
       _content: content,
       hasContent: Boolean(content),
       size: part.size || 0,
-      updatedAt: new Date(part.updated_at),
+      updatedAt: part.updated_at ? new Date(part.updated_at) : null,
     });
   }
 }

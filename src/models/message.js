@@ -663,7 +663,7 @@ class Message extends Syncable {
     this.sentAt = new Date(message.sent_at);
     this.receivedAt = message.received_at ? new Date(message.received_at) : undefined;
     if (!this.updatedAt || this.updatedAt.toISOString() !== message.updated_at) {
-      this.updatedAt = new Date(message.updated_at);
+      this.updatedAt = message.updated_at ? new Date(message.updated_at) : null;
     }
 
     let sender;
