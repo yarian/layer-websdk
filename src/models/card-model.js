@@ -68,7 +68,10 @@ class CardModel extends Root {
 
     this.message.on('destroy', this.destroy, this);
     this.message.getClient()._addCardModel(this);
-    if (!doNotParse) this._parseMessage();
+    if (!doNotParse) {
+      if (!this.part.body) this.part.fetchContent();
+      this._parseMessage(this.part.body ? JSON.parse(this.part.body) : {});
+    }
   }
 
   _initBodyWithMetadata(fields) {
@@ -84,13 +87,24 @@ class CardModel extends Root {
    *
    * @method
    */
-  _parseMessage() {
+  _parseMessage(payload) {
     const responses = this.childParts.filter(part => part.mimeAttributes.role === 'response_summary')[0];
-    if (responses) this.responses = responses;
+    if (responses) {
+      const responseData = JSON.parse(responses.body);
+      if (responseData.participant_data) {
+        responseData.participantData = responseData.participant_data;
+        delete responseData.participant_data;
+      }
+      this.responses = responseData;
+    }
+
+    Object.keys(payload).forEach((propertyName) => {
+      this[Util.camelCase(propertyName)] = payload[propertyName];
+    });
   }
 
   _handlePartChanges(evt) {
-    this._parseMessage();
+    this._parseMessage(this.part.body ? JSON.parse(this.part.body) : {});
     this._triggerAsync('change');
   }
 
@@ -99,7 +113,8 @@ class CardModel extends Root {
     if (part.mimeAttributes['parent-node-id'] === this.nodeId) {
       this.childParts.push(part);
       part.on('messageparts:change', this._handlePartChanges, this);
-      this._parseMessage();
+      if (!this.part.body) this.part.fetchContent();
+      this._parseMessage(this.part.body ? JSON.parse(this.part.body) : {});
       this._triggerAsync('change');
     }
   }

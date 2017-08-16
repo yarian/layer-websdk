@@ -392,12 +392,14 @@ class MessagePart extends Root {
     const obj = {
       mime_type: this.getMimeTypeWithAttributes(),
       body: this.body,
+      id: this.id,
     };
     this.trigger('parts:send', obj);
   }
 
   _sendWithContent() {
     this.trigger('parts:send', {
+      id: this.id,
       mime_type: this.getMimeTypeWithAttributes(),
       content: {
         size: this.size,
@@ -423,6 +425,7 @@ class MessagePart extends Root {
         const body = base64data.substring(base64data.indexOf(',') + 1);
         const obj = {
           body,
+          id: this.id,
           mime_type: this.getMimeTypeWithAttributes(),
         };
         obj.encoding = 'base64';
@@ -523,6 +526,7 @@ class MessagePart extends Root {
       }
     } else {
       this.trigger('parts:send', {
+        id: this.id,
         mime_type: this.getMimeTypeWithAttributes(),
         content: {
           size: this.size,
@@ -585,6 +589,9 @@ class MessagePart extends Root {
         this.body = part.body;
       }
     }
+    this.mimeType = part.mime_type;
+    this.updatedAt = part.updated_at ? new Date(part.updated_at) : null;
+    this.body = part.body;
   }
 
   /**
@@ -847,4 +854,3 @@ MessagePart._supportedEvents = [
 Root.initClass.apply(MessagePart, [MessagePart, 'MessagePart']);
 
 module.exports = MessagePart;
-

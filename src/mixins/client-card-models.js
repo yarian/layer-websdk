@@ -101,7 +101,7 @@ module.exports = {
       const cardId = part.id.replace(/layer:\/\/\/messages\//, CardModel.prefixUUID);
       const cardModel = this.getCardModel(cardId);
       if (cardModel) {
-        cardModel._parseMessage();
+        cardModel._parseMessage(part.body ? JSON.parse(part.body) : {});
         return cardModel;
       } else {
         const CardModelClass = this.getCardModelClassForMimeType(part.mimeType);

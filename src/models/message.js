@@ -201,7 +201,7 @@ class Message extends Syncable {
         if (part instanceof MessagePart) {
           result = part;
         } else if (part.mime_type && !part.mimeType) {
-          result = MessagePart._createFromServer(part);
+          result = this.getClient()._createObject(part);
         } else {
           result = new MessagePart(part);
         }
@@ -273,7 +273,7 @@ class Message extends Syncable {
         oldValue,
         newValue: this.parts,
       });
-      this.trigger('messages:part-added', { mPart });
+      this.trigger('messages:part-added', { part: mPart });
     }
     return this;
   }
@@ -473,6 +473,7 @@ class Message extends Syncable {
       part.once('parts:send', (evt) => {
         data.parts[index] = {
           mime_type: evt.mime_type,
+          id: evt.id,
         };
         if (evt.content) data.parts[index].content = evt.content;
         if (evt.body) data.parts[index].body = evt.body;
