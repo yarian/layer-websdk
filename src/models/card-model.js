@@ -65,6 +65,7 @@ class CardModel extends Root {
     this.part.on('messageparts:change', this._handlePartChanges, this);
     this.childParts.forEach(part => part.on('messageparts:change', this._handlePartChanges, this));
     this.message.on('messages:part-added', this._handlePartAdded, this);
+    this.message.on('messages:part-removed', this._handlePartRemoved, this);
 
     this.message.on('destroy', this.destroy, this);
     this.message.getClient()._addCardModel(this);
@@ -73,6 +74,7 @@ class CardModel extends Root {
       this._parseMessage(this.part.body ? JSON.parse(this.part.body) : {});
     }
   }
+
 
   _initBodyWithMetadata(fields) {
     const body = { };
@@ -108,16 +110,28 @@ class CardModel extends Root {
     this._triggerAsync('change');
   }
 
+  _handlePartRemoved(removed) {
+    // const removedPart = this.childParts.filter(part => part.id === removed.part.id);
+    this.childParts = this.childParts.filter(part => part.id !== removed.part.id);
+    this._handlePartChanges();
+  }
+
   _handlePartAdded(evt) {
     const part = evt.part;
-    if (part.mimeAttributes['parent-node-id'] === this.nodeId) {
+    const message = this.message;
+    this.childParts = this.childParts.filter(childPart => message.parts.indexOf(childPart) !== -1);
+    if (part.mimeAttributes['parent-node-id'] && part.mimeAttributes['parent-node-id'] === this.nodeId) {
       this.childParts.push(part);
       part.on('messageparts:change', this._handlePartChanges, this);
       if (!this.part.body) this.part.fetchContent();
       this._parseMessage(this.part.body ? JSON.parse(this.part.body) : {});
       this._triggerAsync('change');
+    } else if (part.mimeAttributes['node-id'] === this.part.mimeAttributes['node-id']) {
+      this.part = part;
+      this._handlePartChanges();
     }
   }
+
 
   getChildPartById(id) {
     return this.childParts.filter(part => part.mimeAttributes['node-id'] === id)[0];
@@ -135,7 +149,7 @@ class CardModel extends Root {
   }
 
   getModelFromPart(role) {
-    const part = this.childParts.filter(part => part.mimeAttributes.role === role)[0];
+    const part = this.childParts.filter(aPart => aPart.mimeAttributes.role === role)[0];
     if (part) {
       return this.getClient().createCardModel(this.message, part);
     } else {
@@ -169,20 +183,23 @@ class CardModel extends Root {
   }
 
   destroy() {
-    const client = this.getClient();
     this.getClient()._removeCardModel(this);
     delete this.message;
     super.destroy();
   }
 
   getTitle() {
-    return this.title || ''
-  };
+    return this.title || '';
+  }
   getDescription() {
     return '';
   }
   getFooter() {
     return '';
+  }
+
+  getOneLineSummary() {
+    return this.getTitle() || this.constructor.Label;
   }
 
   mergeAction(newValue) {

@@ -649,7 +649,6 @@ Client.prototype.telemetryMonitor = null;
  */
 Client.version = '3.4.1';
 
-
 /**
  * Any  Message that is part of a Query's results are kept in memory for as long as it
  * remains in that Query.  However, when a websocket event delivers new Messages  that

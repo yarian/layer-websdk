@@ -103,13 +103,13 @@ class MessagePart extends Root {
         body,
         size: body.size,
         hasContent: true,
-        mimeAttributes: options.mimeAttributes,
       };
+      if (options.mimeAttributes) newOptions.mimeAttributes = options.mimeAttributes;
     }
     super(newOptions);
 
     if (!this.mimeAttributes) this.mimeAttributes = {};
-    this._moveMimeTypeToAttributes();
+    this.mimeType = this._moveMimeTypeToAttributes(this.mimeType);
 
     if (!this.size && this.body) this.size = this.body.length;
 
@@ -136,12 +136,12 @@ class MessagePart extends Root {
   }
 
 
-  _moveMimeTypeToAttributes() {
+  _moveMimeTypeToAttributes(mimeType) {
     const attributes = this.mimeAttributes;
-    const parameters = this.mimeType.split(/\s*;\s*/);
+    const parameters = mimeType.split(/\s*;\s*/);
     if (!parameters) return;
     this.isInitializing = true;
-    this.mimeType = parameters.shift();
+    mimeType = parameters.shift();
     this.isInitializing = false;
 
     parameters.forEach((param) => {
@@ -154,6 +154,7 @@ class MessagePart extends Root {
         attributes[pName] = pValue;
       }
     });
+    return mimeType;
   }
 
   destroy() {
@@ -591,7 +592,15 @@ class MessagePart extends Root {
     }
     this.mimeType = part.mime_type;
     this.updatedAt = part.updated_at ? new Date(part.updated_at) : null;
-    this.body = part.body;
+
+    if (!part.body && part.content) {
+      this.hasContent = true;
+    } else if (!Util.isBlob(part.body) && !this.isTextualMimeType()) {
+      //this.body = Util.base64ToBlob(Util.utoa(part.body), this.mimeType);
+      this.body = Util.base64ToBlob(part.body, this.mimeType);
+    } else {
+      this.body = part.body;
+    }
   }
 
   /**
@@ -657,11 +666,15 @@ class MessagePart extends Root {
    * @param {String} newValue
    * @param {String} oldValue
    */
-  __updateMimeType(newValue, oldValue) {
+  __adjustMimeType(newValue) {
     if (newValue.match(/;/)) {
       this.mimeAttributes = {};
-      this._moveMimeTypeToAttributes();
+      return this._moveMimeTypeToAttributes(newValue);
     }
+    return newValue;
+  }
+
+  __updateMimeType(newValue, oldValue) {
     this._triggerAsync('messageparts:change', {
       property: 'mimeType',
       newValue,

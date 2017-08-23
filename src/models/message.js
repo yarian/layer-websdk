@@ -214,10 +214,12 @@ class Message extends Syncable {
     }
     this._setupPartIds(adjustedParts);
     if (adjustedParts) {
-      adjustedParts.forEach((part) => {
-        part.off('messageparts:change', this._onMessagePartChange, this); // if we already subscribed, don't create a redundant subscription
+      const currentParts = this.parts || [];
+      adjustedParts.filter(part => currentParts.indexOf(part) === -1).forEach((part) => {
         part.on('messageparts:change', this._onMessagePartChange, this);
       });
+      const removedParts = currentParts.filter(part => adjustedParts.indexOf(part) === -1);
+      removedParts.forEach(part => part.destroy());
     }
     return adjustedParts;
   }
@@ -771,8 +773,10 @@ class Message extends Syncable {
       this.__updateRecipientStatus(this.recipientStatus, oldValue);
     } else if (paths[0] === 'parts') {
       const oldValueParts = oldValue.map(part => this.getClient().getMessagePart(part.id)).filter(part => part);
+      const removedParts = oldValue.filter(part => !this.getClient().getMessagePart(part.id));
       const addedParts = newValue.filter(part => oldValueParts.indexOf(part) === -1);
       addedParts.forEach(part => this.addPart(part));
+      removedParts.forEach(partObj => this.trigger('messages:part-removed', { part: partObj }));
     }
     this._inLayerParser = true;
   }
@@ -1123,6 +1127,15 @@ Message._supportedEvents = [
    * @param {layer.MessagePart} evt.part
    */
   'messages:part-added',
+
+  /**
+   * A new Message Part has been removed
+   *
+   * @event
+   * @param {layer.LayerEvent} evt
+   * @param {layer.MessagePart} evt.part
+   */
+  'messages:part-removed',
 ].concat(Syncable._supportedEvents);
 
 Root.initClass.apply(Message, [Message, 'Message']);
