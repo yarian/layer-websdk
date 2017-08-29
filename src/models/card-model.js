@@ -55,21 +55,27 @@ class CardModel extends Root {
   }
 
   _setupMessage(doNotParse) {
-    this.id = CardModel.prefixUUID + this.part.id.replace(/^.*messages\//, '');
-    this.role = this.part.mimeAttributes.role;
-    this.childParts = this.message.getPartsMatchingAttribute({
-      'parent-node-id': this.nodeId,
-    });
+    if (this.part) {
+      this.id = CardModel.prefixUUID + this.part.id.replace(/^.*messages\//, '');
+      this.role = this.part.mimeAttributes.role;
+      this.childParts = this.message.getPartsMatchingAttribute({
+        'parent-node-id': this.nodeId,
+      });
+      this.parent
 
-    // Call handlePartChanges any message edits that update a part.
-    this.part.on('messageparts:change', this._handlePartChanges, this);
-    this.childParts.forEach(part => part.on('messageparts:change', this._handlePartChanges, this));
+      // Call handlePartChanges any message edits that update a part.
+      this.part.on('messageparts:change', this._handlePartChanges, this);
+      this.childParts.forEach(part => part.on('messageparts:change', this._handlePartChanges, this));
+    } else {
+      this.childParts = [];
+    }
+
     this.message.on('messages:part-added', this._handlePartAdded, this);
     this.message.on('messages:part-removed', this._handlePartRemoved, this);
 
     this.message.on('destroy', this.destroy, this);
     this.message.getClient()._addCardModel(this);
-    if (!doNotParse) {
+    if (!doNotParse && this.part) {
       if (!this.part.body) this.part.fetchContent();
       this._parseMessage(this.part.body ? JSON.parse(this.part.body) : {});
     }
@@ -78,7 +84,8 @@ class CardModel extends Root {
 
   _initBodyWithMetadata(fields) {
     const body = { };
-    fields.forEach((fieldName) => {
+    const newFields = ['action', 'purpose'].concat(fields);
+    newFields.forEach((fieldName) => {
       body[Util.hyphenate(fieldName, '_')] = this[fieldName];
     });
     return body;
@@ -97,7 +104,9 @@ class CardModel extends Root {
         responseData.participantData = responseData.participant_data;
         delete responseData.participant_data;
       }
-      this.responses = responseData;
+      if (!Util.doesObjectMatch(this.responses, responseData)) {
+        this.responses = responseData;
+      }
     }
 
     Object.keys(payload).forEach((propertyName) => {
@@ -126,7 +135,7 @@ class CardModel extends Root {
       if (!this.part.body) this.part.fetchContent();
       this._parseMessage(this.part.body ? JSON.parse(this.part.body) : {});
       this._triggerAsync('change');
-    } else if (part.mimeAttributes['node-id'] === this.part.mimeAttributes['node-id']) {
+    } else if (part.mimeAttributes['node-id'] === this.nodeId) {
       this.part = part;
       this._handlePartChanges();
     }
@@ -218,7 +227,7 @@ class CardModel extends Root {
   }
 
   // If triggered by a message change, trigger('change') is called above
-  __updateResponses() {
+  __updateResponses(newResponse, oldResponse) {
     if (!this.responses) this.__responses = {};
     this._processNewResponses();
   }
@@ -240,7 +249,16 @@ class CardModel extends Root {
   }
 
   get nodeId() {
-    return this.part.mimeAttributes['node-id'];
+    return this.part ? this.part.mimeAttributes['node-id'] : '';
+  }
+
+  get parentPart() {
+    const parentNodeId = (this.part && this.part.mimeAttributes['parent-node-id']) || this.parentNodeId;
+    if (parentNodeId) {
+      return this.message.getPartsMatchingAttribute({ 'node-id': parentNodeId })[0];
+    } else {
+      return null;
+    }
   }
 
   _processDelayedTriggers() {
@@ -280,6 +298,14 @@ class CardModel extends Root {
 }
 
 /**
+ * If a model is created without a Part, it may still need to know what its parent part is.
+ *
+ * @protected
+ * @type {String}
+ */
+CardModel.prototype.parentNodeId = null;
+
+/**
  * Message for this Card Model
  *
  * @type {layer.Message}
@@ -292,6 +318,13 @@ CardModel.prototype.message = null;
  * @type {layer.MessagePart[]}
  */
 CardModel.prototype.childParts = null;
+
+/**
+ * Custom string used to describe the purpose of this Card to Integration Services.
+ *
+ * @type {String}
+ */
+CardModel.prototype.purpose = '';
 
 /**
  * Action object contains actionEvent and actionData

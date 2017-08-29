@@ -86,7 +86,7 @@ class LayerError {
 /**
  * A string name for the event; these names are paired with codes.
  *
- * Codes can be looked up at https://github.com/layerhq/docs/blob/web-api/specs/rest-api.md#client-errors
+ * Codes can be looked up at https://docs.layer.com/reference/client_api/errors
  * @type {String}
  */
 LayerError.prototype.errType = '';
@@ -94,7 +94,7 @@ LayerError.prototype.errType = '';
 /**
  * Numerical error code.
  *
- * https://developer.layer.com/docs/client/rest#full-list
+ * https://docs.layer.com/reference/client_api/errors
  * @type {Number}
  */
 LayerError.prototype.code = 0;
