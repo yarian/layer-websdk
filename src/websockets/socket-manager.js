@@ -658,7 +658,7 @@ class SocketManager extends Root {
    * @private
    */
   _scheduleReconnect() {
-    if (this.isDestroyed || !this.client.isOnline || !this.client.isAuthenticated) return;
+    if (this.isDestroyed || !this.client.isOnline || !this.client.isAuthenticated || this._isOpen()) return;
 
     const delay = Utils.getExponentialBackoffSeconds(this.maxDelaySecondsBetweenReconnect, Math.min(15, this._lostConnectionCount));
     logger.debug('Websocket Reconnect in ' + delay + ' seconds');
@@ -678,7 +678,7 @@ class SocketManager extends Root {
    * @private
    */
   _validateSessionBeforeReconnect() {
-    if (this.isDestroyed || !this.client.isOnline || !this.client.isAuthenticated) return;
+    if (this.isDestroyed || !this.client.isOnline || !this.client.isAuthenticated || this._isOpen()) return;
 
     const maxDelay = this.maxDelaySecondsBetweenReconnect * 1000;
     const diff = Date.now() - this._lastValidateSessionRequest - maxDelay;

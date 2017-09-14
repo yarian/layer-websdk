@@ -23,7 +23,7 @@ class CardModel extends Root {
     super(options);
     //if (!this.constructor.isSupportedMessage(this.message)) throw new Error(LayerError.dictionary.unsupportedMessage);
 
-
+    if (!this.customData) this.customData = {};
     this.currentCardRenderer = this.constructor.cardRenderer;
 
     if (this.message) {
@@ -50,9 +50,10 @@ class CardModel extends Root {
     model._generateParts((moreParts) => {
       moreParts[0].mimeAttributes.role = role;
       moreParts[0].mimeAttributes['parent-node-id'] = this.nodeId;
-      callback(moreParts);
+      if (callback) callback(moreParts);
     });
   }
+
 
   _setupMessage(doNotParse) {
     if (this.part) {
@@ -61,7 +62,6 @@ class CardModel extends Root {
       this.childParts = this.message.getPartsMatchingAttribute({
         'parent-node-id': this.nodeId,
       });
-      this.parent
 
       // Call handlePartChanges any message edits that update a part.
       this.part.on('messageparts:change', this._handlePartChanges, this);
@@ -84,7 +84,7 @@ class CardModel extends Root {
 
   _initBodyWithMetadata(fields) {
     const body = { };
-    const newFields = ['action', 'purpose'].concat(fields);
+    const newFields = ['action', 'purpose', 'customData'].concat(fields);
     newFields.forEach((fieldName) => {
       body[Util.hyphenate(fieldName, '_')] = this[fieldName];
     });
@@ -188,7 +188,7 @@ class CardModel extends Root {
   }
 
   getClient() {
-    return this.message.getClient();
+    return this.part ? this.part._getClient() : null;
   }
 
   destroy() {
@@ -325,6 +325,17 @@ CardModel.prototype.childParts = null;
  * @type {String}
  */
 CardModel.prototype.purpose = '';
+
+/**
+ * Custom data for your card.
+ *
+ * Typically this data is not used for rendering, but rather for understanding and tracking what data means.
+ * For example, you might stick Product IDs into your Product Card so that when you receive a Product Card
+ * you have all the info needed to lookup the full details.
+ *
+ * @type {Object}
+ */
+CardModel.prototype.customData = null;
 
 /**
  * Action object contains actionEvent and actionData

@@ -776,6 +776,8 @@ class Message extends Syncable {
       const removedParts = oldValue.filter(part => !this.getClient().getMessagePart(part.id));
       const addedParts = newValue.filter(part => oldValueParts.indexOf(part) === -1);
       addedParts.forEach(part => this.addPart(part));
+
+      // TODO: Should fire "messages:change" event
       removedParts.forEach(partObj => this.trigger('messages:part-removed', { part: partObj }));
     }
     this._inLayerParser = true;

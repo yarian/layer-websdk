@@ -131,6 +131,10 @@ class MessagePart extends Root {
       if (this.body) this.url = URL.createObjectURL(this.body);
     }
 
+    if (this.hasContent) {
+      this.size = this._content.size;
+    }
+
     // If our textual content is a blob, turning it into text is asychronous, and can't be done in the synchronous constructor
     // This will only happen when the client is attaching a file.  Conversion for locally created messages is done while calling `Message.send()`
   }

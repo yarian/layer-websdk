@@ -143,6 +143,23 @@ module.exports = {
      */
     'messages:change',
 
+    /**
+     * This event is a more specific version of messages:change (which will also fire when a part is added)
+     *
+     * @param {layer.LayerEvent} evt
+     * @param {layer.Message} evt.target
+     * @param {layer.MessagePart} evt.part    The Part that was added
+     */
+    'messages:part-added',
+
+    /**
+     * This event is a more specific version of messages:change (should also fire when a part is removed)
+     *
+     * @param {layer.LayerEvent} evt
+     * @param {layer.Message} evt.target
+     * @param {layer.MessagePart} evt.part    The Part that was removed
+     */
+    'messages:part-removed',
 
     /**
      * A call to layer.Message.load has completed successfully
