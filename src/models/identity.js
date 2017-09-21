@@ -27,6 +27,8 @@ const Syncable = require('./syncable');
 const Root = require('../root');
 const { SYNC_STATE } = require('../const');
 const LayerError = require('../layer-error');
+const { strictEncodeURI } = require('../client-utils');
+
 
 class Identity extends Syncable {
   constructor(options = {}) {
@@ -34,7 +36,7 @@ class Identity extends Syncable {
     if (options.fromServer) {
       options.id = options.fromServer.id || '-';
     } else if (!options.id && options.userId) {
-      options.id = Identity.prefixUUID + encodeURIComponent(options.userId);
+      options.id = Identity.prefixUUID + strictEncodeURI(options.userId);
     } else if (options.id && !options.userId) {
       options.userId = decodeURIComponent(options.id.substring(Identity.prefixUUID.length));
     }
@@ -306,7 +308,7 @@ class Identity extends Syncable {
     const client = this.getClient();
     client._removeIdentity(this);
     this.__userId = userId;
-    const encoded = encodeURIComponent(userId);
+    const encoded = strictEncodeURI(userId);
     this.id = Identity.prefixUUID + encoded;
     this.url = `${this.getClient().url}/identities/${encoded}`;
     client._addIdentity(this);
