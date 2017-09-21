@@ -112,6 +112,16 @@ exports.sortBy = (inArray, fn, reverse) => {
  */
 exports.clone = obj => JSON.parse(JSON.stringify(obj));
 
+/**
+ * Its necessary that the encoding algorithm for creating a URI matches the Layer Server's algorithm.
+ * Failure to do that creates mismatching IDs that will then refer to different objects.
+ *
+ * Derived from https://github.com/kevva/strict-uri-encode
+ *
+ * @method strictEncodeURI
+ * @param {String} str
+ */
+exports.strictEncodeURI = str => encodeURIComponent(str).replace(/[!~'()*]/g, x => `%${x.charCodeAt(0).toString(16).toUpperCase()}`);
 
 /**
  * URL Decode a URL Encoded base64 string
