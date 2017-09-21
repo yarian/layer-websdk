@@ -81,14 +81,22 @@ class CardModel extends Root {
     }
   }
 
-
   _initBodyWithMetadata(fields) {
     const body = { };
     const newFields = ['action', 'purpose', 'customData'].concat(fields);
     newFields.forEach((fieldName) => {
-      body[Util.hyphenate(fieldName, '_')] = this[fieldName];
+      if (this._propertyHasValue(fieldName)) {
+        body[Util.hyphenate(fieldName, '_')] = this[fieldName];
+      }
     });
     return body;
+  }
+
+  _propertyHasValue(fieldName) {
+    if (fieldName === 'action' && Util.isEmpty(this.action)) return false;
+    if (fieldName === 'customData' && Util.isEmpty(this.customData)) return false;
+    if (this[fieldName] === this.constructor.prototype[fieldName]) return false;
+    return true;
   }
 
   /**
@@ -141,7 +149,7 @@ class CardModel extends Root {
     }
   }
 
-
+/*
   getChildPartById(id) {
     return this.childParts.filter(part => part.mimeAttributes['node-id'] === id)[0];
   }
@@ -152,10 +160,10 @@ class CardModel extends Root {
       return this.getClient().getCardModel(childPart.id);
     }
   }
-
   generateResponseMessageText() {
     return this.getClient().user.displayName + ' has responded' + (this.title ? ' to ' + this.title : '');
   }
+*/
 
   getModelFromPart(role) {
     const part = this.childParts.filter(aPart => aPart.mimeAttributes.role === role)[0];
@@ -170,7 +178,7 @@ class CardModel extends Root {
     const parts = this.childParts.filter(part => part.mimeAttributes.role === role);
     return parts.map(part => this.getClient().createCardModel(this.message, part));
   }
-
+/*
   hasNoContainerData() {
     const title = this.getTitle && this.getTitle();
     const description = this.getDescription && this.getDescription();
@@ -186,9 +194,11 @@ class CardModel extends Root {
     this.message.send(notification);
     return this;
   }
-
+*/
   getClient() {
-    return this.part ? this.part._getClient() : null;
+    if (this.part) return this.part._getClient();
+    if (this.message) return this.message.getClient();
+    return null;
   }
 
   destroy() {
@@ -196,6 +206,8 @@ class CardModel extends Root {
     delete this.message;
     super.destroy();
   }
+
+  /* MANAGE METADATA */
 
   getTitle() {
     return this.title || '';
@@ -207,11 +219,12 @@ class CardModel extends Root {
     return '';
   }
 
+  /* MANAGE LAST MESSAGE REPRESENTATION */
   getOneLineSummary() {
     return this.getTitle() || this.constructor.Label;
   }
 
-  mergeAction(newValue) {
+  _mergeAction(newValue) {
     if (!this.action.event) this.action.event = newValue.event;
     const newData = newValue.data || {};
     let currentData;

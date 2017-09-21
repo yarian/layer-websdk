@@ -102,7 +102,7 @@ class MessagePart extends Root {
         mimeType,
         body,
         size: body.size,
-        hasContent: true,
+        hasContent: 'hasContent' in options ? options.hasContent : true,
       };
       if (options.mimeAttributes) newOptions.mimeAttributes = options.mimeAttributes;
     }
@@ -131,7 +131,7 @@ class MessagePart extends Root {
       if (this.body) this.url = URL.createObjectURL(this.body);
     }
 
-    if (this.hasContent) {
+    if (this._content) {
       this.size = this._content.size;
     }
 
