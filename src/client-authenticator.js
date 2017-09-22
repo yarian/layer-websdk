@@ -331,7 +331,6 @@ class ClientAuthenticator extends Root {
         userId,
         sessionOwner: true,
         clientId: this.appId,
-        id: Identity.prefixUUID + encodeURIComponent(userId),
       });
     }
 
