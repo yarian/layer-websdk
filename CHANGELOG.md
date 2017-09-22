@@ -1,5 +1,17 @@
 # Web SDK Change Log
 
+## 3.4.4
+
+* Fixes mismatch between Identity ID and User ID when User ID contains a `*` character
+
+## 3.4.3
+
+* Fixes mismatch between Identity ID and User ID when User ID contains a `~` character and auth uses `connectWithSession`
+
+## 3.4.2
+
+* Fixes mismatch between Identity ID and User ID when User ID contains a `~` character
+
 ## 3.4.1
 
 * Conversations are no longer garbage collected if not referenced by a Query

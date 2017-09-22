@@ -121,7 +121,7 @@ exports.clone = obj => JSON.parse(JSON.stringify(obj));
  * @method strictEncodeURI
  * @param {String} str
  */
-exports.strictEncodeURI = str => encodeURIComponent(str).replace(/[!~'()*]/g, x => `%${x.charCodeAt(0).toString(16).toUpperCase()}`);
+exports.strictEncodeURI = str => encodeURIComponent(str).replace(/[!~'()]/g, x => `%${x.charCodeAt(0).toString(16).toUpperCase()}`);
 
 /**
  * URL Decode a URL Encoded base64 string
