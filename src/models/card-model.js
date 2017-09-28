@@ -25,6 +25,7 @@ class CardModel extends Root {
 
     if (!this.customData) this.customData = {};
     this.currentCardRenderer = this.constructor.cardRenderer;
+    this.childParts = [];
 
     if (this.message) {
       this._setupMessage();
@@ -49,7 +50,7 @@ class CardModel extends Root {
   _addModel(model, role, callback) {
     model._generateParts((moreParts) => {
       moreParts[0].mimeAttributes.role = role;
-      moreParts[0].mimeAttributes['parent-node-id'] = this.nodeId;
+      moreParts[0].mimeAttributes['parent-node-id'] = this.part.getNodeId();
       if (callback) callback(moreParts);
     });
   }
@@ -60,7 +61,7 @@ class CardModel extends Root {
       this.id = CardModel.prefixUUID + this.part.id.replace(/^.*messages\//, '');
       this.role = this.part.mimeAttributes.role;
       this.childParts = this.message.getPartsMatchingAttribute({
-        'parent-node-id': this.nodeId,
+        'parent-node-id': Util.uuid(this.id),
       });
 
       // Call handlePartChanges any message edits that update a part.
@@ -137,13 +138,13 @@ class CardModel extends Root {
     const part = evt.part;
     const message = this.message;
     this.childParts = this.childParts.filter(childPart => message.parts.indexOf(childPart) !== -1);
-    if (part.mimeAttributes['parent-node-id'] && part.mimeAttributes['parent-node-id'] === this.nodeId) {
+    if (part.mimeAttributes['parent-node-id'] && part.mimeAttributes['parent-node-id'] === Util.uuid(this.id)) {
       this.childParts.push(part);
       part.on('messageparts:change', this._handlePartChanges, this);
       if (!this.part.body) this.part.fetchContent();
       this._parseMessage(this.part.body ? JSON.parse(this.part.body) : {});
       this._triggerAsync('change');
-    } else if (part.mimeAttributes['node-id'] === this.nodeId) {
+    } else if (part.getNodeId() === this.part.getNodeId()) {
       this.part = part;
       this._handlePartChanges();
     }
@@ -255,20 +256,14 @@ class CardModel extends Root {
     return this.action.data || {};
   }
 
-  __updatePart(newPart) {
-    if (!newPart.mimeAttributes['node-id']) {
-      newPart.mimeAttributes['node-id'] = Util.generateUUID();
-    }
+  __getParentId() {
+    return this.part ? this.part.parentId : '';
   }
 
-  get nodeId() {
-    return this.part ? this.part.mimeAttributes['node-id'] : '';
-  }
-
-  get parentPart() {
-    const parentNodeId = (this.part && this.part.mimeAttributes['parent-node-id']) || this.parentNodeId;
-    if (parentNodeId) {
-      return this.message.getPartsMatchingAttribute({ 'node-id': parentNodeId })[0];
+  getParentPart() {
+    const parentId = this.parentId;
+    if (parentId) {
+      return this.message.getPartsMatchingAttribute({ 'node-id': parentId })[0];
     } else {
       return null;
     }
@@ -316,7 +311,7 @@ class CardModel extends Root {
  * @protected
  * @type {String}
  */
-CardModel.prototype.parentNodeId = null;
+CardModel.prototype.parentId = null;
 
 /**
  * Message for this Card Model

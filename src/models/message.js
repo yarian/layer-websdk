@@ -268,7 +268,7 @@ class Message extends Syncable {
 
       thePart.off('messageparts:change', this._onMessagePartChange, this); // if we already subscribed, don't create a redundant subscription
       thePart.on('messageparts:change', this._onMessagePartChange, this);
-      if (!part.id) part.id = `${this.id}/parts/${Util.generateUUID()}`;
+      if (!part.id) part.id = `${this.id}/parts/${part._tmpUUID || Util.generateUUID()}`;
       this._addToMimeAttributesMap(thePart);
       this.trigger('messages:change', {
         property: 'parts',
@@ -625,7 +625,7 @@ class Message extends Syncable {
     // Assign IDs to preexisting Parts so that we can call getPartById()
     if (parts) {
       parts.forEach((part, index) => {
-        if (!part.id) part.id = `${this.id}/parts/${Util.generateUUID()}`;
+        if (!part.id) part.id = `${this.id}/parts/${part._tmpUUID || Util.generateUUID()}`;
       });
     }
   }

@@ -541,21 +541,7 @@ class MessagePart extends Root {
     }
   }
 
-  /**
-   * Returns the text for any text/plain part.
-   *
-   * Returns '' if its not a text/plain part.
-   *
-   * @method getText
-   * @return {string}
-   */
-  getText() {
-    if (this.isTextualMimeType()) {
-      return this.body;
-    } else {
-      return '';
-    }
-  }
+
 
   /**
    * Updates the MessagePart with new data from the server.
@@ -704,6 +690,34 @@ class MessagePart extends Root {
 
   }
 
+
+  getNodeId() {
+    if (!this.mimeAttributes['node-id']) {
+      if (this.id) {
+        this.mimeAttributes['node-id'] = Util.uuid(this.id);
+      } else {
+        this.mimeAttributes['node-id'] = Util.generateUUID();
+      }
+      this._tmpUUID = this.mimeAttributes['node-id'];
+    }
+    return this.mimeAttributes['node-id'];
+    /* For use when we start using "part.id" instead of mimeAttributes.
+    if (this.id) {
+      return Util.uuid(this.id);
+    } else if (!this._tmpUUID) {
+      this._tmpUUID = Util.generateUUID();
+    }
+    return this._tmpUUID;*/
+  }
+
+  __getParentId() {
+    return this.mimeAttributes['parent-node-id'] ? Util.uuid(this.mimeAttributes['parent-node-id']) : '';
+  }
+
+  __getRole() {
+    return this.mimeAttributes.role || '';
+  }
+
   /**
    * Creates a MessagePart from a server representation of the part
    *
@@ -836,6 +850,10 @@ MessagePart.prototype.updatedAt = null;
  * @type {number}
  */
 MessagePart.prototype.size = 0;
+
+
+MessagePart.prototype.parentId = '';
+MessagePart.prototype.role = '';
 
 /**
  * Array of mime types that should be treated as text.
