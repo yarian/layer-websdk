@@ -73,7 +73,7 @@ class Conversation extends Container {
    * @method constructor
    * @protected
    * @param  {Object} options
-   * @param {string[]/layer.Identity[]} options.participants - Array of Participant IDs or layer.Identity instances
+   * @param {string[]/layer.Identity[]} [options.participants] - Array of Participant IDs or layer.Identity instances
    * @param {boolean} [options.distinct=true] - Is the conversation distinct
    * @param {Object} [options.metadata] - An object containing Conversation Metadata.
    * @return {layer.Conversation}
