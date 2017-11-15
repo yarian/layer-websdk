@@ -473,6 +473,8 @@ class Query extends Root {
    * @private
    */
   _appendResults(results, fromDb) {
+    const finalResults = [];
+
     // For all results, register them with the client
     // If already registered with the client, properties will be updated as needed
     // Database results rather than server results will arrive already registered.
@@ -501,6 +503,15 @@ class Query extends Root {
     // Insert the results... if the results are a match
     newResults.forEach((itemIn) => {
       const item = this.client.getObject(itemIn.id);
+      if (item && (!this.filter || this.filter(item))) {
+        this._appendResultsSplice(item);
+        finalResults.push(item);
+      }
+    });
+
+    // Insert the results... if the results are a match
+    newResults.forEach((itemIn) => {
+      const item = this.client.getObject(itemIn.id);
       if (item) this._appendResultsSplice(item);
     });
 
@@ -508,7 +519,7 @@ class Query extends Root {
     // Trigger the change event
     this._triggerChange({
       type: 'data',
-      data: newResults.map(item => this._getData(this.client.getObject(item.id))),
+      data: finalResults.map(item => this._getData(item)),
       query: this,
       target: this.client,
     });
@@ -626,7 +637,8 @@ class Query extends Root {
   _handleAddEvent(name, evt) {
     const list = evt[name]
       .filter(obj => this._getIndex(obj.id) === -1)
-      .map(obj => this._getData(obj));
+      .map(obj => this._getData(obj))
+      .filter(item => !this.filter || this.filter(item));
 
     // Add them to our result set and trigger an event for each one
     if (list.length) {
@@ -959,6 +971,24 @@ Query.prototype._initialPaginationWindow = 100;
  * @readonly
  */
 Query.prototype.predicate = null;
+
+
+/**
+ * Callback to determine if a result should be written to the query's data.
+ *
+ * This exists as an alternative to the `predicate` which is not well supported by the server
+ * at this time.  Return `true` to allow an item to be written to the Query data, return `false`
+ * to exclude it.
+ *
+ * ```
+ * query.filter = function(item) {
+ *    return item.isPropertyTrue === false;
+ * };
+ * ```
+ *
+ * @type {Function}
+ */
+Query.prototype.filter = null;
 
 /**
  * True if the Query is connecting to the server.

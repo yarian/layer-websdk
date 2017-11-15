@@ -225,7 +225,7 @@ class CardModel extends Root {
     return this.getTitle() || this.constructor.Label;
   }
 
-  _mergeAction(newValue) {
+  mergeAction(newValue) {
     if (!this.action.event) this.action.event = newValue.event;
     const newData = newValue.data || {};
     let currentData;

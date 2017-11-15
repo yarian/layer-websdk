@@ -102,6 +102,7 @@ class Content extends Root {
    * @returns {Boolean}
    */
   isExpired() {
+    if (!this.expiration) return false;
     const expirationLeeway = 10 * 60 * 1000;
     return (this.expiration.getTime() - expirationLeeway < Date.now());
   }

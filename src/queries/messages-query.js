@@ -372,7 +372,8 @@ class MessagesQuery extends Query {
       })
       // Filter out Messages that are already in our data set
       .filter(message => this._getIndex(message.id) === -1)
-      .map(message => this._getData(message));
+      .map(message => this._getData(message))
+      .filter(message => !this.filter || this.filter(message));
 
     // Add them to our result set and trigger an event for each one
     if (list.length) {
