@@ -61,7 +61,7 @@ class CardModel extends Root {
       this.id = CardModel.prefixUUID + this.part.id.replace(/^.*messages\//, '');
       this.role = this.part.mimeAttributes.role;
       this.childParts = this.message.getPartsMatchingAttribute({
-        'parent-node-id': Util.uuid(this.id),
+        'parent-node-id': this.part.getNodeId(),
       });
 
       // Call handlePartChanges any message edits that update a part.
