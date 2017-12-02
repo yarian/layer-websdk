@@ -260,6 +260,10 @@ class CardModel extends Root {
     return this.part ? this.part.parentId : '';
   }
 
+  __getNodeId() {
+    return this.part ? this.part.mimeAttributes['node-id'] : '';
+  }
+
   getParentPart() {
     const parentId = this.parentId;
     if (parentId) {
@@ -311,7 +315,9 @@ class CardModel extends Root {
  * @protected
  * @type {String}
  */
+CardModel.prototype.parentNodeId = null;
 CardModel.prototype.parentId = null;
+CardModel.prototype.nodeId = null;
 
 /**
  * Message for this Card Model
