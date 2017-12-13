@@ -144,10 +144,10 @@ class CardModel extends Root {
       if (!this.part.body) this.part.fetchContent();
       this._parseMessage(this.part.body ? JSON.parse(this.part.body) : {});
       this._triggerAsync('change');
-    } else if (part.getNodeId() === this.part.getNodeId()) {
+    } else if (this.part && part.getNodeId() === this.part.getNodeId()) {
       this.part = part;
-      this._handlePartChanges();
     }
+    this._handlePartChanges();
   }
 
 /*
