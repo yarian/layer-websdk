@@ -124,14 +124,16 @@ class CardModel extends Root {
   }
 
   _handlePartChanges(evt) {
-    this._parseMessage(this.part.body ? JSON.parse(this.part.body) : {});
-    this._triggerAsync('change');
+    if (this.part) {
+      this._parseMessage(this.part.body ? JSON.parse(this.part.body) : {});
+    }
+    //this._triggerAsync('change');
   }
 
   _handlePartRemoved(removed) {
     // const removedPart = this.childParts.filter(part => part.id === removed.part.id);
     this.childParts = this.childParts.filter(part => part.id !== removed.part.id);
-    this._handlePartChanges();
+    this._handlePartChanges(evt);
   }
 
   _handlePartAdded(evt) {
@@ -147,7 +149,7 @@ class CardModel extends Root {
     } else if (this.part && part.getNodeId() === this.part.getNodeId()) {
       this.part = part;
     }
-    this._handlePartChanges();
+    this._handlePartChanges(evt);
   }
 
 /*
@@ -318,6 +320,7 @@ class CardModel extends Root {
 CardModel.prototype.parentNodeId = null;
 CardModel.prototype.parentId = null;
 CardModel.prototype.nodeId = null;
+CardModel.prototype.id = '';
 
 /**
  * Message for this Card Model
