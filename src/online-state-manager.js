@@ -230,8 +230,8 @@ class OnlineStateManager extends Root {
    */
   _connectionListener(evt) {
     // If event is a success, change us to online
-    const failed = evt.status !== 'connection:success';
-    if (!failed) {
+    const success = evt.status === 'connection:success';
+    if (success) {
       const lastTime = this.lastMessageTime;
       this.lastMessageTime = new Date();
       if (!this.isOnline) {
@@ -244,9 +244,18 @@ class OnlineStateManager extends Root {
       }
     }
 
-    this._scheduleNextOnlineCheck(failed, (result) => {
-      if (!result) this._changeToOffline();
-    });
+    // Else if it was a ping request and it failed, change us directly to offline
+    else if (evt.request.url && evt.request.url.indexOf('/ping?') !== -1) {
+      this._changeToOffline();
+    }
+
+    // If it wasn't a ping request, then lets see if our connection failure was caused by lack of connectivity by firing a ping request
+    // This insures we don't change state to offline as a result of a CORS error
+    else {
+      this._scheduleNextOnlineCheck(!success, (result) => {
+        if (!result) this._changeToOffline(false);
+      });
+    }
   }
 
   /**

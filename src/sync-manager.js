@@ -97,7 +97,6 @@ class SyncManager extends Root {
    */
   _onlineStateChange(evt) {
     if (evt.eventName === 'connected') {
-      if (this.queue.length) this.queue[0].returnToOnlineCount++;
       setTimeout(() => this._processNextRequest(), 100);
     } else if (evt.eventName === 'disconnected') {
       if (this.queue.length) {
@@ -154,6 +153,9 @@ class SyncManager extends Root {
       } else {
         this._processNextStandardRequest();
       }
+    } else if (this.queue.length) {
+      logger.info('_processNextRequest called but current request has ' + ((Date.now() - this.queue[0].__firedAt) / 1000) + ' seconds left');
+      setTimeout(() => this._processNextRequest(), 2000);
     }
 
     // If we have anything in the receipts queue, fire it
@@ -354,13 +356,9 @@ class SyncManager extends Root {
   _getErrorState(result, requestEvt, isOnline) {
     const errId = result.data ? result.data.id : '';
     if (!isOnline) {
-      // CORS errors look identical to offline; but if our online state has transitioned from false to true repeatedly while processing this request,
-      // thats a hint that that its a CORS error
-      if (requestEvt.returnToOnlineCount >= SyncManager.MAX_RETRIES_BEFORE_CORS_ERROR) {
-        return 'CORS';
-      } else {
-        return 'offline';
-      }
+      return 'offline';
+    } else if (!errId) {
+      return 'POSSIBLE_CORS';
     } else if (errId === 'not_found') {
       return 'notFound';
     } else if (errId === 'id_in_use') {
@@ -406,45 +404,57 @@ class SyncManager extends Root {
     const errState = this._getErrorState(result, requestEvt, this.isOnline());
     logger.warn('Sync Manager Error State: ' + errState);
     switch (errState) {
+      // Retry count has exceded MAX_RETRIES; remove the request and procede to the next request in the sync-queue
       case 'tooManyFailuresWhileOnline':
         this._xhrHandleServerError(result, 'Sync Manager Server Unavailable Too Long; removing request', false);
         break;
+
+      // A not_found error has been returned from the server. either the user lacks permission to view this or its been deleted.
+      // Remove the request and procede to the next request in the sync-queue
       case 'notFound':
         this._xhrHandleServerError(result, 'Resource not found; presumably deleted', false);
         break;
+
+      // invalid_id error has been returned from the server. remove the request and procede to the next request in the sync-queue
       case 'invalidId':
         this._xhrHandleServerError(result, 'ID was not unique; request failed', false);
         break;
-      case 'validateOnlineAndRetry':
-        // Server appears to be hung but will eventually recover.
-        // Retry a few times and then error out.
-        // this._xhrValidateIsOnline(requestEvt);
-        this._xhrHandleServerUnavailableError(result);
-        break;
-      case 'serverUnavailable':
-        // Server is in a bad state but will eventually recover;
-        // keep retrying.
-        this._xhrHandleServerUnavailableError(result);
-        break;
-      case 'reauthorize':
-        // sessionToken appears to no longer be valid; forward response
-        // on to client-authenticator to process.
-        // Do not retry nor advance to next request.
-        if (requestEvt.callback) requestEvt.callback(result);
 
+      // Server is responding slowly, but should recover.
+      // Retry up to MAX_RETRIES and then hit tooManyFailuresWhileOnline
+      case 'validateOnlineAndRetry':
+
+      // Server is in a bad state returning 502, 503 or 504 but will eventually recover.
+      // Retry up to MAX_RETRIES and then hit tooManyFailuresWhileOnline
+      case 'serverUnavailable':
+        this._xhrHandleServerUnavailableError(result);
         break;
+
+      // sessionToken appears to no longer be valid; forward response
+      // on to client-authenticator to process.
+      // Do not retry nor advance to next request.
+      case 'reauthorize':
+        if (requestEvt.callback) requestEvt.callback(result);
+        break;
+
+      // Server presumably did not like the arguments to this call
+      // or the url was invalid.  Do not retry; trigger the callback
+      // and let the caller handle it.  Remove this from the sync manager and fire the next request
       case 'serverRejectedRequest':
-        // Server presumably did not like the arguments to this call
-        // or the url was invalid.  Do not retry; trigger the callback
-        // and let the caller handle it.
         this._xhrHandleServerError(result, 'Sync Manager Server Rejects Request; removing request', true);
         break;
-      case 'CORS':
-        // A pattern of offline-like failures that suggests its actually a CORs error
-        this._xhrHandleServerError(result, 'Sync Manager Server detects CORS-like errors; removing request', false);
+
+      // We are online, but receiving a status of `0` from the request. That seems suspicious.
+      // Of course maybe we really ARE offline in which case we'll retry when we come back online.
+      // Lets lets wait a few seconds and see if our state changes
+      // to offline. If its a CORS error, then that is typically caused by a `502` `503` or `504` error so treat it as such.
+      case 'POSSIBLE_CORS':
+        this._xhrHandlePossibleCORs(result);
         break;
+
+      // We are offline. Well we are pretty much frelled now.  Do nothing and wait for an event indicating we are back online
+      // to call the _onlineStateChange method
       case 'offline':
-        this._xhrHandleConnectionError();
         break;
     }
 
@@ -452,6 +462,27 @@ class SyncManager extends Root {
     if (this.queue.indexOf(requestEvt) !== -1 || this.receiptQueue.indexOf(requestEvt) !== -1) {
       this.client.dbManager.writeSyncEvents([requestEvt]);
     }
+  }
+
+  /**
+   * Wait a few seconds and see if our state updates to offline. If it doesn't then this status of 0 means its a CORS error.
+   *
+   * Status changes to offline because the online-state-manager also detected the status of 0 and did a ping operation
+   * to see if the server is reachable (online) or not (offline).  2500ms  wait is random but presumed more than sufficient.
+   *
+   * Either we are offline, in which case we are waiting for an online event to restart the sync queue
+   * Or we are online in which case treat this as a 502/503/504 error (most common scenario for a CORS error at this time)
+   *
+   * @private
+   * @method _xhrHandlePossibleCORs
+   */
+  _xhrHandlePossibleCORs(result) {
+    setTimeout(() => {
+      if (this.isOnline()) {
+        logger.warn('Sync Manager Server detects CORS-like errors; Presumed to be a 502, 503 or 504 error');
+        this._xhrHandleServerUnavailableError(result);
+      }
+    }, 2500);
   }
 
   /**
@@ -478,7 +509,8 @@ class SyncManager extends Root {
       retryCount: request.retryCount
     });
     const maxDelay = SyncManager.MAX_UNAVAILABLE_RETRY_WAIT;
-    const delay = Utils.getExponentialBackoffSeconds(maxDelay, Math.min(15, request.retryCount++));
+    request.retryCount++;
+    const delay = Utils.getExponentialBackoffSeconds(maxDelay, Math.min(15, request.retryCount));
     logger.warn(`Sync Manager Server Unavailable; retry count ${request.retryCount}; retrying in ${delay} seconds`);
     setTimeout(this._processNextRequest.bind(this), delay * 1000);
   }
@@ -755,21 +787,6 @@ SyncManager.prototype.client = null;
  * @static
  */
 SyncManager.MAX_UNAVAILABLE_RETRY_WAIT = 60;
-
-/**
- * Retries before suspect CORS error.
- *
- * How many times can we transition from offline to online state
- * with this request at the front of the queue before we conclude
- * that the reason we keep thinking we're going offline is
- * a CORS error returning a status of 0.  If that pattern
- * shows 3 times in a row, there is likely a CORS error.
- * Note that CORS errors appear to javascript as a status=0 error,
- * which is the same as if the client were offline.
- * @type {number}
- * @static
- */
-SyncManager.MAX_RETRIES_BEFORE_CORS_ERROR = 3;
 
 /**
  * Abort request after this number of retries.

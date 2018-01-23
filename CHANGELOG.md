@@ -1,5 +1,12 @@
 # Web SDK Change Log
 
+## 3.4.5
+
+Changes around retry logic and events for helping apps control the retry logic.
+
+* No longer changes state to offline in response to a CORS (status 0) error
+* Treats CORS (or errors presumed to be CORS) as 503 `server_unavailable` errors
+
 ## 3.4.4
 
 * Fixes mismatch between Identity ID and User ID when User ID contains a `*` character
