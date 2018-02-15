@@ -46,7 +46,7 @@ class ChannelMessage extends Message {
    * @return {layer.Message.ChannelMessage} this
    */
   sendReceipt(type = Constants.RECEIPT_STATE.READ) {
-    logger.warn('Receipts not supported for Channel Messages yet');
+    logger.warn('Channel: Receipts not supported for Channel Messages yet');
     return this;
   }
 

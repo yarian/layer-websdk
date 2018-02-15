@@ -64,7 +64,7 @@ class MessagesQuery extends Query {
     // Do nothing if we don't have a conversation to query on
     if (!predicateIds) {
       if (this.predicate && !this.predicate.match(/['"]/)) {
-        Logger.error('This query may need to quote its value');
+        Logger.error('Query: This query may need to quote its value');
       }
       return;
     }
@@ -380,7 +380,7 @@ class MessagesQuery extends Query {
       list.forEach((item) => {
         const index = this._getInsertIndex(item, data);
         data.splice(index, 0, item);
-        if (index !== 0) Logger.warn('Index of ' + item.id + ' is ' + index + '; position is ' + item.position + '; compared to ' + data[0].position);
+        if (index !== 0) Logger.warn('Query: Index of ' + item.id + ' is ' + index + '; position is ' + item.position + '; compared to ' + data[0].position);
 
         this.totalSize += 1;
 

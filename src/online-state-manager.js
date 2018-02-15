@@ -102,25 +102,16 @@ class OnlineStateManager extends Root {
    * @method _scheduleNextOnlineCheck
    * @private
    */
-  _scheduleNextOnlineCheck(connectionFailure, callback) {
-    logger.debug('OnlineStateManager: skip schedule');
+  _scheduleNextOnlineCheck() {
     if (this.isDestroyed || !this.isClientReady) return;
 
-    // Replace any scheduled calls with the newly scheduled call:
+    logger.debug('OnlineStateManager: Scheduled next check');
     this._clearCheck();
-
-    // If this is called while we are online, then we are using this to detect when we've gone without data for more than pingFrequency.
-    // Call this._onlineExpired after pingFrequency of no server responses.
-    if (!connectionFailure && this.isOnline) {
-      logger.debug('OnlineStateManager: Scheduled onlineExpired');
-      this.onlineCheckId = setTimeout(this._onlineExpired.bind(this), this.pingFrequency);
-    }
-
-    // If this is called while we are offline, we're doing exponential backoff pinging the server to see if we've come back online.
-    else {
-      logger.info('OnlineStateManager: Scheduled checkOnlineStatus');
+    if (!this.isOnline) {
       const duration = Utils.getExponentialBackoffSeconds(this.maxOfflineWait, Math.min(10, this.offlineCounter++));
-      this.onlineCheckId = setTimeout(this.checkOnlineStatus.bind(this, callback), Math.floor(duration * 1000));
+      this.onlineCheckId = setTimeout(this.checkOnlineStatus.bind(this), Math.floor(duration * 1000));
+    } else {
+      this.onlineCheckId = setTimeout(this._onlineExpired.bind(this), this.pingFrequency);
     }
   }
 
@@ -187,6 +178,7 @@ class OnlineStateManager extends Root {
    */
   checkOnlineStatus(callback) {
     this._clearCheck();
+    if (this.isDestroyed) return;
     const client = this.socketManager.client;
 
     logger.info('OnlineStateManager: Firing XHR for online check');
@@ -215,7 +207,7 @@ class OnlineStateManager extends Root {
     if (this.isOnline) {
       this.isOnline = false;
       this.trigger('disconnected');
-      logger.info('OnlineStateManager: Connection lost');
+      logger.warn('OnlineStateManager: Connection lost');
     }
   }
 
@@ -240,19 +232,24 @@ class OnlineStateManager extends Root {
         this.trigger('connected', { offlineDuration: lastTime ? Date.now() - lastTime : 0 });
         if (this.connectedCounter === undefined) this.connectedCounter = 0;
         this.connectedCounter++;
-        logger.info('OnlineStateManager: Connected restored');
+        // Why is this a "warn"? Because it would be wierd to show only connection lost and not show closure of connection restore at logLevel of WARN
+        logger.warn('OnlineStateManager: Connected restored');
       }
     }
 
     // Else if it was a ping request and it failed, change us directly to offline
     else if (evt.request.url && evt.request.url.indexOf('/ping?') !== -1) {
+      logger.warn('OnlineStateManager: ping failed');
       this._changeToOffline();
+      this._scheduleNextOnlineCheck();
     }
 
     // If it wasn't a ping request, then lets see if our connection failure was caused by lack of connectivity by firing a ping request
     // This insures we don't change state to offline as a result of a CORS error
     else {
-      this._scheduleNextOnlineCheck(!success, (result) => {
+      this._clearCheck();
+      this.checkOnlineStatus((result) => {
+        logger.warn('OnlineStateManager: test to see if failure was CORS or being offline has determined ' + (result ? ' CORS' : ' offline') + ' to be the cause');
         if (!result) this._changeToOffline(false);
       });
     }

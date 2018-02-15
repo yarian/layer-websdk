@@ -60,17 +60,17 @@ class WebsocketChangeManager {
     switch (msg.operation) {
       case 'create':
         logger.info(`Websocket Change Event: Create ${msg.object.type} ${msg.object.id}`);
-        logger.debug(msg.data);
+        logger.debug('Websocket Change Event: ', msg.data);
         this._handleCreate(msg);
         break;
       case 'delete':
         logger.info(`Websocket Change Event: Delete ${msg.object.type} ${msg.object.id}`);
-        logger.debug(msg.data);
+        logger.debug('Websocket Change Event: ', msg.data);
         this._handleDelete(msg);
         break;
       case 'update':
         logger.info(`Websocket Change Event: Patch ${msg.object.type} ${msg.object.id}: ${msg.data.map(op => op.property).join(', ')}`);
-        logger.debug(msg.data);
+        logger.debug('Websocket Change Event: ', msg.data);
         this._handlePatch(msg);
         break;
     }

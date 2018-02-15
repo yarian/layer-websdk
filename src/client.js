@@ -120,7 +120,7 @@ class Client extends ClientAuth {
 
     this.on('online', this._connectionRestored.bind(this));
 
-    logger.info(Util.asciiInit(Client.version));
+    logger.info('Client: ' + Util.asciiInit(Client.version));
   }
 
   /* See parent method docs */
@@ -149,7 +149,7 @@ class Client extends ClientAuth {
     try {
       this._runMixins('cleanup', []);
     } catch (e) {
-      logger.error(e);
+      logger.error('Client: ', e);
     }
 
     if (this.socketManager) this.socketManager.close();
@@ -355,9 +355,9 @@ class Client extends ClientAuth {
         }
         logger.info(`Client Event: ${eventName} ${text}`);
       }
-      if (evt) logger.debug(evt);
+      if (evt) logger.debug('Client Event: ', evt);
     } else {
-      logger.debug(eventName, evt);
+      logger.debug('Client Event: ' + eventName, evt);
     }
   }
 
@@ -462,7 +462,7 @@ class Client extends ClientAuth {
    */
   _connectionRestored(evt) {
     if (evt.reset) {
-      logger.debug('Client Connection Restored; Resetting all Queries');
+      logger.debug('Client: Connection Restored; Resetting all Queries');
       this.dbManager.deleteTables(() => {
         this.dbManager._open();
         Object.keys(this._models.queries).forEach((id) => {
@@ -640,7 +640,7 @@ Client.prototype.telemetryMonitor = null;
  * @static
  * @type {String}
  */
-Client.version = '3.4.4';
+Client.version = '3.4.5';
 
 /**
  * Any  Message that is part of a Query's results are kept in memory for as long as it

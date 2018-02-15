@@ -350,7 +350,7 @@ class MessagePart extends Root {
 
   _sendBody() {
     if (typeof this.body !== 'string') {
-      const err = 'MessagePart.body must be a string in order to send it';
+      const err = 'Message: MessagePart.body must be a string in order to send it';
       logger.error(err, { mimeType: this.mimeType, body: this.body });
       throw new Error(err);
     }
@@ -476,7 +476,7 @@ class MessagePart extends Root {
       } else if (retryCount < MessagePart.MaxRichContentRetryCount) {
         this._processContentResponse(contentResponse, body, client, retryCount + 1);
       } else {
-        logger.error('Failed to upload rich content; triggering message:sent-error event; status of ', uploadResult.status, this);
+        logger.error('Message: Failed to upload rich content; triggering message:sent-error event; status of ', uploadResult.status, this);
         this._getMessage().trigger('messages:sent-error', {
           error: new LayerError({
             message: 'Upload of rich content failed',

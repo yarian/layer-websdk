@@ -1090,7 +1090,7 @@ class ClientAuthenticator extends Root {
       // is still authenticated on the customer's app even if not on Layer.
       if (result.status === 401 && this._wantsToBeAuthenticated) {
         if (this.isAuthenticated) {
-          logger.warn('SESSION EXPIRED!');
+          logger.warn('Client: SESSION EXPIRED!');
           this.isAuthenticated = false;
           this.isReady = false;
           if (global.localStorage) localStorage.removeItem(LOCALSTORAGE_KEYS.SESSIONDATA + this.appId);

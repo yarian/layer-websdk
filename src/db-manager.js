@@ -162,7 +162,7 @@ class DbManager extends Root {
         // Triggered by Firefox private browsing window
         else {
           this._isOpenError = true;
-          logger.warn('Database Unable to Open (common cause: private browsing window)', evt.target.error);
+          logger.warn('DBManager: Unable to Open (common cause: private browsing window)', evt.target.error);
           this.trigger('error', { error: evt });
         }
       };
@@ -178,7 +178,7 @@ class DbManager extends Root {
           this.isOpen = false;
         };
 
-        this.db.onerror = err => logger.error('db-manager Error: ', err);
+        this.db.onerror = err => logger.error('DBManager: Error: ', err);
       };
     }
 
@@ -186,7 +186,7 @@ class DbManager extends Root {
     catch (err) {
       // Safari Private Browsing window will fail on request.onerror
       this._isOpenError = true;
-      logger.error('Database Unable to Open: ', err);
+      logger.error('DBManager: Database Unable to Open: ', err);
       this.trigger('error', { error: err });
     }
   }
@@ -243,7 +243,7 @@ class DbManager extends Root {
       } catch (e) {
         // Noop
         /* istanbul ignore next */
-        logger.error(`Failed to create object store ${tableDef.name}`, e);
+        logger.error(`DBManager: Failed to create object store ${tableDef.name}`, e);
       }
     });
   }
@@ -603,7 +603,7 @@ class DbManager extends Root {
           } catch (e) {
             /* istanbul ignore next */
             // Safari throws an error rather than use the onerror event.
-            logger.error(e);
+            logger.error('DBManager: ', e);
           }
         });
       });
@@ -1281,7 +1281,7 @@ class DbManager extends Root {
       request.onsuccess = request.onerror = callback;
       delete this.db;
     } catch (e) {
-      logger.error('Failed to delete database', e);
+      logger.error('DBManager: Failed to delete database', e);
       if (callback) callback(e);
     }
   }

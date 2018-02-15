@@ -38,38 +38,47 @@ class Logger {
       default:
         op = 'log';
     }
-    if (obj) {
-      if (supportsConsoleFormatting) {
-        console[op](`%cLayer%c ${op.toUpperCase()}%c [${timestamp}]: ${msg}`, LayerCss, `color: ${color}`, Black, obj);
-      } else {
-        console[op](`Layer ${op.toUpperCase()} [${timestamp}]: ${msg}`, obj);
-      }
-    } else if (supportsConsoleFormatting) {
-      console[op](`%cLayer%c ${op.toUpperCase()}%c [${timestamp}]: ${msg}`, LayerCss, `color: ${color}`, Black);
+    if (typeof document !== 'undefined') {
+      window.postMessage({ type: 'layer-log', level: op, timestamp, text: msg, object: obj && obj.toObject ? obj.toObject() : null }, '*');
     } else {
-      console[op](`Layer ${op.toUpperCase()} [${timestamp}]: ${msg}`);
+      // React Native reportedly lacks a document, and throws errors on the second parameter
+      window.postMessage({ type: 'layer-log', level: op, timestamp, text: msg, object: obj && obj.toObject ? obj.toObject() : null });
+    }
+
+    if (this.level >= type) {
+      if (obj) {
+        if (supportsConsoleFormatting) {
+          console[op](`%cLayer%c ${op.toUpperCase()}%c [${timestamp}]: ${msg}`, LayerCss, `color: ${color}`, Black, obj);
+        } else {
+          console[op](`Layer ${op.toUpperCase()} [${timestamp}]: ${msg}`, obj);
+        }
+      } else if (supportsConsoleFormatting) {
+        console[op](`%cLayer%c ${op.toUpperCase()}%c [${timestamp}]: ${msg}`, LayerCss, `color: ${color}`, Black);
+      } else {
+        console[op](`Layer ${op.toUpperCase()} [${timestamp}]: ${msg}`);
+      }
     }
   }
 
 
   debug(msg, obj) {
     /* istanbul ignore next */
-    if (this.level >= DEBUG) this.log(msg, obj, DEBUG, '#888');
+    this.log(msg, obj, DEBUG, '#888');
   }
 
   info(msg, obj) {
     /* istanbul ignore next */
-    if (this.level >= INFO) this.log(msg, obj, INFO, 'black');
+    this.log(msg, obj, INFO, 'black');
   }
 
   warn(msg, obj) {
     /* istanbul ignore next */
-    if (this.level >= WARN) this.log(msg, obj, WARN, 'orange');
+    this.log(msg, obj, WARN, 'orange');
   }
 
   error(msg, obj) {
     /* istanbul ignore next */
-    if (this.level >= ERROR) this.log(msg, obj, ERROR, 'red');
+    this.log(msg, obj, ERROR, 'red');
   }
 }
 

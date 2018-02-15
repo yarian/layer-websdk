@@ -303,7 +303,7 @@ class Conversation extends Container {
       },
     }, (result) => {
       if (!result.success) {
-        logger.error('Mark all as read failed; currently this error is not handled by Layer WebSDK');
+        logger.error('Conversation: Mark all as read failed; currently this error is not handled by Layer WebSDK');
       }
     });
     return this;
