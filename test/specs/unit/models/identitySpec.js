@@ -277,7 +277,7 @@ function deleteTables(done) {
           });
           expect(identity._triggerAsync).toHaveBeenCalledWith("identities:change", {
             property: "metadata",
-            oldValue: null,
+            oldValue: {},
             newValue: {hey: "ho"}
           });
           expect(identity._triggerAsync).toHaveBeenCalledWith("identities:change", {
