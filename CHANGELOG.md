@@ -1,5 +1,9 @@
 # Web SDK Change Log
 
+## 3.4.5
+
+* Fixes bug in `Identity.metadata`; this is now _always_ an Object even when there is no metadata
+
 ## 3.4.4
 
 * Fixes mismatch between Identity ID and User ID when User ID contains a `*` character
