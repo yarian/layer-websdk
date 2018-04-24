@@ -1,5 +1,9 @@
 # Web SDK Change Log
 
+## 3.4.6
+
+* Fixes missed case for release `v3.4.5`
+
 ## 3.4.5
 
 * Fixes bug in `Identity.metadata`; this is now _always_ an Object even when there is no metadata
