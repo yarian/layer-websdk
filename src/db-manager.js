@@ -1277,8 +1277,12 @@ class DbManager extends Root {
    */
   deleteTables(callback = () => {}) {
     try {
-      const request = window.indexedDB.deleteDatabase(this._getDbName());
-      request.onsuccess = request.onerror = callback;
+      if (window.indexedDB) {
+        const request = window.indexedDB.deleteDatabase(this._getDbName());
+        request.onsuccess = request.onerror = callback;
+      } else {
+        callback()
+      }
       delete this.db;
     } catch (e) {
       logger.error('Failed to delete database', e);
